@@ -546,6 +546,12 @@ receiver_loop(void *arg)
 		case MUX_WINDOW:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
 			    MUX_WINDOWHDRSZ - sizeof(mh.type));
+			chan = chan_get(mh.mh_window.id);
+			if (chan->state == CS_ESTABLISHED ||
+			    chan->state == CS_RDCLOSED)
+				chan->sendwin = ntohl(mh.mh_window.window);
+			pthread_mutex_unlock(&chan->lock);
+			pthread_cond_signal(&sender_newwork);
 			break;
 		case MUX_DATA:
 			break;
