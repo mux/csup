@@ -148,13 +148,13 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 	char md5[MD5_DIGEST_SIZE];
 	char cksum[MD5_DIGEST_SIZE];
 	struct diff diff;
-	char *author, *tok, *path, *rcsfile, *revnum, *revdate;
+	char *author, *tag, *tok, *path, *rcsfile, *revnum, *revdate;
 	int error;
 
 	memset(&diff, 0, sizeof(struct diff));
 
 	rcsfile = strsep(&line, " ");
-	strsep(&line, " "); /* XXX - tag */
+	tag = strsep(&line, " ");
 	strsep(&line, " "); /* XXX - date */
 	strsep(&line, " "); /* XXX - orig revnum */
 	strsep(&line, " "); /* XXX - from attic */
@@ -162,11 +162,16 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 	strsep(&line, " "); /* XXX - expand */
 	strsep(&line, " "); /* XXX - attr */
 	tok = strsep(&line, " ");
-	if (rcsfile == NULL || tok == NULL || line != NULL)
+	if (tok == NULL || line != NULL)
 		return (-1);
 	diff.d_rcsfile = strdup(rcsfile);
 	if (diff.d_rcsfile == NULL)
-		return (-1);
+		err(1, "strdup");
+	if (strcmp(tag, ".") != 0) {
+		diff.d_tag = strdup(tag);
+		if (diff.d_tag == NULL)
+			err(1, "strdup");
+	}
 	strlcpy(cksum, tok, sizeof(cksum));
 
 	path = updater_getpath(coll, rcsfile);
@@ -196,7 +201,7 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 		diff.d_author = strdup(author);
 		if (diff.d_cvsroot == NULL || diff.d_revnum == NULL ||
 		    diff.d_revdate == NULL || diff.d_author == NULL)
-			goto bad;
+			err(1, "strdup");
 		lprintf(2, "  Add diff %s %s %s\n", revnum, revdate, author);
 		error = updater_diff_apply(coll, path, rd, &diff);
 		if (error) {

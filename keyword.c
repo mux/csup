@@ -255,11 +255,14 @@ keyword_expand(struct keyword *keyword, struct diff *diff, char *line)
 			*dollar = '\0';
 			*valstart = '\0';
 			*vallim = '\0';
-			asprintf(&newline, "%s$%s: %s $%s", line, keystart,
-			    newval, vallim + 1);
-			if (newline == NULL)
-				err(1, "asprintf");
-			free(newval);
+			if (newval == NULL) {
+				asprintf(&newline, "%s$%s:  $%s", line,
+				    keystart, vallim + 1);
+			} else {
+				asprintf(&newline, "%s$%s: %s $%s", line,
+				    keystart, newval, vallim + 1);
+				free(newval);
+			}
 			return (newline);
 		}
 	}
@@ -291,6 +294,10 @@ tag_free(struct tag *tag)
 	free(tag);
 }
 
+/*
+ * Expand a specific tag and return the new value.  If NULL
+ * is returned, the tag is empty.
+ */
 static char *
 tag_expand(struct tag *tag, struct diff *diff)
 {
@@ -332,6 +339,18 @@ tag_expand(struct tag *tag, struct diff *diff)
 		asprintf(&val, "%s %s %s %s %s", filename, diff->d_revnum,
 		    cvsdate, diff->d_author, diff->d_state);
 		break;
+	case RCSKEY_LOCKER:
+		/*
+		 * Unimplemented even in CVSup sources.  It seems we don't
+		 * even have this information sent by the server.
+		 */
+		return (NULL);
+	case RCSKEY_NAME:
+		if (diff->d_tag != NULL)
+			asprintf(&val, "%s", diff->d_tag);
+		else
+			return (NULL);
+		break;
 	case RCSKEY_RCSFILE:
 		asprintf(&val, "%s", filename);
 		break;
@@ -345,8 +364,10 @@ tag_expand(struct tag *tag, struct diff *diff)
 		asprintf(&val, "%s", diff->d_state);
 		break;
 	default:
-		printf("%s: Implement tag %d expansion.\n", __func__, tag->key);
+		printf("%s: Unexpected tag %d.\n", __func__, tag->key);
 		return (NULL);
 	}
+	if (val == NULL)
+		err(1, "asprintf");
 	return (val);
 }

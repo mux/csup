@@ -39,6 +39,7 @@ struct diff {
 	char *d_revdate;			/* Revision date */
 	char *d_author;				/* Author of the delta */
 	char *d_log;				/* Commit log message */
+	char *d_tag;				/* CVS tag, if any */
 	//intmax_t d_loglines;			/* Number of "Log" lines */
 	char *d_state;				/* State of the branch */
 	struct stream *d_diff;			/* The delta */
