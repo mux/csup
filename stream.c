@@ -76,12 +76,11 @@ buf_new(size_t size)
 	buf = malloc(sizeof(struct buf));
 	if (buf == NULL)
 		return (NULL);
-	buf->buf = malloc(size + 1);	/* Keep room for a final '\0'. */
+	buf->buf = malloc(size);
 	if (buf->buf == NULL) {
 		free(buf);
 		return (NULL);
 	}
-	buf->buf[size] = '\0';
 	buf->size = size;
 	buf->in = 0;
 	buf->off = 0;
@@ -102,11 +101,17 @@ stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 	struct stream *stream;
 
 	stream = malloc(sizeof(struct stream));
-	stream->rdbuf = buf_new(STREAM_BUFSIZ);
+	stream->rdbuf = buf_new(STREAM_BUFSIZ + 1);
 	if (stream->rdbuf == NULL) {
 		free(stream);
 		return (NULL);
 	}
+	/*
+	 * We keep one spare byte in the read buffer so that
+	 * stream_getln() can put a '\0' there in case the stream
+	 * doesn't have an ending newline.
+	 */
+	stream->rdbuf->buf[--stream->rdbuf->size] = '\0';
 	stream->wrbuf = buf_new(STREAM_BUFSIZ);
 	if (stream->wrbuf == NULL) {
 		buf_delete(stream->rdbuf);
