@@ -79,16 +79,15 @@ updater(void *arg)
 		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
-		if (cmd == NULL || coll == NULL || release == NULL ||
-		    line != NULL)
+		if (release == NULL || line != NULL)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0 || strcmp(coll, cur->name) != 0 ||
 		    strcmp(release, cur->release) != 0)
 			goto bad;
 		lprintf(1, "Updating collection %s/%s\n", cur->name,
 		    cur->release);
-		for (;;) {
-			line = stream_getln(rd, NULL);
+			
+		while ((line = stream_getln(rd, NULL)) != NULL) {
 			if (strcmp(line, ".") == 0)
 				break;
 			cmd = strsep(&line, " ");
@@ -109,10 +108,12 @@ updater(void *arg)
 			if (error)
 				goto bad;
 		}
+		if (line == NULL)
+			goto bad;
 	}
 	return (NULL);
 bad:
-	fprintf(stderr, "Updater: Protocol error\n");
+	fprintf(stderr, "Updater: error\n");
 	return (NULL);
 }
 
@@ -178,8 +179,7 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 	}
 
 	lprintf(1, " Edit %s\n", path + strlen(coll->base) + 1);
-	for (;;) {
-		line = stream_getln(rd, NULL);
+	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
 		tok = strsep(&line, " ");
@@ -206,6 +206,8 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 			goto bad;
 		}
 	}
+	if (line == NULL)
+		goto bad;
 	if (MD5file(path, md5) == -1) {
 		printf("%s: MD5file() failed\n", __func__);
 		goto bad;
@@ -232,10 +234,7 @@ updater_diff_apply(struct collection *coll, char *path, struct stream *rd,
 	char *tok, *line;
 	int error;
 
-	for (;;) {
-		line = stream_getln(rd, NULL);
-		if (line == NULL)
-			return (-1);
+	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
 		tok = strsep(&line, " ");
@@ -264,6 +263,8 @@ updater_diff_apply(struct collection *coll, char *path, struct stream *rd,
 			}
 		}
 	}
+	if (line == NULL)
+		return (-1);
 	return (0);
 }
 
