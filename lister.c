@@ -40,12 +40,12 @@ void *
 lister(void *arg)
 {
 	struct config *config;
-	struct collection *cur;
+	struct coll *cur;
 	struct stream *wr;
 
 	config = arg;
 	wr = config->chan0;
-	STAILQ_FOREACH(cur, &config->collections, next) {
+	STAILQ_FOREACH(cur, &config->colls, next) {
 		if (cur->options & CO_SKIP)
 			continue;
 		stream_printf(wr, "COLL %s %s\n", cur->name, cur->release);

@@ -49,22 +49,22 @@
 #include "mux.h"
 #include "stream.h"
 
-static char	*updater_getpath(struct collection *, char *);
+static char	*updater_getpath(struct coll *, char *);
 static int	 updater_makedirs(char *);
 static void	 updater_prunedirs(char *, char *);
-static int	 updater_checkout(struct collection *, struct stream *, char *);
-static int	 updater_delete(struct collection *, char *);
-static int	 updater_diff(struct collection *, struct stream *, char *);
-static int	 updater_diff_apply(struct collection *, char *,
-		     struct stream *, struct diff *);
-static int	 updater_dodiff(struct collection *, char *, struct stream *,
+static int	 updater_checkout(struct coll *, struct stream *, char *);
+static int	 updater_delete(struct coll *, char *);
+static int	 updater_diff(struct coll *, struct stream *, char *);
+static int	 updater_diff_apply(struct coll *, char *, struct stream *,
+		     struct diff *);
+static int	 updater_dodiff(struct coll *, char *, struct stream *,
 		     struct diff *);
 
 void *
 updater(void *arg)
 {
 	struct config *config;
-	struct collection *cur;
+	struct coll *cur;
 	struct stream *rd;
 	char *line, *cmd, *coll, *release;
 	int error;
@@ -72,7 +72,7 @@ updater(void *arg)
 	config = arg;
 	rd = config->chan1;
 	error = 0;
-	STAILQ_FOREACH(cur, &config->collections, next) {
+	STAILQ_FOREACH(cur, &config->colls, next) {
 		if (cur->options & CO_SKIP)
 			continue;
 		umask(cur->umask);
@@ -119,7 +119,7 @@ bad:
 }
 
 static int
-updater_delete(struct collection *coll, char *line)
+updater_delete(struct coll *coll, char *line)
 {
 	char *file, *rcsfile;
 	int error;
@@ -142,7 +142,7 @@ updater_delete(struct collection *coll, char *line)
 }
 
 static int
-updater_diff(struct collection *coll, struct stream *rd, char *line)
+updater_diff(struct coll *coll, struct stream *rd, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
 	struct diff diff;
@@ -235,7 +235,7 @@ bad:
 }
 
 static int
-updater_diff_apply(struct collection *coll, char *path, struct stream *rd,
+updater_diff_apply(struct coll *coll, char *path, struct stream *rd,
     struct diff *diff)
 {
 	char *tok, *line;
@@ -276,7 +276,7 @@ updater_diff_apply(struct collection *coll, char *path, struct stream *rd,
 }
 
 int
-updater_dodiff(struct collection *coll, char *path, struct stream *rd,
+updater_dodiff(struct coll *coll, char *path, struct stream *rd,
     struct diff *diff)
 {
 	struct stream *orig, *to;
@@ -329,7 +329,7 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 }
 
 static int
-updater_checkout(struct collection *coll, struct stream *rd, char *line)
+updater_checkout(struct coll *coll, struct stream *rd, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
 	char *cksum, *cmd, *file, *rcsfile;
@@ -406,7 +406,7 @@ updater_checkout(struct collection *coll, struct stream *rd, char *line)
  * unrelated files for security reasons.
  */
 static char *
-updater_getpath(struct collection *coll, char *rcsfile)
+updater_getpath(struct coll *coll, char *rcsfile)
 {
 	char *cp, *path;
 

@@ -51,7 +51,7 @@ detailer(void *arg)
 	char md5[MD5_DIGEST_SIZE];
 	struct stat sb;
 	struct config *config;
-	struct collection *cur;
+	struct coll *cur;
 	struct stream *rd, *wr;
 	char *cmd, *coll, *file, *line, *release;
 	int error;
@@ -59,7 +59,7 @@ detailer(void *arg)
 	config = arg;
 	rd = config->chan0;
 	wr = config->chan1;
-	STAILQ_FOREACH(cur, &config->collections, next) {
+	STAILQ_FOREACH(cur, &config->colls, next) {
 		if (cur->options & CO_SKIP)
 			continue;
 		chdir(cur->base);

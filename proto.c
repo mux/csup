@@ -260,19 +260,19 @@ cvsup_unescape(char *str)
 static int
 cvsup_xchgcoll(struct config *config)
 {
-	struct collection *cur;
+	struct coll *cur;
 	struct stream *s;
 	char *line, *cmd, *coll, *options, *release, *ident, *rcskey;
 	int error, opts;
 
 	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
-	STAILQ_FOREACH(cur, &config->collections, next)
+	STAILQ_FOREACH(cur, &config->colls, next)
 		stream_printf(s, "COLL %s %s %o %d\n.\n", cur->name,
 		    cur->release, cur->umask, cur->options);
 	stream_printf(s, ".\n");
 	stream_flush(s);
-	STAILQ_FOREACH(cur, &config->collections, next) {
+	STAILQ_FOREACH(cur, &config->colls, next) {
 		if (cur->options & CO_SKIP)
 			continue;
 		line = stream_getln(s, NULL);

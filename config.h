@@ -58,7 +58,7 @@
 /* Options that the server is allowed to clear. */
 #define	CO_SERVMAYCLEAR		CO_CHECKRCS
 
-struct collection {
+struct coll {
 	char *name;
 	char *base;
 	char *colldir;
@@ -70,7 +70,7 @@ struct collection {
 	int options;
 	mode_t umask;
 	struct keyword *keyword;
-	STAILQ_ENTRY(collection) next;
+	STAILQ_ENTRY(coll) next;
 };
 
 struct config {
@@ -78,15 +78,15 @@ struct config {
 	uint16_t port;
 	int socket;
 	struct stream *server;
-	STAILQ_HEAD(, collection) collections;
+	STAILQ_HEAD(, coll) colls;
 	struct fattr_support *supported;
 	struct stream *chan0;
 	struct stream *chan1;
 };
 
 struct config	*config_init(const char *, char *, char *, char *, in_port_t);
-struct collection *coll_new(void);
-void		coll_add(struct collection *, char *);
-void		coll_free(struct collection *);
-void		coll_setdef(struct collection *);
-void		options_set(struct collection *, int, char *);
+struct coll *coll_new(void);
+void		coll_add(struct coll *, char *);
+void		coll_free(struct coll *);
+void		coll_setdef(struct coll *);
+void		coll_setopt(struct coll *, int, char *);

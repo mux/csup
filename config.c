@@ -42,14 +42,14 @@
 #include "parse.h"
 #include "y.tab.h"
 
-static struct collection *coll_alloc(void);
+static struct coll *coll_alloc(void);
 
 extern FILE *yyin;
 
 /* Global variables used in the yacc parser. */
-struct collection *cur_coll;
+struct coll *cur_coll;
 
-static struct collection *defaults;
+static struct coll *defaults;
 static struct config *config;
 
 /*
@@ -60,7 +60,7 @@ struct config *
 config_init(const char *file, char *host, char *base, char *colldir,
     in_port_t port)
 {
-	struct collection *cur;
+	struct coll *cur;
 	mode_t mask;
 	int error, ret;
 
@@ -68,7 +68,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	if (config == NULL)
 		err(1, "malloc");
 	config->host = NULL;
-	STAILQ_INIT(&config->collections);
+	STAILQ_INIT(&config->colls);
 	config->supported = fattr_support();
 
 	defaults = coll_alloc();
@@ -85,16 +85,17 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		exit(1);
 	}
 	error = yyparse();
+	fclose(yyin);
+	if (error)
+		goto bad;
 	/* Override host and/or base if necessary. */
 	if (host) {
-		if (config->host != NULL)
-			free(config->host);
+		free(config->host);
 		config->host = host;
 	}
-	STAILQ_FOREACH(cur, &config->collections, next) {
+	STAILQ_FOREACH(cur, &config->colls, next) {
 		if (base) {
-			if (cur->base != NULL)
-				free(cur->base);
+			free(cur->base);
 			cur->base = base;
 		} else if (cur->base == NULL) {
 			cur->base = strdup("/usr/local/etc/cvsup");
@@ -113,9 +114,14 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			if (cur->prefix == NULL)
 				err(1, "strdup");
 		}
+		if (cur->release == NULL) {
+			fprintf(stderr, "Release not specified for collection "
+			    "\"%s\"\n", cur->name);
+			exit(1);
+		}
 		if (cur->tag == NULL && cur->date == NULL) {
 			fprintf(stderr, "Client only supports checkout mode\n");
-			exit (1);
+			exit(1);
 		}
 		cur->options |= CO_CHECKOUTMODE;
 		if (cur->tag == NULL) {
@@ -132,16 +138,19 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	config->port = port;
 	coll_free(cur_coll);
 	coll_free(defaults);
-	if (error)
-		return (NULL);
 	return (config);
+bad:
+	coll_free(cur_coll);
+	coll_free(defaults);
+	free(config);
+	return (NULL);
 }
 
 /* Create a new collection, inheriting options from the default collection. */
-struct collection *
+struct coll *
 coll_new(void)
 {
-	struct collection *new;
+	struct coll *new;
 
 	new = coll_alloc();
 	new->options = defaults->options;
@@ -170,15 +179,15 @@ coll_new(void)
 }
 
 void
-coll_add(struct collection *coll, char *name)
+coll_add(struct coll *coll, char *name)
 {
 
 	coll->name = name;
-	STAILQ_INSERT_TAIL(&config->collections, coll, next);
+	STAILQ_INSERT_TAIL(&config->colls, coll, next);
 }
 
 void
-coll_free(struct collection *coll)
+coll_free(struct coll *coll)
 {
 
 	free(coll->base);
@@ -190,11 +199,11 @@ coll_free(struct collection *coll)
 }
 
 void
-options_set(struct collection *coll, int opt, char *value)
+coll_setopt(struct coll *coll, int opt, char *value)
 {
 
 	switch (opt) {
-	case HOST:
+	case HOST:	/* XXX Move this out. */
 		if (config->host != NULL) {
 			fprintf(stderr, "All \"host\" fields in the supfile "
 			    "must be the same\n");
@@ -203,28 +212,23 @@ options_set(struct collection *coll, int opt, char *value)
 		config->host = value;
 		break;
 	case BASE:
-		if (coll->base != NULL)
-			free(coll->base);
+		free(coll->base);
 		coll->base = value;
 		break;
 	case DATE:
-		if (coll->date != NULL)
-			free(coll->date);
+		free(coll->date);
 		coll->date = value;
 		break;
 	case PREFIX:
-		if (coll->prefix != NULL)
-			free(coll->base);
+		free(coll->base);
 		coll->prefix = value;
 		break;
 	case RELEASE:
-		if (coll->release != NULL)
-			free(coll->release);
+		free(coll->release);
 		coll->release = value;
 		break;
 	case TAG:
-		if (coll->tag != NULL)
-			free(coll->tag);
+		free(coll->tag);
 		coll->tag = value;
 		break;
 	case UMASK:
@@ -247,7 +251,7 @@ options_set(struct collection *coll, int opt, char *value)
 
 /* Set "coll" as being the default collection. */
 void
-coll_setdef(struct collection *coll)
+coll_setdef(struct coll *coll)
 {
 
 	coll_free(defaults);
@@ -255,12 +259,12 @@ coll_setdef(struct collection *coll)
 }
 
 /* Allocate a zero'ed collection structure. */
-static struct collection *
+static struct coll *
 coll_alloc(void)
 {
-	struct collection *new;
+	struct coll *new;
 
-	new = malloc(sizeof(struct collection));
+	new = malloc(sizeof(struct coll));
 	if (new == NULL)
 		err(1, "malloc");
 	memset(new, 0, sizeof(*new));
