@@ -127,8 +127,8 @@ detailer(void *arg)
 	stream_close(rd);
 	return (NULL);
 bad:
+	lprintf(-1, "Detailer: Protocol error\n");
 	stream_close(wr);
 	stream_close(rd);
-	lprintf(-1, "Detailer: Protocol error\n");
 	return (NULL);
 }
