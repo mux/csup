@@ -26,8 +26,9 @@
  * $FreeBSD$
  */
 
-int	mux_open(int);
-int	mux_listen(void);
+int	chan_open(int);
+int	chan_listen(void);
+int	chan_accept(int);
 size_t	chan_read(int, void *, size_t);
 void	chan_write(int, const void *, size_t);
 int	chan_printf(int, const char *, ...);

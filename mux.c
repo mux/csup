@@ -258,8 +258,12 @@ sock_readwait(int s, void *buf, size_t size)
 	return (0);
 }
 
+/*
+ * Initialize the multiplexer, create a new channel, connect it
+ * and return its ID.  This is only called once.
+ */
 int
-mux_open(int s)
+chan_open(int s)
 {
 	int id;
 
@@ -269,6 +273,189 @@ mux_open(int s)
 	pthread_cond_init(&sender_newwork, NULL);
 	id = mux_initproto(s);
 	return (id);
+}
+
+/* Returns the ID of an available channel in the listening state. */
+int
+chan_listen(void)
+{
+	struct chan *chan;
+	int i;
+
+	pthread_mutex_lock(&mux_lock);
+	for (i = 0; i < nchans; i++) {
+		chan = chans[i];
+		pthread_mutex_lock(&chan->lock);
+		if (chan->state == CS_UNUSED) {
+			chan->state = CS_LISTENING;
+			pthread_mutex_unlock(&chan->lock);
+			pthread_mutex_unlock(&mux_lock);
+			return (i);
+		}
+		pthread_mutex_unlock(&chan->lock);
+	}
+	pthread_mutex_unlock(&mux_lock);
+	chan = chan_new();
+	chan->state = CS_LISTENING;
+	i = chan_insert(chan);
+	return (i);
+}
+
+int
+chan_accept(int id)
+{
+	struct chan *chan;
+	int ok;
+
+	chan = chan_get(id);
+	while (chan->state == CS_LISTENING)
+		pthread_cond_wait(&chan->rdready, &chan->lock);
+	ok = (chan->state != CS_ESTABLISHED);
+	pthread_mutex_unlock(&chan->lock);
+	return (ok);
+}
+
+/* Read bytes from a channel. */
+size_t
+chan_read(int id, void *buf, size_t size)
+{
+	struct chan *chan;
+	char *cp;
+	size_t count, n;
+
+	cp = buf;
+	chan = chan_get(id);
+	while ((count = buf_count(chan->recvbuf)) == 0)
+		pthread_cond_wait(&chan->rdready, &chan->lock);
+	n = min(count, size);
+	buf_get(chan->recvbuf, cp, n);
+	chan->recvseq += n;
+	chan->flags |= CF_WINDOW;
+	pthread_mutex_unlock(&chan->lock);
+	/* We need to wake up the sender so that it sends a window update. */
+	pthread_cond_signal(&sender_newwork);
+	return (n);
+}
+
+/* Write bytes to a channel. */
+void
+chan_write(int id, const void *buf, size_t size)
+{
+	struct chan *chan;
+	const char *cp;
+	size_t avail, n, pos;
+
+	pos = 0;
+	cp = buf;
+	chan = chan_get(id);
+	while (pos < size) {
+		while ((avail = buf_avail(chan->sendbuf)) == 0)
+			pthread_cond_wait(&chan->wrready, &chan->lock);
+		n = min(avail, size - pos);
+		buf_put(chan->sendbuf, cp + pos, n);
+		pos += n;
+	}
+	pthread_mutex_unlock(&chan->lock);
+	pthread_cond_signal(&sender_newwork);
+}
+
+int
+chan_printf(int id, const char *fmt, ...)
+{
+	char *buf;
+	va_list ap;
+	int ret;
+
+	va_start(ap, fmt);
+	ret = vasprintf(&buf, fmt, ap);
+	va_end(ap);
+	if (ret == -1)
+		return (-1);
+	chan_write(id, buf, ret);
+	free(buf);
+	return (ret);
+}
+
+/* 
+ * Internal channel API.
+ */
+static int
+chan_connect(int id)
+{
+	struct chan *chan;
+	int ok;
+
+	chan = chan_get(id);
+	chan->state = CS_CONNECTING;
+	chan->flags &= CF_CONNECT;
+	pthread_cond_signal(&sender_newwork);
+	while (chan->state == CS_CONNECTING)
+		pthread_cond_wait(&chan->wrready, &chan->lock);
+	ok = (chan->state != CS_ESTABLISHED);
+	pthread_mutex_unlock(&chan->lock);
+	return (ok);
+}
+
+/*
+ * Get a channel from its ID.  The channel is returned locked.
+ */
+static struct chan *
+chan_get(int id)
+{
+	struct chan *chan;
+
+	pthread_mutex_lock(&mux_lock);
+	chan = chans[id];
+	if (chan != NULL)
+		pthread_mutex_lock(&chan->lock);
+	pthread_mutex_unlock(&mux_lock);
+	return (chan);
+}
+
+/*
+ * Create a new channel.
+ */
+static struct chan *
+chan_new(void)
+{
+	struct chan *chan;
+
+	chan = malloc(sizeof(struct chan));
+	if (chan == NULL)
+		return (NULL);
+	chan->state = CS_UNUSED;
+	chan->sendbuf = buf_new(CHAN_SBSIZE);
+	chan->sendseq = 0;
+	chan->sendwin = 0;
+	chan->sendmss = 0;
+	chan->recvbuf = buf_new(CHAN_RBSIZE);
+	chan->recvseq = 0;
+	chan->recvmss = CHAN_MAXSEGSIZE;
+	pthread_mutex_init(&chan->lock, NULL);
+	pthread_cond_init(&chan->rdready, NULL);
+	pthread_cond_init(&chan->wrready, NULL);
+	return (chan);
+}
+
+/* Insert the new channel in the channel list and return its ID. */
+static int
+chan_insert(struct chan *chan)
+{
+	int i;
+
+	pthread_mutex_lock(&mux_lock);
+	for (i = 0; i < MUX_MAXCHAN; i++) {
+		if (chans[i] == NULL) {
+			chans[i] = chan;
+			nchans++;
+			pthread_mutex_unlock(&mux_lock);
+			return (i);
+		}
+	}
+#ifndef NDEBUG
+	abort();
+#endif
+	return (-1);
 }
 
 /*
@@ -302,34 +489,6 @@ mux_initproto(int s)
 	if (error)
 		return (-1);
 	return (id);
-}
-
-/*
- * Returns the ID of an available channel in the listening state.
- */
-int
-mux_listen(void)
-{
-	struct chan *chan;
-	int i;
-
-	pthread_mutex_lock(&mux_lock);
-	for (i = 0; i < nchans; i++) {
-		chan = chans[i];
-		pthread_mutex_lock(&chan->lock);
-		if (chan->state == CS_UNUSED) {
-			chan->state = CS_LISTENING;
-			pthread_mutex_unlock(&chan->lock);
-			pthread_mutex_unlock(&mux_lock);
-			return (i);
-		}
-		pthread_mutex_unlock(&chan->lock);
-	}
-	pthread_mutex_unlock(&mux_lock);
-	chan = chan_new();
-	chan->state = CS_LISTENING;
-	i = chan_insert(chan);
-	return (i);
 }
 
 static void *
@@ -580,6 +739,10 @@ receiver_loop(void *arg)
 	}
 	return (NULL);
 }
+
+/*
+ * Circular buffers API.
+ */
  
 static struct buf *
 buf_new(size_t size)
@@ -668,144 +831,4 @@ buf_get(struct buf *buf, void *data, size_t size)
 	buf->out += size;
 	if (size >= buf->size)
 		buf->out -= buf->size;
-}
-
-/* Read bytes from a channel. */
-size_t
-chan_read(int id, void *buf, size_t size)
-{
-	struct chan *chan;
-	char *cp;
-	size_t count, n;
-
-	cp = buf;
-	chan = chan_get(id);
-	while ((count = buf_count(chan->recvbuf)) == 0)
-		pthread_cond_wait(&chan->rdready, &chan->lock);
-	n = min(count, size);
-	buf_get(chan->recvbuf, cp, n);
-	chan->recvseq += n;
-	chan->flags |= CF_WINDOW;
-	pthread_mutex_unlock(&chan->lock);
-	/* We need to wake up the sender so that it sends a window update. */
-	pthread_cond_signal(&sender_newwork);
-	return (n);
-}
-
-/* Write bytes to a channel. */
-void
-chan_write(int id, const void *buf, size_t size)
-{
-	struct chan *chan;
-	const char *cp;
-	size_t avail, n, pos;
-
-	pos = 0;
-	cp = buf;
-	chan = chan_get(id);
-	while (pos < size) {
-		while ((avail = buf_avail(chan->sendbuf)) == 0)
-			pthread_cond_wait(&chan->wrready, &chan->lock);
-		n = min(avail, size - pos);
-		buf_put(chan->sendbuf, cp + pos, n);
-		pos += n;
-	}
-	pthread_mutex_unlock(&chan->lock);
-	pthread_cond_signal(&sender_newwork);
-}
-
-int
-chan_printf(int id, const char *fmt, ...)
-{
-	char *buf;
-	va_list ap;
-	int ret;
-
-	va_start(ap, fmt);
-	ret = vasprintf(&buf, fmt, ap);
-	va_end(ap);
-	if (ret == -1)
-		return (-1);
-	chan_write(id, buf, ret);
-	free(buf);
-	return (ret);
-}
-
-/*
- * Get a channel from its ID.  The channel is returned locked.
- */
-static struct chan *
-chan_get(int id)
-{
-	struct chan *chan;
-
-	pthread_mutex_lock(&mux_lock);
-	chan = chans[id];
-	if (chan != NULL)
-		pthread_mutex_lock(&chan->lock);
-	pthread_mutex_unlock(&mux_lock);
-	return (chan);
-}
-
-/*
- * Create a new channel.
- */
-static struct chan *
-chan_new(void)
-{
-	struct chan *chan;
-
-	chan = malloc(sizeof(struct chan));
-	if (chan == NULL)
-		return (NULL);
-	chan->state = CS_UNUSED;
-	chan->sendbuf = buf_new(CHAN_SBSIZE);
-	chan->sendseq = 0;
-	chan->sendwin = 0;
-	chan->sendmss = 0;
-	chan->recvbuf = buf_new(CHAN_RBSIZE);
-	chan->recvseq = 0;
-	chan->recvmss = CHAN_MAXSEGSIZE;
-	pthread_mutex_init(&chan->lock, NULL);
-	pthread_cond_init(&chan->rdready, NULL);
-	pthread_cond_init(&chan->wrready, NULL);
-	return (chan);
-}
-
-/* Insert the new channel in the channel list and return its ID. */
-static int
-chan_insert(struct chan *chan)
-{
-	int i;
-
-	pthread_mutex_lock(&mux_lock);
-	for (i = 0; i < MUX_MAXCHAN; i++) {
-		if (chans[i] == NULL) {
-			chans[i] = chan;
-			nchans++;
-			pthread_mutex_unlock(&mux_lock);
-			return (i);
-		}
-	}
-#ifndef NDEBUG
-	abort();
-#endif
-	return (-1);
-}
-
-static int
-chan_connect(int id)
-{
-	struct chan *chan;
-	int ok;
-
-	chan = chan_get(id);
-	chan->state = CS_CONNECTING;
-	chan->flags &= CF_CONNECT;
-	pthread_cond_signal(&sender_newwork);
-	while (chan->state == CS_CONNECTING)
-		pthread_cond_wait(&chan->wrready, &chan->lock);
-	ok = (chan->state != CS_ESTABLISHED);
-	pthread_mutex_unlock(&chan->lock);
-	return (ok);
 }

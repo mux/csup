@@ -295,13 +295,20 @@ static int
 cvsup_mux(FILE *f)
 {
 	int chan0, chan1;
+	int error;
 
 	lprintf(2, "Establishing multiplexed-mode data connection\n");
 	fprintf(f, "MUX\n");
 	fflush(f);
-	chan0 = mux_open(fileno(f));
-	chan1 = mux_listen();
+	chan0 = chan_open(fileno(f));
+	chan1 = chan_listen();
 	chan_printf(chan0, "CHAN %d\n", chan1);
+	error = chan_accept(chan1);
+	if (error) {
+		/* XXX - Sync error message with CVSup. */
+		fprintf(stderr, "Accept failed for chan %d\n", chan1);
+		return (-1);
+	}
 	sleep(60 * 60);
 	return (0);
 }
