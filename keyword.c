@@ -345,7 +345,7 @@ tag_expand(struct tag *tag, struct diff *diff)
 		 */
 		return (NULL);
 	case RCSKEY_LOG:
-		printf("%s: Implement $Log$ expansion\n", __func__);
+		printf("%s: Implement \$Log\$ keyword expansion\n", __func__);
 		return (NULL);
 	case RCSKEY_NAME:
 		if (diff->d_tag != NULL)
