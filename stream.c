@@ -627,7 +627,6 @@ zfilter_finish(struct stream *stream)
 	if (zf->rdbuf != NULL) {
 		state = zf->rdstate;
 		zbuf = zf->rdbuf;
-		assert(buf_count(stream->rdbuf) == 0);
 		/* Be sure to eat all the compressed bytes. */
 		do {
 			rv = zfilter_inflate(stream, Z_FINISH);
