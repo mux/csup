@@ -82,6 +82,8 @@ struct fattr;
 struct fattr		*fattr_fromstat(struct stat *);
 struct fattr		*fattr_decode(char *);
 struct fattr		*fattr_forcheckout(struct fattr *, mode_t);
+struct fattr		*fattr_dup(struct fattr *);
+void			 fattr_maskout(struct fattr *, int);
 void			 fattr_merge(struct fattr *, struct fattr *);
 void			 fattr_override(struct fattr *, struct fattr *, int);
 int			 fattr_cmp(struct fattr *, struct fattr *);

@@ -146,34 +146,49 @@ fattr_decode(char *attr)
 		fa->mask |= FA_FILETYPE;
 		fa->type = FT_UNKNOWN;
 	}
-	if (fa->mask & FA_MODTIME) {
+	if (fa->mask & FA_MODTIME)
 		next = fattr_scanattr(fa, FA_MODTIME, next);
-		if (next == NULL)
-			goto bad;
-	}
-	if (fa->mask & FA_SIZE) {
+	if (fa->mask & FA_SIZE)
 		next = fattr_scanattr(fa, FA_SIZE, next);
-		if (next == NULL)
-			goto bad;
-	}
-	if (fa->mask & FA_MODE) {
+	if (fa->mask & FA_LINKTARGET)
+		next = fattr_scanattr(fa, FA_LINKTARGET, next);
+	if (fa->mask & FA_RDEV)
+		next = fattr_scanattr(fa, FA_RDEV, next);
+	if (fa->mask & FA_OWNER)
+		next = fattr_scanattr(fa, FA_OWNER, next);
+	if (fa->mask & FA_GROUP)
+	    next = fattr_scanattr(fa, FA_GROUP, next);
+	if (fa->mask & FA_MODE)
 		next = fattr_scanattr(fa, FA_MODE, next);
-		if (next == NULL)
-			goto bad;
-	}
+	if (fa->mask & FA_FLAGS)
+		next = fattr_scanattr(fa, FA_FLAGS, next);
 	if (fa->mask & FA_LINKCOUNT) {
 		next = fattr_scanattr(fa, FA_LINKCOUNT, next);
-		if (next == NULL)
-			goto bad;
 	} else if (fattr_supported(fa->type) & FA_LINKCOUNT) {
 		/* If the link count is missing but supported, fake it as 1. */
 		fa->mask |= FA_LINKCOUNT;
 		fa->linkcount = 1;
 	}
+	if (fa->mask & FA_DEV)
+		next = fattr_scanattr(fa, FA_DEV, next);
+	if (fa->mask & FA_INODE)
+		next = fattr_scanattr(fa, FA_INODE, next);
+	if (next == NULL || *next != '\0')
+		goto bad;
 	return (fa);
 bad:
 	fattr_free(fa);
 	return (NULL);
+}
+
+struct fattr *
+fattr_dup(struct fattr *from)
+{
+	struct fattr *fa;
+
+	fa = fattr_new();
+	fattr_override(fa, from, FA_MASK);
+	return (fa);
 }
 
 void
@@ -184,16 +199,16 @@ fattr_free(struct fattr *fa)
 	free(fa);
 }
 
-static struct fattr *
-fattr_new(void)
+void
+fattr_maskout(struct fattr *fa, int mask)
 {
-	struct fattr *new;
 
-	new = malloc(sizeof(struct fattr));
-	if (new == NULL)
-		err(1, "malloc");
-	memset(new, 0, sizeof(struct fattr));
-	return (new);
+	/* Don't forget to free() the linktarget attribute if we remove it. */
+	if (mask & FA_LINKTARGET && fa->mask & FA_LINKTARGET) {
+		free(fa->linktarget);
+		fa->linktarget = NULL;
+	}
+	fa->mask &= ~mask;
 }
 
 /*
@@ -215,6 +230,8 @@ fattr_scanattr(struct fattr *fa, int type, char *attr)
 	int modemask;
 	char tmp;
 
+	if (attr == NULL)
+		return (NULL);
 	errno = 0;
 	attrlen = strtoul(attr, &end, 10);
 	if (errno || *end != '#')
@@ -426,4 +443,16 @@ fattr_cmp(struct fattr *fa1, struct fattr *fa2)
 		if (fa1->inode != fa2->inode)
 			return (-1);
 	return (0);
+}
+
+static struct fattr *
+fattr_new(void)
+{
+	struct fattr *new;
+
+	new = malloc(sizeof(struct fattr));
+	if (new == NULL)
+		err(1, "malloc");
+	memset(new, 0, sizeof(struct fattr));
+	return (new);
 }
