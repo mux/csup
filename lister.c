@@ -38,16 +38,16 @@ lister(void *arg)
 {
 	struct config *config;
 	struct collection *cur;
-	int id;
+	int wr;
 
 	config = arg;
-	id = config->chan0;
+	wr = config->chan0;
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
-		chan_printf(id, "COLL %s %s\n", cur->name, cur->release);
-		chan_printf(id, ".\n");
+		chan_printf(wr, "COLL %s %s\n", cur->name, cur->release);
+		chan_printf(wr, ".\n");
 	}
-	chan_printf(id, ".\n");
+	chan_printf(wr, ".\n");
 	return (NULL);
 }

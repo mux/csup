@@ -55,25 +55,25 @@ detailer(void *arg)
 	struct collection *cur;
 	char *tok, *line;
 	size_t in, off;
-	int rdchan, wrchan, error;
+	int rd, wr, error;
 
 	config = arg;
-	rdchan = config->chan0;
-	wrchan = config->chan1;
+	rd = config->chan0;
+	wr = config->chan1;
 	in = off = 0;
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
 		chdir(cur->base);
-		line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
+		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
 		tok = strsep(&line, " ");
 		assert(strcmp(tok, "COLL") == 0);
 		tok = strsep(&line, " ");
 		assert(strcmp(tok, cur->name) == 0);
 		assert(line != NULL);
-		chan_printf(wrchan, "COLL %s %s\n", cur->name, cur->release);
+		chan_printf(wr, "COLL %s %s\n", cur->name, cur->release);
 		for (;;) {
-			line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
+			line = chan_getln(rd, buf, sizeof(buf), &in, &off);
 			if (strcmp(line, ".") == 0)
 				break;
 			assert(line != NULL);
@@ -83,16 +83,16 @@ detailer(void *arg)
 			tok[strlen(tok) - 2] = '\0';
 			error = stat(tok, &sb);
 			if (!error && MD5File(tok, md5) != NULL)
-				chan_printf(wrchan, "S %s,v %s %s %s\n", tok,
+				chan_printf(wr, "S %s,v %s %s %s\n", tok,
 				    cur->tag, cur->date, md5);
 			else
-				chan_printf(wrchan, "C %s,v %s %s\n", tok,
+				chan_printf(wr, "C %s,v %s %s\n", tok,
 				    cur->tag, cur->date);
 		}
-		chan_printf(wrchan, ".\n");
+		chan_printf(wr, ".\n");
 	}
-	line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
+	line = chan_getln(rd, buf, sizeof(buf), &in, &off);
 	assert(strcmp(line, ".") == 0);
-	chan_printf(wrchan, ".\n");
+	chan_printf(wr, ".\n");
 	return (NULL);
 }
