@@ -271,8 +271,10 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 			goto bad;
 		up.to = stream_open_file(topath, O_RDWR | O_CREAT | O_EXCL,
 		    0600);
-		if (up.to == NULL)
+		if (up.to == NULL) {
+			perror("Cannot create temporary file");
 			goto bad;
+		}
 		lprintf(2, "  Add delta %s %s %s\n", revnum, revdate, author);
 		error = updater_diff_batch(&up);
 		if (error) {
@@ -330,7 +332,7 @@ updater_diff_batch(struct update *up)
 			goto bad;
 		if (strcmp(tok, "L") == 0) {
 			line = stream_getln(rd, NULL);
-			/* We're just eating the log for now. */
+			/* XXX - We're just eating the log for now. */
 			while (line != NULL && strcmp(line, ".") != 0 &&
 			    strcmp(line, ".+") != 0)
 				line = stream_getln(rd, NULL);
@@ -367,6 +369,7 @@ updater_diff_apply(struct update *up)
 	struct diff diff;
 	int error;
 
+	/* XXX - This is stupid, both structs should be merged. */
 	diff.d_orig = up->from;
 	diff.d_to = up->to;
 	diff.d_diff = up->stream;
