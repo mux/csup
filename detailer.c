@@ -43,36 +43,34 @@
 #include "mux.h"
 #include "stream.h"
 
-#define	LINE_MAX	4096
-
 void *
 detailer(void *arg)
 {
 	char md5[MD5_DIGEST_SIZE];
 	struct stat sb;
 	struct config *config;
-	struct coll *cur;
+	struct coll *coll;
 	struct stream *rd, *wr;
-	char *cmd, *coll, *file, *line, *release;
+	char *cmd, *collname, *file, *line, *release;
 	int error;
 
 	config = arg;
 	rd = config->chan0;
 	wr = config->chan1;
-	STAILQ_FOREACH(cur, &config->colls, co_next) {
-		if (cur->co_options & CO_SKIP)
+	STAILQ_FOREACH(coll, &config->colls, co_next) {
+		if (coll->co_options & CO_SKIP)
 			continue;
-		chdir(cur->co_base);
+		chdir(coll->co_base);
 		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
-		coll = strsep(&line, " ");
+		collname = strsep(&line, " ");
 		release = strsep(&line, " ");
 		if (release == NULL || strcmp(cmd, "COLL") != 0 ||
-		    strcmp(coll, cur->co_name) != 0 ||
-		    strcmp(release, cur->co_release) != 0)
+		    strcmp(collname, coll->co_name) != 0 ||
+		    strcmp(release, coll->co_release) != 0)
 			goto bad;
-		stream_printf(wr, "COLL %s %s\n", cur->co_name,
-		    cur->co_release);
+		stream_printf(wr, "COLL %s %s\n", coll->co_name,
+		    coll->co_release);
 		line = stream_getln(rd, NULL);
 		if (line == NULL)
 			goto bad;
@@ -86,10 +84,10 @@ detailer(void *arg)
 			error = stat(file, &sb);
 			if (!error && MD5file(file, md5) == 0)
 				stream_printf(wr, "S %s,v %s %s %s\n", file,
-				    cur->co_tag, cur->co_date, md5);
+				    coll->co_tag, coll->co_date, md5);
 			else
 				stream_printf(wr, "C %s,v %s %s\n", file,
-				    cur->co_tag, cur->co_date);
+				    coll->co_tag, coll->co_date);
 			stream_flush(wr);
 			line = stream_getln(rd, NULL);
 			if (line == NULL)
@@ -105,11 +103,11 @@ detailer(void *arg)
 	stream_flush(wr);
 
 	/* Now send fixups if needed. */
-	STAILQ_FOREACH(cur, &config->colls, co_next) {
-		if (cur->co_options & CO_SKIP)
+	STAILQ_FOREACH(coll, &config->colls, co_next) {
+		if (coll->co_options & CO_SKIP)
 			continue;
-		stream_printf(wr, "COLL %s %s\n", cur->co_name,
-		    cur->co_release);
+		stream_printf(wr, "COLL %s %s\n", coll->co_name,
+		    coll->co_release);
 		stream_printf(wr, ".\n");
 		stream_flush(wr);
 	}
