@@ -33,7 +33,9 @@
 #include <err.h>
 #include <errno.h>
 #include <pwd.h>
+#if 0
 #include <stdio.h>	/* XXX - Only used by debug function fattr_printf(). */
+#endif
 #include <stdlib.h>
 #include <string.h>
 
