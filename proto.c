@@ -58,7 +58,7 @@
 
 #define	PROTO_MAJ	17
 #define	PROTO_MIN	0
-#define	PROTO_SWVER	"Csup_0.1"
+#define	PROTO_SWVER	"CSUP_0_1"
 
 static int	cvsup_greet(struct config *);
 static int	cvsup_negproto(struct config *);
