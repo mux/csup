@@ -48,6 +48,72 @@ __FBSDID("$FreeBSD$");
 
 #define	min(a, b)	((a) > (b) ? (b) : (a))
 
+/*
+ * Packet types.
+ */
+#define	MUX_STARTUPREQ	0
+#define	MUX_STARTUPREP	1
+#define	MUX_CONNECT	2			
+#define	MUX_ACCEPT	3
+#define	MUX_RESET	4
+#define	MUX_DATA	5
+#define	MUX_WINDOW	6
+#define	MUX_CLOSE	7
+
+/*
+ * Defines for header sizes.
+ */
+#define	MUX_STARTUPHDRSZ	3
+#define	MUX_CONNECTHDRSZ	8
+#define	MUX_ACCEPTHDRSZ		8
+#define	MUX_RESETHDRSZ		2
+#define	MUX_DATAHDRSZ		4
+#define	MUX_WINDOWHDRSZ		6
+#define	MUX_CLOSEHDRSZ		2
+
+#define	MUX_PROTOVER	0			/* Protocol version. */
+
+struct mux_header {
+	uint8_t type;
+	union {
+		struct {
+			uint16_t version;
+		} __packed mh_startup;
+		struct {
+			uint8_t id;
+			uint16_t mss;
+			uint32_t window;
+		} __packed mh_connect;
+		struct {
+			uint8_t id;
+			uint16_t mss;
+			uint32_t window;
+		} __packed mh_accept;
+		struct {
+			uint8_t id;
+		} __packed mh_reset;
+		struct {
+			uint8_t id;
+			uint16_t len;
+		} __packed mh_data;
+		struct {
+			uint8_t id;
+			uint32_t window;
+		} __packed mh_window;
+		struct {
+			uint8_t id;
+		} __packed mh_close;
+	} mh_u;
+} __packed;
+
+#define	mh_startup	mh_u.mh_startup
+#define	mh_connect	mh_u.mh_connect
+#define	mh_accept	mh_u.mh_accept
+#define	mh_reset	mh_u.mh_reset
+#define	mh_data		mh_u.mh_data
+#define	mh_window	mh_u.mh_window
+#define	mh_close	mh_u.mh_close
+
 #define	MUX_MAXCHAN	2
 
 /* Channel states. */
@@ -442,11 +508,11 @@ receiver_loop(void *arg)
 	if (error)
 		abort();
 	for (;;) {
-		error = sock_readwait(s, &mh.type, 1);
+		error = sock_readwait(s, &mh.type, sizeof(mh.type));
 		switch (mh.type) {
 		case MUX_CONNECT:
-			error = sock_readwait(s, &mh.mh_accept.id,
-			    MUX_CONNECTHDRSZ - 1);
+			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			    MUX_CONNECTHDRSZ - sizeof(mh.type));
 			chan = chan_get(mh.mh_connect.id);
 			if (chan->state == CS_LISTENING) {
 				chan->state = CS_ESTABLISHED;
@@ -460,23 +526,26 @@ receiver_loop(void *arg)
 			pthread_cond_signal(&sender_newwork);
 			break;
 		case MUX_ACCEPT:
-			error = sock_readwait(s, &mh.mh_accept.id,
-			    MUX_ACCEPTHDRSZ - 1);
+			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			    MUX_ACCEPTHDRSZ - sizeof(mh.type));
 			chan = chan_get(mh.mh_accept.id);
-			if (chan->state != CS_CONNECTING) {
+			if (chan->state == CS_CONNECTING) {
+				chan->sendmss = ntohs(mh.mh_accept.mss);
+				chan->sendwin = ntohl(mh.mh_accept.window);
+				chan->state = CS_ESTABLISHED;
+				pthread_mutex_unlock(&chan->lock);
+				pthread_cond_broadcast(&chan->wrready);
+			} else {
 				chan->flags |= CF_RESET;
 				pthread_mutex_unlock(&chan->lock);
-				continue;
+				pthread_cond_signal(&sender_newwork);
 			}
-			chan->sendmss = ntohs(mh.mh_accept.mss);
-			chan->sendwin = ntohl(mh.mh_accept.window);
-			chan->state = CS_ESTABLISHED;
-			pthread_cond_broadcast(&chan->wrready);
-			pthread_mutex_unlock(&chan->lock);
 			break;
 		case MUX_RESET:
 			break;
 		case MUX_WINDOW:
+			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			    MUX_WINDOWHDRSZ - sizeof(mh.type));
 			break;
 		case MUX_DATA:
 			break;
