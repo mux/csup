@@ -467,15 +467,14 @@ updater_makedirs(char *path)
 static void
 updater_prunedirs(char *base, char *file)
 {
-	char *cp, *path;
+	char *cp;
 	int error;
 
 	while ((cp = strrchr(file, '/')) != NULL) {
+		if (strcmp(base, file) == 0)
+			return;
 		*cp = '\0';
-		asprintf(&path, "%s/%s", base, file);
-		if (path == NULL)
-			err(1, "asprintf");
-		error = rmdir(path);
+		error = rmdir(file);
 		if (error) {
 			if (errno != ENOTEMPTY)
 				err(1, "rmdir");
