@@ -393,11 +393,10 @@ stream_flush_buf(struct stream *stream, struct buf *buf)
 	ssize_t n;
 
 	while (buf_count(buf) > 0) {
-again:
-		n = (*stream->writefn)(stream->id, buf->buf + buf->off,
-		    buf_count(buf));
-		if (n == -1 && errno == EINTR)
-			goto again;
+		do {
+			n = (*stream->writefn)(stream->id, buf->buf + buf->off,
+			    buf_count(buf));
+		} while (n == -1 && errno == EINTR);
 		if (n <= 0)
 			return (-1);
 		buf_less(buf, n);
