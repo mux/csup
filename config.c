@@ -46,9 +46,11 @@ static struct coll *coll_alloc(void);
 
 extern FILE *yyin;
 
+/* These are globals because I can't think of a better way with yacc. */
 static struct coll *cur_coll;
 static struct coll *defaults;
 static struct config *config;
+static const char *cfgfile;
 
 /*
  * Extract all the configuration information from the config
@@ -97,6 +99,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		    strerror(errno));
 		exit(1);
 	}
+	cfgfile = file;
 	error = yyparse();
 	fclose(yyin);
 	if (error)
@@ -243,8 +246,14 @@ coll_setopt(int opt, char *value)
 		coll->co_tag = value;
 		break;
 	case UMASK:
-		/* XXX check if strtol() fails and free() value. */
+		errno = 0;
 		coll->co_umask = strtol(value, NULL, 8);
+		free(value);
+		if (errno) {
+			fprintf(stderr, "Parse error in \"%s\": Invalid "
+			    "umask value\n", cfgfile);
+			exit(1);
+		}
 		break;
 	case USE_REL_SUFFIX:
 		coll->co_options |= CO_USERELSUFFIX;
