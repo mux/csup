@@ -198,10 +198,10 @@ static int		sender_scan(int *);
 
 static void		*receiver_loop(void *);
 
-static pthread_mutex_t mux_lock;
+static pthread_mutex_t mux_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct chan *chans[MUX_MAXCHAN];
 static int nchans;
-static pthread_cond_t sender_newwork;
+static pthread_cond_t sender_newwork = PTHREAD_COND_INITIALIZER;
 static pthread_t sender;
 static struct sender_data {
 	int s;
@@ -290,8 +290,6 @@ chan_open(int s)
 
 	nchans = 0;
 	memset(chans, 0, sizeof(chans));
-	pthread_mutex_init(&mux_lock, NULL);
-	pthread_cond_init(&sender_newwork, NULL);
 	error = mux_initproto(s);
 	if (error)
 		return (-1);
