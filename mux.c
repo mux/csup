@@ -706,7 +706,7 @@ receiver_loop(void *arg)
 	struct chan *chan;
 	struct buf *buf;
 	uint16_t size, len;
-	int error, id, s;
+	int error, s;
 
 	rd = arg;
 	s = rd->s;
@@ -759,9 +759,8 @@ receiver_loop(void *arg)
 		case MUX_DATA:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
 			    MUX_DATAHDRSZ - sizeof(mh.type));
-			id = mh.mh_data.id;
+			chan = chan_get(mh.mh_data.id);
 			len = ntohs(mh.mh_data.len);
-			chan = chan_get(id);
 			buf = chan->recvbuf;
 			if ((chan->state != CS_ESTABLISHED &&
 			     chan->state != CS_WRCLOSED) ||
@@ -786,6 +785,18 @@ receiver_loop(void *arg)
 			pthread_mutex_unlock(&chan->lock);
 			break;
 		case MUX_CLOSE:
+			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			    MUX_CLOSEHDRSZ - sizeof(mh.type));
+			chan = chan_get(mh.mh_close.id);
+			if (chan->state == CS_ESTABLISHED)
+				chan->state = CS_RDCLOSED;
+			else if (chan->state == CS_WRCLOSED)
+				chan->state = CS_CLOSED;
+			else 
+				/* XXX - Protocol error. */
+				abort();
+			pthread_cond_broadcast(&chan->rdready);
+			pthread_mutex_unlock(&chan->lock);
 			break;
 		default:
 			/* XXX - Protocol error. */
