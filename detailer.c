@@ -59,7 +59,7 @@ detailer(void *arg)
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
-		chdir(coll->co_base);
+		chdir(coll->co_prefix);
 		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
 		collname = strsep(&line, " ");
