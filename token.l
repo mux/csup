@@ -56,7 +56,12 @@ umask			{ yylval.i = UMASK; return UMASK; }
 compress		{ yylval.i = COMPRESS; return COMPRESS; }
 delete			{ yylval.i = DELETE; return DELETE; }
 use-rel-suffix		{ yylval.i = USE_REL_SUFFIX; return USE_REL_SUFFIX; }
-[a-zA-Z0-9./_-]+	{ yylval.str = strdup(yytext); return STRING; }
+[a-zA-Z0-9./_-]+	{
+			  yylval.str = strdup(yytext);
+			  if (yylval.str == NULL)
+			  	err(1, "strdup");
+			  return STRING;
+			}
 \n			lineno++;
 
 %%

@@ -86,6 +86,8 @@ struct fattr;
 
 struct fattr		*fattr_fromstat(struct stat *);
 struct fattr		*fattr_parse(char *);
+#if 0
 void			 fattr_print(struct fattr *);
+#endif
 void			 fattr_free(struct fattr *);
 struct fattr_support	*fattr_support(void);

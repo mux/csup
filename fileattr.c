@@ -290,6 +290,7 @@ fattr_scanattr(struct fattr *fa, int type, char *attr)
 	return (attrend);
 }
 
+#if 0
 void
 fattr_print(struct fattr *fa)
 {
@@ -304,3 +305,4 @@ fattr_print(struct fattr *fa)
 	if (fa->mask & FA_MODE)
 		printf("Mode is %o\n", fa->mode);
 }
+#endif

@@ -170,7 +170,9 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	fa = fattr_parse(attr);
 	if (fa == NULL)
 		errx(1, "fattr_parse failed");
+#if 0
 	fattr_print(fa);
+#endif
 	fattr_free(fa);
 	cksum = strsep(&cp, " ");
 	if (cksum == NULL || cp != NULL)
