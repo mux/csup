@@ -30,6 +30,7 @@
 #include <sys/queue.h>
 
 #include <errno.h>
+#include <libgen.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -43,10 +44,9 @@
 int verbose = 1;
 
 static void
-usage(void)
+usage(char *argv0)
 {
-	lprintf(-1, "Usage: %s [options] supfile [destDir]\n",
-	    getprogname());
+	lprintf(-1, "Usage: %s [options] supfile [destDir]\n", basename(argv0));
 	lprintf(-1, "  Options:\n");
 	lprintf(-1, USAGE_OPTFMT, "-b base", 
 	    "Override supfile's \"base\" directory");
@@ -69,12 +69,13 @@ int
 main(int argc, char *argv[])
 {
 	struct config *config;
-	char *base, *colldir, *host, *file;
+	char *argv0, *base, *colldir, *host, *file;
 	in_port_t port;
 	int c, compress, error;
 
 	port = 0;
 	compress = 0;
+	argv0 = argv[0];
 	base = colldir = host = NULL;
 	while ((c = getopt(argc, argv, "b:c:gh:L:p:P:vzZ")) != -1) {
 		switch (c) {
@@ -95,7 +96,7 @@ main(int argc, char *argv[])
 			verbose = strtol(optarg, NULL, 0);
 			if (errno == EINVAL) {
 				lprintf(-1, "Invalid verbosity\n");
-				usage();
+				usage(argv0);
 				return (1);
 			}
 			break;
@@ -105,7 +106,7 @@ main(int argc, char *argv[])
 			port = strtol(optarg, NULL, 0);
 			if (errno == EINVAL) {
 				lprintf(-1, "Invalid server port\n");
-				usage();
+				usage(argv0);
 				return (1);
 			}
 			break;
@@ -131,7 +132,7 @@ main(int argc, char *argv[])
 			break;
 		case '?':
 		default:
-			usage();
+			usage(argv0);
 			return (1);
 		}
 	}
@@ -140,7 +141,7 @@ main(int argc, char *argv[])
 	argv += optind;
 
 	if (argc < 1) {
-		usage();
+		usage(argv0);
 		return (1);
 	}
 
