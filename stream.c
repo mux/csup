@@ -39,10 +39,11 @@ __FBSDID("$FreeBSD$");
 #include "misc.h"
 #include "stream.h"
 
-#define	STREAM_BUFSIZ	1024
+#define	STREAM_BUFSIZ	4096
 
 typedef ssize_t	(*readfn_t)(int, void *, size_t);
 typedef ssize_t	(*writefn_t)(int, const void *, size_t);
+typedef int	(*closefn_t)(int);
 
 struct buf {
 	char *buf;
@@ -57,6 +58,7 @@ struct stream {
 	struct buf *wrbuf;
 	readfn_t readfn;
 	writefn_t writefn;
+	closefn_t closefn;
 };
 
 static struct buf	*buf_new(size_t);
@@ -92,7 +94,7 @@ buf_delete(struct buf *buf)
 }
 
 struct stream *
-stream_open(int id, readfn_t readfn, writefn_t writefn)
+stream_open(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 {
 	struct stream *stream;
 
@@ -111,6 +113,7 @@ stream_open(int id, readfn_t readfn, writefn_t writefn)
 	stream->id = id;
 	stream->readfn = readfn;
 	stream->writefn = writefn;
+	stream->closefn = closefn;
 	return (stream);
 }
 
@@ -234,13 +237,18 @@ again:
 	return (0);
 }
 
-void
+int
 stream_close(struct stream *stream)
 {
+	int error;
 
+	error = 0;
+	if (stream->closefn != NULL)
+		error = (*stream->closefn)(stream->id);
 	buf_delete(stream->rdbuf);
 	buf_delete(stream->wrbuf);
 	free(stream);
+	return (error);
 }
 
 static ssize_t

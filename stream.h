@@ -29,9 +29,9 @@
 struct stream;
 
 struct stream	*stream_open(int, ssize_t (*)(int, void *, size_t),
-		    ssize_t (*)(int, const void *, size_t));
+		    ssize_t (*)(int, const void *, size_t), int (*)(int));
 ssize_t		stream_read(struct stream *, void *, size_t);
 char		*stream_getln(struct stream *);
 int		stream_printf(struct stream *, const char *, ...);
 int		stream_flush(struct stream *);
-void		stream_close(struct stream *);
+int		stream_close(struct stream *);
