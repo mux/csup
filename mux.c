@@ -39,7 +39,6 @@ __FBSDID("$FreeBSD$");
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -99,6 +98,8 @@ struct chan {
 
 static int		sock_writev(int, struct iovec *, int);
 static int		sock_write(int, void *, size_t);
+static ssize_t		sock_read(int, void *, size_t);
+static int		sock_readwait(int, void *, size_t);
 
 static int		mux_initproto(int);
 
@@ -158,6 +159,37 @@ sock_write(int s, void *buf, size_t size)
 	iov.iov_len = size;
 	ret = sock_writev(s, &iov, 1);
 	return (ret);
+}
+
+static ssize_t
+sock_read(int s, void *buf, size_t size)
+{
+	ssize_t nbytes;
+
+again:
+	nbytes = read(s, buf, size);
+	if (nbytes == -1 && errno == EINTR)
+		goto again;
+	return (nbytes);
+}
+
+static int
+sock_readwait(int s, void *buf, size_t size)
+{
+	char *cp;
+	ssize_t nbytes;
+	size_t left;
+
+	cp = buf;
+	left = size;
+	while (left > 0) {
+		nbytes = sock_read(s, cp, left);
+		if (nbytes == -1)
+			return (-1);
+		left -= nbytes;
+		cp += nbytes;
+	}
+	return (0);
 }
 
 int
@@ -307,14 +339,15 @@ again:
 		iovcnt = 2;
 		if (size > len) {
 			/* Wrapping around. */
+			iov[iovcnt].iov_base = buf->data;
+			iov[iovcnt].iov_len = size - len;
 			iovcnt++;
-			iov[2].iov_base = buf->data;
-			iov[2].iov_len = size - len;
 		}
 		/*
-		 * Since we're the only thread sending bytes from the buffer,
-		 * it's safe to unlock here during I/O.  It avoids sleeping
-		 * with the channel lock held.
+		 * Since we're the only thread sending bytes from the
+		 * buffer, it's safe to unlock here during I/O.  It
+		 * avoids keeping the channel lock for too long, since
+		 * write() might block.
 		 */
 		pthread_mutex_unlock(&chan->lock);
 		sock_writev(s, iov, iovcnt);
@@ -324,7 +357,7 @@ again:
 		if (buf->out >= buf->size)
 			buf->out -= buf->size;
 		pthread_mutex_unlock(&chan->lock);
-		pthread_cond_signal(&chan->wrready);
+		pthread_cond_broadcast(&chan->wrready);
 	} else {
 		pthread_mutex_unlock(&chan->lock);
 		sock_write(s, &mh, hdrsize);
@@ -339,12 +372,9 @@ sender_waitforwork(int *what)
 	int id;
 
 	pthread_mutex_lock(&mux_lock);
-	while ((id = sender_scan(what)) == -1) {
-		printf("Sender: sleeping for work\n");
+	while ((id = sender_scan(what)) == -1)
 		pthread_cond_wait(&sender_newwork, &mux_lock);
-	}
 	pthread_mutex_unlock(&mux_lock);
-	printf("Sender: waking up\n");
 	return (id);
 }
 
@@ -396,7 +426,7 @@ receiver_loop(void *arg)
 	struct kevent kev;
 	struct timespec ts;
 	struct chan *chan;
-	int error, id, kq, s;
+	int error, kq, s;
 
 	s = *(int *)arg;
 	kq = kqueue();
@@ -410,25 +440,52 @@ receiver_loop(void *arg)
 	if (error)
 		abort();
 	for (;;) {
-		kevent(kq, NULL, 0, &kev, 1, NULL);
-		assert(kev.filter == EVFILT_READ);
-		recv(s, &mh, MUX_ACCEPTHDRSZ, MSG_WAITALL);
-		if (mh.type == MUX_ACCEPT) {
-			id = mh.mh_accept.id;
-			chan = chan_get(id);
+		error = sock_readwait(s, &mh.type, 1);
+		switch (mh.type) {
+		case MUX_CONNECT:
+			error = sock_readwait(s, &mh.mh_accept.id,
+			    MUX_CONNECTHDRSZ - 1);
+			chan = chan_get(mh.mh_connect.id);
+			if (chan->state == CS_LISTENING) {
+				chan->state = CS_ESTABLISHED;
+				chan->sendmss = ntohs(mh.mh_connect.mss);
+				chan->sendwin = ntohl(mh.mh_connect.window);
+				chan->flags |= CF_ACCEPT;
+				pthread_cond_broadcast(&chan->rdready);
+			} else
+				chan->flags |= CF_RESET;
+			pthread_mutex_unlock(&chan->lock);
+			pthread_cond_signal(&sender_newwork);
+			break;
+		case MUX_ACCEPT:
+			error = sock_readwait(s, &mh.mh_accept.id,
+			    MUX_ACCEPTHDRSZ - 1);
+			chan = chan_get(mh.mh_accept.id);
 			if (chan->state != CS_CONNECTING) {
 				chan->flags |= CF_RESET;
 				pthread_mutex_unlock(&chan->lock);
 				continue;
 			}
-			printf("Receiver: connection accepted\n");
 			chan->sendmss = ntohs(mh.mh_accept.mss);
 			chan->sendwin = ntohl(mh.mh_accept.window);
 			chan->state = CS_ESTABLISHED;
 			pthread_cond_broadcast(&chan->wrready);
 			pthread_mutex_unlock(&chan->lock);
+			break;
+		case MUX_RESET:
+			break;
+		case MUX_WINDOW:
+			break;
+		case MUX_DATA:
+			break;
+		case MUX_CLOSE:
+			break;
+		default:
+			/* Protocol error. */
+			abort();
+			break;
 		}
-		/* XXX */
+		/* kevent(kq, NULL, 0, &kev, 1, NULL); */
 	}
 	close(kq);
 	return (NULL);
