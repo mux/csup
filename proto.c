@@ -81,8 +81,10 @@ cvsup_connect(struct config *config)
 	s = -1;
 	if (config->port != 0)
 		snprintf(servname, sizeof(servname), "%d", config->port);
-	else
-		strlcpy(servname, "cvsup", sizeof(servname));
+	else {
+		strncpy(servname, "cvsup", sizeof(servname) - 1);
+		servname[sizeof(servname) - 1] = '\0';
+	}
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(config->host, servname, &hints, &res);
@@ -91,7 +93,8 @@ cvsup_connect(struct config *config)
 	 * have cvsup defined in the /etc/services file.
 	 */
 	if (error == EAI_SERVICE) {
-		strlcpy(servname, "5999", sizeof(servname));
+		strncpy(servname, "5999", sizeof(servname) - 1);
+		servname[sizeof(servname) - 1] = '\0';
 		error = getaddrinfo(config->host, servname, &hints, &res);
 	}
 	if (error) {
