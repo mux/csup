@@ -89,3 +89,6 @@ struct mux_header {
 #define	mh_data		mh_u.mh_data
 #define	mh_window	mh_u.mh_window
 #define	mh_close	mh_u.mh_close
+
+uint8_t	mux_open(int);
+uint8_t	mux_listen(void);

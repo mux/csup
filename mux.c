@@ -28,11 +28,17 @@
 __FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
+#include <sys/event.h>
+#include <sys/time.h>
 
 #include <assert.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "mux.h"
+
+#define	min(a, b)	((a) > (b) ? (b) : (a))
 
 #define	MUX_MAXCHAN	2
 
@@ -60,6 +66,7 @@ __FBSDID("$FreeBSD$");
 /* Circular buffer. */
 struct buf {
 	uint8_t *data;
+	size_t size;
 	size_t in;
 	size_t out;
 };
@@ -84,6 +91,11 @@ struct chan {
 	uint16_t	sendmss;
 };
 
+static uint8_t		chan_alloc(void);
+static struct chan	*chan_new(uint8_t);
+static void		*sender_loop(void *);
+static void		*receiver_loop(void *);
+
 static pthread_mutex_t mux_lock;
 static struct chan *chans[MUX_MAXCHAN];
 static int nchans;
@@ -91,7 +103,7 @@ static pthread_t sender;
 static pthread_t receiver;
 
 uint8_t
-mux_open(void)
+mux_open(int s)
 {
 	uint8_t id;
 
@@ -99,8 +111,8 @@ mux_open(void)
 	pthread_mutex_init(&mux_lock, NULL);
 	id = chan_alloc();
 	assert(id == 0);
-	pthread_create(&sender, NULL, sender, NULL);
-	pthread_create(&receiver, NULL, receiver, NULL);
+	pthread_create(&sender, NULL, sender_loop, &s);
+	pthread_create(&receiver, NULL, receiver_loop, &s);
 	return (id);
 }
 
@@ -114,18 +126,33 @@ mux_listen(void)
 	return (chan_alloc());
 }
 
-static void *
-sender(void *arg)
+void *
+sender_loop(void *arg)
 {
+	int kq, s;
+
+	s = *(int *)arg;
+	kq = kqueue();
+	if (kq == -1)
+		return (NULL);
+	close(kq);
 	return (NULL);
 }
 
-static void *
-reicever(void *arg)
+void *
+receiver_loop(void *arg)
 {
+	int kq, s;
+
+	s = *(int *)arg;
+	kq = kqueue();
+	if (kq == -1)
+		return (NULL);
+	close(kq);
 	return (NULL);
 }
  
+#if 0
 /*
  * Read bytes from a channel.
  */
@@ -134,16 +161,17 @@ chan_read(struct chan *chan, void *buf, size_t size)
 {
 	ssize_t n;
 
-	pthread_mutex_lock(&chan->mtx);
-	pthread_cond_wait(&chan->rdready, &chan->mtx);
-	n = min(chan->recvbuf.bytesin, size);
+	pthread_mutex_lock(&chan->lock);
+	pthread_cond_wait(&chan->rdready, &chan->lock);
+	n = min(chan->recvbuf->in, size);
 	assert(n >= 0);
-	chan->recvbuf.bytesin -= n;
+	chan->recvbuf->in -= n;
 	chan->recvbuf.off += n;
 	chan->flags &= CF_WINDOW;
-	pthread_mutex_unlock(&chan->mtx);
+	pthread_mutex_unlock(&chan->lock);
 	return (n);
 }
+#endif
 
 static struct buf *
 buf_new(size_t size)
@@ -153,13 +181,14 @@ buf_new(size_t size)
 	buf = malloc(sizeof(struct buf));
 	assert(buf != NULL);
 	buf->data = malloc(size);
+	buf->size = size;
 	assert(buf->data != NULL);
 	buf->in = 0;
 	buf->out = 0;
 	return (buf);
 }
 
-struct chan *
+static struct chan *
 chan_new(uint8_t id)
 {
 	struct chan *chan;
@@ -171,14 +200,14 @@ chan_new(uint8_t id)
 	chan->recvmss = CHAN_MAXSEGSIZE;
 	chan->sendbuf = buf_new(CHAN_SBSIZE);
 	chan->recvbuf = buf_new(CHAN_RBSIZE);
-	pthread_mutex_init(&chan->mtx, NULL);
+	pthread_mutex_init(&chan->lock, NULL);
 	pthread_cond_init(&chan->rdready, NULL);
 	pthread_cond_init(&chan->wrready, NULL);
 	return (chan);
 }
 
 /* Return an available channel in the listening state. */
-uint8_t
+static uint8_t
 chan_alloc(void)
 {
 	struct chan *chan;
