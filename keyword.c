@@ -344,6 +344,9 @@ tag_expand(struct tag *tag, struct diff *diff)
 		 * even have this information sent by the server.
 		 */
 		return (NULL);
+	case RCSKEY_LOG:
+		printf("%s: Implement $Log$ expansion\n", __func__);
+		return (NULL);
 	case RCSKEY_NAME:
 		if (diff->d_tag != NULL)
 			asprintf(&val, "%s", diff->d_tag);
@@ -362,9 +365,6 @@ tag_expand(struct tag *tag, struct diff *diff)
 	case RCSKEY_STATE:
 		asprintf(&val, "%s", diff->d_state);
 		break;
-	default:
-		printf("%s: Unexpected tag %d.\n", __func__, tag->key);
-		return (NULL);
 	}
 	if (val == NULL)
 		err(1, "asprintf");
