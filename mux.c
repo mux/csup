@@ -310,12 +310,20 @@ again:
 			iov[2].iov_base = buf->data;
 			iov[2].iov_len = size - len;
 		}
+		/*
+		 * Since we're the only thread sending bytes from the buffer,
+		 * it's safe to unlock here during I/O.  It avoids sleeping
+		 * with the channel lock held.
+		 */
+		pthread_mutex_unlock(&chan->lock);
 		sock_writev(s, iov, iovcnt);
+		pthread_mutex_lock(&chan->lock);
 		chan->sendseq += size;
 		buf->out += size;
 		if (buf->out >= buf->size)
 			buf->out -= buf->size;
 		pthread_mutex_unlock(&chan->lock);
+		pthread_cond_signal(&chan->wrready);
 	} else {
 		pthread_mutex_unlock(&chan->lock);
 		sock_write(s, &mh, hdrsize);
@@ -629,10 +637,7 @@ chan_connect(int id)
 	chan = chan_get(id);
 	chan->state = CS_CONNECTING;
 	chan->flags &= CF_CONNECT;
-	pthread_mutex_unlock(&chan->lock);
 	pthread_cond_signal(&newwork);
-	chan = chan_get(id);
-	assert(chan != NULL);
 	while (chan->state == CS_CONNECTING)
 		pthread_cond_wait(&chan->wrready, &chan->lock);
 	ok = (chan->state != CS_ESTABLISHED);
