@@ -25,6 +25,9 @@
   -s (requires status file support), -z and -Z (requires zlib compression
   support), -d, -i, -a (requires authentication support), -e and -E
   (requires shell commands support) and the destDir parameter.
+- If the prefix directory is a symbolic link pointing to a nonexistent
+  file named `SKIP', then we should skip the collection, as described in
+  the CVSup manual page.
 - Cleanup error handling just about everywhere.
 - Handle some signals (SIGINT, SIGPIPE and maybe others) gracefully, like
   CVSup does and like we should.
