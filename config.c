@@ -56,11 +56,12 @@ static struct config *config;
  * file and some command line parameters.
  */
 struct config *
-config_init(const char *file, char *host, char *base, in_port_t port)
+config_init(const char *file, char *host, char *base, char *colldir,
+    in_port_t port)
 {
 	struct collection *cur;
 	mode_t mask;
-	int error;
+	int error, ret;
 
 	config = malloc(sizeof(struct config));
 	if (config == NULL)
@@ -105,6 +106,13 @@ config_init(const char *file, char *host, char *base, in_port_t port)
 			if (cur->base == NULL)
 				err(1, "malloc");
 		}
+		if (colldir)
+			ret = asprintf(&cur->colldir, "%s/%s", cur->base,
+			    colldir);
+		else
+			ret = asprintf(&cur->colldir, "%s/sup", cur->base);
+		if (ret == -1)
+			err(1, "asprintf");
 		if (cur->prefix == NULL) {
 			cur->prefix = strdup(cur->base);
 			if (cur->prefix == NULL)

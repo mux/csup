@@ -66,6 +66,7 @@
 struct collection {
 	char *name;
 	char *base;
+	char *colldir;
 	char *date;
 	char *prefix;
 	char *release;
@@ -84,7 +85,7 @@ struct config {
 	int chan1;
 };
 
-struct config	*config_init(const char *, char *, char *, in_port_t);
+struct config	*config_init(const char *, char *, char *, char *, in_port_t);
 #ifdef DEBUG
 void		config_print(struct config *);
 void		config_delete(struct config *);

@@ -52,6 +52,8 @@ usage(void)
 	fprintf(stderr, "  Options:\n");
 	fprintf(stderr, USAGE_OPTFMT, "-b base", 
 	    "Override supfile's \"base\" directory");
+	fprintf(stderr, USAGE_OPTFMT, "-c collDir",
+	    "Subdirectory of \"base\" for collections (default \"sup\")");
 	fprintf(stderr, USAGE_OPTFMT, "-h host",
 	    "Override supfile's \"host\" name");
 	fprintf(stderr, USAGE_OPTFMT, "-L n",
@@ -66,16 +68,19 @@ main(int argc, char *argv[])
 {
 	FILE *f;
 	struct config *config;
-	char *base, *host, *file;
+	char *base, *colldir, *host, *file;
 	in_port_t port;
 	char c;
 
 	port = 0;
-	base = host = NULL;
-	while ((c = getopt(argc, argv, "b:gh:L:p:P:v")) != -1) {
+	base = colldir = host = NULL;
+	while ((c = getopt(argc, argv, "b:c:gh:L:p:P:v")) != -1) {
 		switch (c) {
 		case 'b':
 			base = optarg;
+			break;
+		case 'c':
+			colldir = optarg;
 			break;
 		case 'g':
 			/* For compatibility. */
@@ -110,7 +115,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'v':
-			fprintf(stderr, "CVSup lite version 0.1\n");
+			fprintf(stderr, "Csup version 0.1\n");
 			return (0);
 			break;
 		case '?':
@@ -130,7 +135,7 @@ main(int argc, char *argv[])
 
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
-	config = config_init(file, host, base, port);
+	config = config_init(file, host, base, colldir, port);
 
 #ifdef DEBUG
 	config_print(config);
