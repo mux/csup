@@ -191,7 +191,15 @@ static struct chan *chans[MUX_MAXCHAN];
 static int nchans;
 static pthread_cond_t sender_newwork;
 static pthread_t sender;
+static struct sender_data {
+	int s;
+	int error;
+} sender_data;
 static pthread_t receiver;
+static struct receiver_data {
+	int s;
+	int error;
+} receiver_data;
 
 static int
 sock_writev(int s, struct iovec *iov, int iovcnt)
@@ -265,13 +273,22 @@ sock_readwait(int s, void *buf, size_t size)
 int
 chan_open(int s)
 {
-	int id;
+	struct chan *chan;
+	int error, id;
 
 	nchans = 0;
 	memset(chans, 0, sizeof(chans));
 	pthread_mutex_init(&mux_lock, NULL);
 	pthread_cond_init(&sender_newwork, NULL);
-	id = mux_initproto(s);
+	error = mux_initproto(s);
+	if (error)
+		return (-1);
+	chan = chan_new();
+	id = chan_insert(chan);
+	assert(id == 0);
+	error = chan_connect(id);
+	if (error)
+		return (-1);
 	return (id);
 }
 
@@ -349,8 +366,9 @@ chan_write(int id, const void *buf, size_t size)
 	cp = buf;
 	chan = chan_get(id);
 	while (pos < size) {
-		while ((avail = buf_avail(chan->sendbuf)) == 0)
+		while ((avail = buf_avail(chan->sendbuf)) == 0) {
 			pthread_cond_wait(&chan->wrready, &chan->lock);
+		}
 		n = min(avail, size - pos);
 		buf_put(chan->sendbuf, cp + pos, n);
 		pos += n;
@@ -379,6 +397,7 @@ chan_printf(int id, const char *fmt, ...)
 /* 
  * Internal channel API.
  */
+
 static int
 chan_connect(int id)
 {
@@ -461,39 +480,43 @@ chan_insert(struct chan *chan)
 /*
  * Initialize the multiplexer.
  *
- * This means negotiating protocol version, starting
- * the receiver and sender threads, creating one
- * channel, connecting it and returning its ID.
+ * This means negotiating protocol version and starting
+ * the receiver and sender threads.
  */
 static int
 mux_initproto(int s)
 {
 	struct mux_header mh;
-	struct chan *chan;
-	ssize_t n;
-	int error, id;
+	int error;
 
 	mh.type = MUX_STARTUPREQ;
 	mh.mh_startup.version = htons(MUX_PROTOVER);
-	sock_write(s, &mh, MUX_STARTUPHDRSZ);
-	n = recv(s, &mh, MUX_STARTUPHDRSZ, MSG_WAITALL);
-	if (n != MUX_STARTUPHDRSZ || mh.type != MUX_STARTUPREP ||
-	    ntohs(mh.mh_startup.version) != MUX_PROTOVER)
-		return (-1);
-	pthread_create(&sender, NULL, sender_loop, &s);
-	pthread_create(&receiver, NULL, receiver_loop, &s);
-	chan = chan_new();
-	id = chan_insert(chan);
-	assert(id == 0);
-	error = chan_connect(id);
+	error = sock_write(s, &mh, MUX_STARTUPHDRSZ);
 	if (error)
 		return (-1);
-	return (id);
+	error = sock_readwait(s, &mh, MUX_STARTUPHDRSZ);
+	if (error)
+		return (-1);
+	if (mh.type != MUX_STARTUPREP ||
+	    ntohs(mh.mh_startup.version) != MUX_PROTOVER)
+		return (-1);
+	sender_data.s = s;
+	sender_data.error = 0;
+	error = pthread_create(&sender, NULL, sender_loop, &sender_data);
+	if (error)
+		return (-1);
+	receiver_data.s = s;
+	receiver_data.error = 0;
+	error = pthread_create(&receiver, NULL, receiver_loop, &receiver_data);
+	if (error)
+		return (-1);
+	return (0);
 }
 
 static void *
 sender_loop(void *arg)
 {
+	struct sender_data *sd;
 	struct iovec iov[3];
 	struct mux_header mh;
 	struct chan *chan;
@@ -502,7 +525,8 @@ sender_loop(void *arg)
 	uint16_t hdrsize, size, len;
 	int id, iovcnt, s, what;
 
-	s = *(int *)arg;
+	sd = arg;
+	s = sd->s;
 again:
 	id = sender_waitforwork(&what);
 	chan = chan_get(id);
@@ -647,13 +671,15 @@ sender_scan(int *what)
 void *
 receiver_loop(void *arg)
 {
+	struct receiver_data *rd;
 	struct mux_header mh;
 	struct chan *chan;
 	struct buf *buf;
 	uint16_t size, len;
 	int error, id, s;
 
-	s = *(int *)arg;
+	rd = arg;
+	s = rd->s;
 	for (;;) {
 		error = sock_readwait(s, &mh.type, sizeof(mh.type));
 		switch (mh.type) {

@@ -301,7 +301,15 @@ cvsup_mux(FILE *f)
 	fprintf(f, "MUX\n");
 	fflush(f);
 	chan0 = chan_open(fileno(f));
+	if (chan0 == -1) {
+		fprintf(stderr, "chan_open() failed\n");
+		return (-1);
+	}
 	chan1 = chan_listen();
+	if (chan1 == -1) {
+		fprintf(stderr, "chan_listen() failed\n");
+		return (-1);
+	}
 	chan_printf(chan0, "CHAN %d\n", chan1);
 	error = chan_accept(chan1);
 	if (error) {
