@@ -246,7 +246,6 @@ updater_diff_apply(struct collection *cur, char *file, struct stream *rd)
 	/* XXX - Handle .+ termination properly. */
 	while (line != NULL && strcmp(line, ".") != 0 &&
 	    strcmp(line, ".+") != 0) {
-		printf("%s\n", line);
 		cmd = line[0];
 		if (cmd != 'a' && cmd != 'd')
 			goto bad;
