@@ -276,14 +276,15 @@ cvsup_xchgcoll(struct config *config)
 		if (cur->options & CO_SKIP)
 			continue;
 		line = stream_getln(s, NULL);
-		cmd = strsep(&line, " ");
-		if (strcmp(cmd, "COLL") != 0)
+		if (line == NULL)
 			goto bad;
+		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
 		options = strsep(&line, " ");
-		if (coll == NULL || release == NULL || options == NULL ||
-		    line != NULL)
+		if (options == NULL || line != NULL)
+			goto bad;
+		if (strcmp(cmd, "COLL") != 0)
 			goto bad;
 		if (strcmp(coll, cur->name) != 0)
 			goto bad;
@@ -296,23 +297,23 @@ cvsup_xchgcoll(struct config *config)
 		cur->options = (cur->options | (opts & CO_SERVMAYSET)) &
 		    ~(~opts & CO_SERVMAYCLEAR);
 		cur->keyword = keyword_new();
-		for (;;) {
-			line = stream_getln(s, NULL);
+		while ((line = stream_getln(s, NULL)) != NULL) {
 		 	if (strcmp(line, ".") == 0)
 				break;
 			cmd = strsep(&line, " ");
-			if (cmd != NULL && strcmp(cmd, "!") == 0) {
+			if (cmd == NULL)
+				goto bad;
+			if (strcmp(cmd, "!") == 0) {
 				printf("Server message: %s\n",
 				    cvsup_unescape(line));
 			} else if (strcmp(cmd, "PRFX") == 0) {
 				cur->cvsroot = strdup(line);
 				if (cur->cvsroot == NULL)
-					goto bad;
+					err(1, "strdup");
 			} else if (strcmp(cmd, "KEYALIAS") == 0) {
 				ident = strsep(&line, " ");
 				rcskey = strsep(&line, " ");
-				if (ident == NULL || rcskey == NULL ||
-				    line != NULL)
+				if (rcskey == NULL || line != NULL)
 					goto bad;
 				error = keyword_alias(cur->keyword, ident,
 				    rcskey);
@@ -334,6 +335,8 @@ cvsup_xchgcoll(struct config *config)
 					goto bad;
 			} 
 		}
+		if (line == NULL)
+			goto bad;
 	}
 	return (0);
 bad:
