@@ -53,6 +53,35 @@
  */
 
 /*
+ * Try to quiet warnings as much as possible with GCC while staying
+ * compatible with other compilers.
+ */
+#ifndef __unused
+#if defined(__GNUC__) && (__GNUC__ > 2 || __GNUC__ == 2 && __GNUC_MINOR__ >= 7)
+#define	__unused	__attribute__((__unused__))
+#else
+#define	__unused
+#endif
+#endif
+
+/*
+ * Flags passed to the flush methods.
+ *
+ * STREAM_FLUSH_CLOSING is passed during the last flush call before
+ * closing a stream.  This allows the zlib filter to emit the EOF
+ * marker as appropriate.  In all other cases, STREAM_FLUSH_NORMAL
+ * should be passed.
+ *
+ * These flags are completely unused in the default flush method,
+ * but they are very important for the flush method of the zlib
+ * filter.
+ */
+typedef enum {
+	STREAM_FLUSH_NORMAL,
+	STREAM_FLUSH_CLOSING
+} stream_flush_t;
+
+/*
  * This is because buf_new() will always allocate size + 1 bytes,
  * so our buffer sizes will still be power of 2 values.
  */
@@ -87,13 +116,19 @@ static void		 buf_less(struct buf *, size_t);
 static void		 buf_free(struct buf *);
 static void		 buf_grow(struct buf *, size_t);
 
+/* Internal stream functions. */
 static ssize_t		 stream_fill(struct stream *);
 static ssize_t		 stream_fill_buf(struct stream *, struct buf *);
-static int		 stream_flush_buf(struct stream *, struct buf *);
+static int		 stream_flush_int(struct stream *, stream_flush_t);
+static int		 stream_flush_buf(struct stream *, struct buf *,
+			     stream_flush_t);
+
+/*
+ * The zlib stream filter declarations.
+ */
+#define	ZFILTER_EOF	1				/* Got Z_STREAM_END. */
 
 /* Used by the zlib filter to keep state. */
-#define	ZFILTER_EOF	1
-
 struct zfilter {
 	int flags;
 	struct buf *rdbuf;
@@ -103,8 +138,9 @@ struct zfilter {
 };
 
 static int		 zfilter_init(struct stream *);
-static ssize_t		 zfilter_fill(struct stream *);
-static int		 zfilter_flush(struct stream *, int);
+static ssize_t		 zfilter_fill(struct stream *, struct buf *);
+static int		 zfilter_flush(struct stream *, struct buf *,
+			     stream_flush_t);
 static void		 zfilter_finish(struct stream *);
 
 /* Create a new buffer. */
@@ -348,7 +384,7 @@ stream_write(struct stream *stream, const void *src, size_t nbytes)
 	if (nbytes > buf_size(buf))
 		buf_grow(buf, nbytes);
 	if (nbytes > buf_avail(buf)) {
-		error = stream_flush(stream);
+		error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 		if (error)
 			return (-1);
 	}
@@ -376,7 +412,7 @@ again:
 		if ((unsigned)ret >= buf_size(buf))
 			buf_grow(buf, ret + 1);
 		if ((unsigned)ret >= buf_avail(buf)) {
-			error = stream_flush(stream);
+			error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 			if (error)
 				return (-1);
 		}
@@ -386,9 +422,35 @@ again:
 	return (ret);
 }
 
-/* Flush a given buffer. */
+/* Flush the entire write buffer of the stream. */
+int
+stream_flush(struct stream *stream)
+{
+	int error;
+
+	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
+	return (error);
+}
+
+/* Internal flush API. */
 static int
-stream_flush_buf(struct stream *stream, struct buf *buf)
+stream_flush_int(struct stream *stream, stream_flush_t how)
+{
+	struct buf *buf;
+	int error;
+
+	buf = stream->wrbuf;
+	if (stream->filter == SF_ZLIB)
+		error = zfilter_flush(stream, buf, how);
+	else
+		error = stream_flush_buf(stream, buf, how);
+	return (error);
+}
+
+/* The default flush method. */
+static int
+stream_flush_buf(struct stream *stream, struct buf *buf,
+    stream_flush_t __unused how)
 {
 	ssize_t n;
 
@@ -404,35 +466,13 @@ stream_flush_buf(struct stream *stream, struct buf *buf)
 	return (0);
 }
 
-/* Flush the stream. */
-int
-stream_flush(struct stream *stream)
-{
-	struct zfilter *zf;
-	struct buf *buf;
-	int error, rv;
-
-	buf = stream->wrbuf;
-	if (buf_count(buf) == 0)
-		return (0);
-	if (stream->filter == SF_ZLIB) {
-		zf = stream->fdata;
-		rv = zfilter_flush(stream, Z_SYNC_FLUSH);
-		if (rv != Z_OK)
-			errx(1, "deflate: %s", zf->wrstate->msg);
-		return (0);
-	}
-	error = stream_flush_buf(stream, buf);
-	return (error);
-}
-
 /* Flush the write buffer and call fsync() on the file descriptor. */
 int
 stream_sync(struct stream *stream)
 {
 	int error;
 	
-	error = stream_flush(stream);
+	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 	if (error)
 		return (-1);
 	error = fsync(stream->id);
@@ -445,7 +485,7 @@ stream_truncate(struct stream *stream, off_t size)
 {
 	int error;
 
-	error = stream_flush(stream);
+	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 	if (error)
 		return (-1);
 	error = ftruncate(stream->id, size);
@@ -459,7 +499,7 @@ stream_truncate_rel(struct stream *stream, off_t off)
 	struct stat sb;
 	int error;
 
-	error = stream_flush(stream);
+	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 	if (error)
 		return (-1);
 	error = fstat(stream->id, &sb);
@@ -475,6 +515,13 @@ stream_rewind(struct stream *stream)
 {
 	int error;
 
+	if (stream->rdbuf != NULL)
+		buf_less(stream->rdbuf, buf_count(stream->rdbuf));
+	if (stream->wrbuf != NULL) {
+		error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
+		if (error)
+			return (error);
+	}
 	error = lseek(stream->id, 0, SEEK_SET);
 	return (error);
 }
@@ -490,7 +537,7 @@ stream_close(struct stream *stream)
 
 	error = 0;
 	if (stream->wrbuf != NULL)
-		error = stream_flush(stream);
+		error = stream_flush_int(stream, STREAM_FLUSH_CLOSING);
 	if (stream->filter == SF_ZLIB)
 		zfilter_finish(stream);
 	if (stream->closefn != NULL)
@@ -508,6 +555,7 @@ stream_close(struct stream *stream)
 	return (error);
 }
 
+/* The default fill method. */
 static ssize_t
 stream_fill_buf(struct stream *stream, struct buf *buf)
 {
@@ -537,7 +585,7 @@ stream_fill(struct stream *stream)
 	buf_makeroom(buf);
 	oldcount = buf_count(buf);
 	if (stream->filter == SF_ZLIB) {
-		n = zfilter_fill(stream);
+		n = zfilter_fill(stream, buf);
 	} else {
 		assert(stream->filter == SF_NONE);
 		n = stream_fill_buf(stream, buf);
@@ -622,7 +670,7 @@ zfilter_finish(struct stream *stream)
 	struct buf *zbuf;
 	z_stream *state;
 	ssize_t n;
-	int rv;
+	int error;
 
 	zf = stream->fdata;
 	if (zf->rdbuf != NULL) {
@@ -634,7 +682,7 @@ zfilter_finish(struct stream *stream)
 		 * again to make sure we have eaten all the zlib'ed bytes.
 		 */
 		if ((zf->flags & ZFILTER_EOF) == 0) {
-			n = zfilter_fill(stream);
+			n = zfilter_fill(stream, stream->rdbuf);
 			assert(n == 0 && zf->flags & ZFILTER_EOF);
 		}
 		inflateEnd(state);
@@ -645,15 +693,14 @@ zfilter_finish(struct stream *stream)
 	if (zf->wrbuf != NULL) {
 		state = zf->wrstate;
 		zbuf = zf->wrbuf;
-		/* Compress the remaining bytes in the buffer, if any. */
-		if (buf_count(stream->wrbuf) > 0) {
-			do {
-				rv = zfilter_flush(stream, Z_FINISH);
-				stream_flush_buf(stream, zbuf);
-			} while (rv == Z_OK);
-			if (rv != Z_STREAM_END)
-				errx(1, "deflate: %s", state->msg);
-		}
+		/*
+		 * Compress the remaining bytes in the buffer, if any,
+		 * and emit an EOF marker as appropriate.
+		 */
+		error = zfilter_flush(stream, stream->wrbuf,
+		    STREAM_FLUSH_CLOSING);
+		if (error)
+			errx(1, "Can't flush last bytes. (%d)", error);
 		deflateEnd(state);
 		free(state);
 		buf_free(stream->wrbuf);
@@ -663,24 +710,38 @@ zfilter_finish(struct stream *stream)
 }
 
 static int
-zfilter_flush(struct stream *stream, int flags)
+zfilter_flush(struct stream *stream, struct buf *buf, stream_flush_t how)
 {
 	struct zfilter *zf;
-	struct buf *buf, *zbuf;
+	struct buf *zbuf;
 	z_stream *state;
-	size_t lastin, lastout;
-	int error, rv;
+	size_t lastin, lastout, ate, prod;
+	int done, error, flags, rv;
 
 	zf = stream->fdata;
 	state = zf->wrstate;
-	buf = stream->wrbuf;
 	zbuf = zf->wrbuf;
 
-	if (buf_avail(zbuf) == 0) {
-		error = stream_flush_buf(stream, zbuf);
-		if (error != 0)
-			return (Z_ERRNO);
+	if (how == STREAM_FLUSH_NORMAL)
+		flags = Z_SYNC_FLUSH;
+	else
+		flags = Z_FINISH;
+
+	done = 0;
+	rv = Z_OK;
+
+again:
+	/*
+	 * According to zlib.h, we should have at least 6 bytes
+	 * available when using deflate() with Z_SYNC_FLUSH.
+	 */
+	if ((buf_avail(zbuf) < 6 && flags == Z_SYNC_FLUSH) ||
+	    rv == Z_BUF_ERROR || buf_avail(buf) == 0) {
+		error = stream_flush_buf(stream, zbuf, how);
+		if (error)
+			return (error);
 	}
+
 	state->next_in = buf->buf + buf->off;
 	state->avail_in = buf_count(buf);
 	state->next_out = zbuf->buf + zbuf->off + zbuf->in;
@@ -688,16 +749,27 @@ zfilter_flush(struct stream *stream, int flags)
 	lastin = state->avail_in;
 	lastout = state->avail_out;
 	rv = deflate(state, flags);
-	buf_less(buf, lastin - state->avail_in);
-	buf_more(zbuf, lastout - state->avail_out);
-	return (rv);
+	if (rv != Z_BUF_ERROR && rv != Z_OK && rv != Z_STREAM_END)
+		errx(1, "deflate: %s", state->msg);
+	ate = lastin - state->avail_in;
+	prod = lastout - state->avail_out;
+	buf_less(buf, ate);
+	buf_more(zbuf, prod);
+	if ((flags == Z_SYNC_FLUSH && buf_count(buf) > 0) ||
+	    (flags == Z_FINISH && rv != Z_STREAM_END) ||
+	    (rv == Z_BUF_ERROR))
+		goto again;
+
+	assert(rv == Z_OK || (rv == Z_STREAM_END && flags == Z_FINISH));
+	error = stream_flush_buf(stream, zbuf, how);
+	return (error);
 }
 
 static ssize_t
-zfilter_fill(struct stream *stream)
+zfilter_fill(struct stream *stream, struct buf *buf)
 {
 	struct zfilter *zf;
-	struct buf *buf, *zbuf;
+	struct buf *zbuf;
 	z_stream *state;
 	size_t lastin, lastout, new;
 	ssize_t n;
@@ -705,7 +777,6 @@ zfilter_fill(struct stream *stream)
 
 	zf = stream->fdata;
 	state = zf->rdstate;
-	buf = stream->rdbuf;
 	zbuf = zf->rdbuf;
 
 	assert(buf_avail(buf) > 0);
