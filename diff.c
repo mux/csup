@@ -28,9 +28,9 @@
 
 #include <sys/types.h>
 #include <sys/queue.h>
-#include <sys/stat.h>
 
 #include <assert.h>
+#include <err.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,17 +40,7 @@
 #include "keyword.h"
 #include "stream.h"
 
-/* Only use intmax_t and strtoimax() if C99 is supported. */
-#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
-#define	strtoimax	strtol
-
 typedef long lineno_t;
-#else
-#include <inttypes.h>
-#include <stdint.h>
-
-typedef intmax_t lineno_t;
-#endif
 
 #define	EC_ADD	0
 #define	EC_DEL	1
@@ -66,17 +56,14 @@ struct editcmd {
 	/* Those are here for convenience. */
 	struct diff *diff;
 	struct keyword *keyword;
-	FILE *to;
 };
 
 static int	diff_geteditcmd(struct editcmd *, char *);
 static int	diff_copyln(struct editcmd *, lineno_t);
 static void	diff_writeln(struct editcmd *, char *);
-/* XXX Should be elsewhere. */
-static int	diff_shrink(FILE *);
 
 int
-diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
+diff_apply(struct diff *diff, struct keyword *keyword)
 {
 	struct editcmd ec;
 	lineno_t i;
@@ -88,7 +75,6 @@ diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
 	noeol = 0;
 	ec.diff = diff;
 	ec.keyword = keyword;
-	ec.to = to;
 	line = stream_getln(diff->d_diff, NULL);
 	while (line != NULL && strcmp(line, ".") != 0 &&
 	    strcmp(line, ".+") != 0) {
@@ -153,11 +139,11 @@ diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
 	ec.where = 0;
 	while ((line = stream_getln(diff->d_orig, NULL)) != NULL)
 		diff_writeln(&ec, line);
-	fflush(to);
+	stream_flush(diff->d_to);
 	if (noeol) {
-		error = diff_shrink(to);
+		error = stream_truncate_rel(diff->d_to, -1);
 		if (error) {
-			printf("%s: diff_shrink() failed\n", __func__);
+			warn("stream_truncate_rel");
 			return (-1);
 		}
 	}
@@ -180,14 +166,14 @@ diff_geteditcmd(struct editcmd *ec, char *line)
 		return (-1);
 	}
 	errno = 0;
-	ec->where = strtoimax(line + 1, &end, 10);
+	ec->where = strtol(line + 1, &end, 10);
 	if (errno || ec->where < 0 || *end != ' ') {
 		printf("kaboom\n");
 		return (-1);
 	}
 	line = end + 1;
 	errno = 0;
-	ec->count = strtoimax(line, &end, 10);
+	ec->count = strtol(line, &end, 10);
 	if (errno || ec->count <= 0 || *end != '\0') {
 		printf("kaboom (2)\n");
 		return (-1);
@@ -228,27 +214,7 @@ diff_writeln(struct editcmd *ec, char *line)
 	char *newline;
 
 	newline = keyword_expand(ec->keyword, ec->diff, line);
-	fprintf(ec->to, "%s\n", newline);
+	stream_printf(ec->diff->d_to, "%s\n", newline);
 	if (newline != line)
 		free(newline);
-}
-
-/*
- * Shrink the file by one byte to get rid of the ending newline.
- * This will only work if the buffer is properly flushed before.
- */
-static int
-diff_shrink(FILE *f)
-{
-	struct stat sb;
-	off_t newsize;
-	int error, fd;
-
-	fd = fileno(f);
-	error = fstat(fd, &sb);
-	if (error)
-		return (-1);
-	newsize = sb.st_size - 1;
-	error = ftruncate(fd, newsize);
-	return (error);
 }
