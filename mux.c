@@ -456,6 +456,7 @@ chan_new(void)
 	if (chan == NULL)
 		return (NULL);
 	chan->state = CS_UNUSED;
+	chan->flags = 0;
 	chan->sendbuf = buf_new(CHAN_SBSIZE);
 	chan->sendseq = 0;
 	chan->sendwin = 0;
