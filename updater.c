@@ -34,10 +34,13 @@ __FBSDID("$FreeBSD$");
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <libgen.h>
 #include <limits.h>
-#include <md5.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -52,7 +55,9 @@ static int	updater_makedirs(char *);
 static void	updater_prunedirs(char *, char *);
 static int	updater_checkout(struct stream *, char *);
 static int	updater_delete(struct collection *, char *);
-static int	updater_diff(struct stream *, char *);
+static int	updater_diff(struct collection *, struct stream *, char *);
+static int	updater_diff_apply(struct collection *, char *,
+    		    struct stream *);
 
 void *
 updater(void *arg)
@@ -95,7 +100,7 @@ updater(void *arg)
 			else if (strcmp(cmd, "c") == 0)
 				;
 			else if (strcmp(cmd, "U") == 0)
-				error = updater_diff(rd, line);
+				error = updater_diff(cur, rd, line);
 			else if (strcmp(cmd, "u") == 0)
 				error = updater_delete(cur, line);
 			else if (strcmp(cmd, "C") == 0)
@@ -134,9 +139,11 @@ updater_delete(struct collection *collec, char *line)
 }
 
 static int
-updater_diff(struct stream *rd, char *line)
+updater_diff(struct collection *cur, struct stream *rd, char *line)
 {
+	char pathbuf[PATH_MAX];
 	char *cp, *tok, *file, *revnum, *revdate, *author;
+	int error;
 
 	file = strsep(&line, " ");
 	if (file == NULL || updater_checkfile(file) != 0)
@@ -144,7 +151,12 @@ updater_diff(struct stream *rd, char *line)
 	cp = strstr(file, ",v");
 	if (cp == NULL || cp[2] != '\0')
 		return (-1);
-	*cp = '\0';
+	/*
+	 * We need to copy the filename because we'll need it later and
+	 * the pointer is only valid until the next stream_getln() call.
+	 */
+	strlcpy(pathbuf, file, min(sizeof(pathbuf), (unsigned)(cp - file + 1)));
+	file = pathbuf;
 	lprintf(1, " Edit %s\n", file);
 	for (;;) {
 		line = stream_getln(rd);
@@ -168,14 +180,17 @@ updater_diff(struct stream *rd, char *line)
 				if (strcmp(line, ".") == 0)
 					break;
 				tok = strsep(&line, " ");
-				if (strcmp(tok, "T") == 0 ||
-				    strcmp(tok, "L") == 0) {
+				if (strcmp(tok, "T") == 0) {
+					error = updater_diff_apply(cur, file,
+					    rd);
+					if (error)
+						return (-1);
+				} else if (strcmp(tok, "L") == 0) {
 					line = stream_getln(rd);
 					while (line != NULL &&
 					    strcmp(line, ".") != 0 &&
-					    strcmp(line, ".+") != 0) {
+					    strcmp(line, ".+") != 0)
 						line = stream_getln(rd);
-					}
 					if (line == NULL)
 						return (-1);
 				}
@@ -183,6 +198,114 @@ updater_diff(struct stream *rd, char *line)
 		}
 	}
 	return (0);
+}
+
+static int
+updater_diff_apply(struct collection *cur, char *file, struct stream *rd)
+{
+	char tmp[PATH_MAX];
+	intmax_t at, count, i, n;
+	FILE *to;
+	struct stream *orig;
+	char *end, *line;
+	int fd, error;
+	char cmd, last;
+
+	/* XXX */
+	snprintf(tmp, sizeof(tmp), "%s/%s/%s", cur->base, dirname(file),
+	    "#cvs.csup-XXXXX");
+	/*
+	 * XXX - CVSup creates the temporary file in the same directory
+	 * as the updated file and it's of the form "#cvs.cvsup-XXXXX.X".
+	 * We should change this to behave the same.
+	 */
+	fd = mkstemp(tmp);
+	if (fd == -1)
+		return (-1);
+	to = fdopen(fd, "w");
+	if (to == NULL) {
+		close(fd);
+		return (-1);
+	}
+
+	fd = open(file, O_RDONLY);
+	if (fd == -1) {
+		fclose(to);
+		return (-1);
+	}
+	orig = stream_open(fd, read, write, close);
+	if (orig == NULL) {
+		close(fd);
+		fclose(to);
+		return (-1);
+	}
+
+	last = 'a';
+	n = 0;
+	line = stream_getln(rd);
+	/* XXX - Handle .+ termination properly. */
+	while (line != NULL && strcmp(line, ".") != 0 &&
+	    strcmp(line, ".+") != 0) {
+		printf("%s\n", line);
+		cmd = line[0];
+		if (cmd != 'a' && cmd != 'd')
+			goto bad;
+		errno = 0;
+		at = strtoimax(line + 1, &end, 10);
+		if (errno || at < 0 || *end != ' ') {
+			printf("kaboom (3)\n");
+			goto bad;
+		}
+		line = end + 1;
+		errno = 0;
+		count = strtoimax(line, &end, 10);
+		if (errno || count <= 0 || *end != '\0') {
+			printf("kaboom (3)\n");
+			goto bad;
+		}
+		if (cmd == 'a' && last == 'a')
+			at += 1;
+		while (n < at - 1) {
+			line = stream_getln(orig);
+			n++;
+			fprintf(to, "%s\n", line);
+		}
+		if (cmd == 'a') {
+			for (i = 0; i < count; i++) {
+				line = stream_getln(rd);
+				if (line == NULL) {
+					printf("kaboom\n");
+					goto bad;
+				}
+				if (line[0] == '.')
+					line++;
+				fprintf(to, "%s\n", line);
+			}
+		} else if (cmd == 'd') {
+			while (count-- > 0) {
+				line = stream_getln(orig);
+				n++;
+			}
+		}
+		line = stream_getln(rd);
+		last = cmd;
+	}
+	if (line == NULL)
+		goto bad;
+	while ((line = stream_getln(orig)) != NULL)
+		fprintf(to, "%s\n", line);
+	fclose(to);
+	stream_close(orig);
+	error = rename(tmp, file);
+	if (error) {
+		warn("rename");
+		return (-1);
+	}
+	return (0);
+bad:
+	fclose(to);
+	stream_close(orig);
+	return (-1);
 }
 
 static int
