@@ -25,6 +25,8 @@
  *
  * $FreeBSD$
  */
+#include <sys/types.h>
+#include <sys/queue.h>
 
 /*
  * File types.
@@ -63,6 +65,8 @@
  * when in checkout mode.
  */
 #define	FA_COIGNORE	(FA_MASK & ~(FA_FILETYPE|FA_MODTIME|FA_SIZE|FA_MODE))
+
+struct stat;
 
 struct fileattr_support {
 	int number;
