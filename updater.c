@@ -421,7 +421,7 @@ updater_getpath(struct collection *coll, char *rcsfile)
 	cp = strstr(rcsfile, ",v");
 	if (cp == NULL || *(cp + 2) != '\0')
 		return (NULL);
-	asprintf(&path, "%s/%.*s", coll->base, (int)cp - rcsfile, rcsfile);
+	asprintf(&path, "%s/%.*s", coll->base, (int)(cp - rcsfile), rcsfile);
 	if (path == NULL)
 		err(1, "asprintf");
 	return (path);
