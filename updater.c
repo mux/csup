@@ -58,7 +58,6 @@ static int	 updater_diff_apply(struct collection *, char *,
 		     struct stream *, struct diff *);
 static int	 updater_dodiff(struct collection *, char *, struct stream *,
 		     struct diff *);
-static void	 diff_free(struct diff *diff);
 
 void *
 updater(void *arg)
@@ -144,38 +143,38 @@ static int
 updater_diff(struct collection *coll, struct stream *rd, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
-	char cksum[MD5_DIGEST_SIZE];
 	struct diff diff;
-	char *author, *tag, *tok, *path, *rcsfile, *revnum, *revdate;
+	char *author, *tag, *rcsfile, *revnum, *revdate;
+	char *attr, *cp, *cksum, *line2, *line3, *tok, *path;
 	int error;
 
+	path = NULL;
+	line3 = NULL;
 	memset(&diff, 0, sizeof(struct diff));
 
-	rcsfile = strsep(&line, " ");
-	tag = strsep(&line, " ");
-	strsep(&line, " "); /* XXX - date */
-	strsep(&line, " "); /* XXX - orig revnum */
-	strsep(&line, " "); /* XXX - from attic */
-	strsep(&line, " "); /* XXX - loglines */
-	strsep(&line, " "); /* XXX - expand */
-	strsep(&line, " "); /* XXX - attr */
-	tok = strsep(&line, " ");
-	if (tok == NULL || line != NULL)
-		return (-1);
-	diff.d_rcsfile = strdup(rcsfile);
-	if (diff.d_rcsfile == NULL)
+	line2 = strdup(line);
+	if (line2 == NULL)
 		err(1, "strdup");
-	if (strcmp(tag, ".") != 0) {
-		diff.d_tag = strdup(tag);
-		if (diff.d_tag == NULL)
-			err(1, "strdup");
-	}
-	strlcpy(cksum, tok, sizeof(cksum));
+	cp = line2;
+	rcsfile = strsep(&cp, " ");
+	tag = strsep(&cp, " ");
+	strsep(&cp, " "); /* XXX - date */
+	strsep(&cp, " "); /* XXX - orig revnum */
+	strsep(&cp, " "); /* XXX - from attic */
+	strsep(&cp, " "); /* XXX - loglines */
+	strsep(&cp, " "); /* XXX - expand */
+	attr = strsep(&cp, " ");
+	cksum = strsep(&cp, " ");
+	if (cksum == NULL || cp != NULL)
+		goto bad;
+	diff.d_rcsfile = rcsfile;
+	if (strcmp(tag, ".") != 0)
+		diff.d_tag = tag;
 
 	path = updater_getpath(coll, rcsfile);
 	if (path == NULL) {
 		printf("%s: bad filename %s\n", __func__, rcsfile);
-		return (-1);
+		goto bad;
 	}
 
 	lprintf(1, " Edit %s\n", path + strlen(coll->base) + 1);
@@ -186,20 +185,20 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 		tok = strsep(&line, " ");
 		if (strcmp(tok, "D") != 0)
 			goto bad;
-		revnum = strsep(&line, " ");
-		strsep(&line, " "); /* XXX - diffbase */
-		revdate = strsep(&line, " ");
-		author = strsep(&line, " ");
-		if (revnum == NULL || revdate == NULL || author == NULL ||
-		    line != NULL)
-			goto bad;
-		diff.d_cvsroot = strdup(coll->cvsroot);
-		diff.d_revnum = strdup(revnum);
-		diff.d_revdate = strdup(revdate);
-		diff.d_author = strdup(author);
-		if (diff.d_cvsroot == NULL || diff.d_revnum == NULL ||
-		    diff.d_revdate == NULL || diff.d_author == NULL)
+		line3 = strdup(line);
+		if (line3 == NULL)
 			err(1, "strdup");
+		cp = line3;
+		revnum = strsep(&cp, " ");
+		strsep(&cp, " "); /* XXX - diffbase */
+		revdate = strsep(&cp, " ");
+		author = strsep(&cp, " ");
+		if (author == NULL || cp != NULL)
+			goto bad;
+		diff.d_cvsroot = coll->cvsroot;
+		diff.d_revnum = revnum;
+		diff.d_revdate = revdate;
+		diff.d_author = author;
 		lprintf(2, "  Add diff %s %s %s\n", revnum, revdate, author);
 		error = updater_diff_apply(coll, path, rd, &diff);
 		if (error) {
@@ -207,30 +206,23 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 			goto bad;
 		}
 	}
-	diff_free(&diff);
-	if (MD5file(path, md5) == -1 || strcmp(cksum, md5) != 0) {
-		free(path);
+	if (MD5file(path, md5) == -1) {
+		printf("%s: MD5file() failed\n", __func__);
+		goto bad;
+	}
+	if (strcmp(cksum, md5) != 0) {
 		printf("%s: bad md5 checksum\n", __func__);
-		return (-1);
+		goto bad;
 	}
 	free(path);
+	free(line3);
+	free(line2);
 	return (0);
 bad:
-	diff_free(&diff);
 	free(path);
+	free(line3);
+	free(line2);
 	return (-1);
-}
-
-static void
-diff_free(struct diff *diff)
-{
-
-	free(diff->d_rcsfile);
-	free(diff->d_cvsroot);
-	free(diff->d_revnum);
-	free(diff->d_revdate);
-	free(diff->d_author);
-	free(diff->d_state);
 }
 
 static int
@@ -427,10 +419,11 @@ updater_getpath(struct collection *coll, char *rcsfile)
 		cp += 2;
 	}
 	cp = strstr(rcsfile, ",v");
-	if (cp == NULL || cp[2] != '\0')
+	if (cp == NULL || *(cp + 2) != '\0')
 		return (NULL);
-	*cp = '\0';
-	asprintf(&path, "%s/%s", coll->base, rcsfile);
+	asprintf(&path, "%s/%.*s", coll->base, cp - rcsfile, rcsfile);
+	if (path == NULL)
+		err(1, "asprintf");
 	return (path);
 }
 
