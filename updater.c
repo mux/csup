@@ -31,7 +31,9 @@ __FBSDID("$FreeBSD$");
 #include <sys/queue.h>
 #include <sys/stat.h>
 
+#include <assert.h>
 #include <err.h>
+#include <errno.h>
 #include <limits.h>
 #include <md5.h>
 #include <stddef.h>
@@ -49,8 +51,9 @@ static size_t in, off;
 
 static int	updater_checkfile(char *);
 static int	updater_makedirs(char *);
+static void	updater_prunedirs(char *, char *);
 static int	updater_checkout(int, char *);
-static int	updater_delete(char *);
+static int	updater_delete(struct collection *, char *);
 static int	updater_diff(int, char *);
 
 void *
@@ -96,7 +99,7 @@ updater(void *arg)
 			else if (strcmp(cmd, "U") == 0)
 				error = updater_diff(rd, line);
 			else if (strcmp(cmd, "u") == 0)
-				error = updater_delete(line);
+				error = updater_delete(cur, line);
 			else if (strcmp(cmd, "C") == 0)
 				error = updater_checkout(rd, line);
 			else
@@ -112,7 +115,7 @@ bad:
 }
 
 static int
-updater_delete(char *line)
+updater_delete(struct collection *collec, char *line)
 {
 	char *cp, *file;
 	int error;
@@ -126,7 +129,10 @@ updater_delete(char *line)
 	*cp = '\0';
 	lprintf(1, " Delete %s\n", file);
 	error = unlink(file);
-	return (error);
+	if (error)
+		return (error);
+	updater_prunedirs(collec->base, file);
+	return (0);
 }
 
 static int
@@ -287,4 +293,29 @@ updater_makedirs(char *path)
 		comp = cp + 1;
 	}
 	return (0);
+}
+
+/*
+ * Remove all empty directories until base.
+ * This function will trash the path passed to it.
+ */
+static void
+updater_prunedirs(char *base, char *path)
+{
+	char *cp;
+	int error;
+
+	while ((cp = strrchr(path, '/')) != NULL) {
+		*cp = '\0';
+		if (strcmp(path, base) == 0)
+			return;
+		error = rmdir(path);
+		/*
+		 * XXX - we should probably check that errno is ENOTEMPTY
+		 * here but it seems CVSup just stops at the first error.
+		 * This needs to be double checked.
+		 */
+		if (error)
+			return;
+	}
 }
