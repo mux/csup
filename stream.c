@@ -247,13 +247,35 @@ stream_getln(struct stream *stream, size_t *len)
 	return (s);
 }
 
+/* Write some bytes to a stream. */
+ssize_t
+stream_write(struct stream *stream, const void *src, size_t nbytes)
+{
+	struct buf *buf;
+	int error;
+
+	buf = stream->wrbuf;
+	if (nbytes > buf->size) {
+		printf("%s: Implement buffer resizing\n", __func__);
+		return (-1);
+	}
+	if (nbytes > buf->size - buf->off - buf->in) {
+		error = stream_flush(stream);
+		if (error)
+			return (-1);
+	}
+	memcpy(buf->buf + buf->off + buf->in, src, nbytes);
+	buf->in += nbytes;
+	return (nbytes);
+}
+
 /* Formatted output to a stream. */
 int
 stream_printf(struct stream *stream, const char *fmt, ...)
 {
 	struct buf *buf;
 	va_list ap;
-	int ret;
+	int error, ret;
 
 	buf = stream->wrbuf;
 again:
@@ -268,14 +290,16 @@ again:
 			printf("%s: Implement buffer resizing\n", __func__);
 			return (-1);
 		}
-		stream_flush(stream);
+		error = stream_flush(stream);
+		if (error)
+			return (-1);
 		goto again;
 	}
 	buf->in += ret;
 	return (ret);
 }
 
-/* Commit any pending write. */
+/* Flush the write buffer. */
 int
 stream_flush(struct stream *stream)
 {
@@ -296,6 +320,19 @@ again:
 	}
 	buf->off = 0;
 	return (0);
+}
+
+/* Flush the write buffer and call fsync() on the file descriptor. */
+int
+stream_sync(struct stream *stream)
+{
+	int error;
+	
+	error = stream_flush(stream);
+	if (error)
+		return (-1);
+	error = fsync(stream->id);
+	return (error);
 }
 
 /* Like truncate() but on a stream. */

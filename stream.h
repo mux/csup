@@ -32,9 +32,11 @@ struct stream	*stream_fdopen(int, ssize_t (*)(int, void *, size_t),
 		    ssize_t (*)(int, const void *, size_t), int (*)(int));
 struct stream	*stream_open_file(char *, int, ...);
 ssize_t		 stream_read(struct stream *, void *, size_t);
+ssize_t		 stream_write(struct stream *, const void *, size_t);
 char		*stream_getln(struct stream *, size_t *);
 int		 stream_printf(struct stream *, const char *, ...);
 int		 stream_flush(struct stream *);
+int		 stream_sync(struct stream *);
 int		 stream_truncate(struct stream *, off_t);
 int		 stream_truncate_rel(struct stream *, off_t);
 int		 stream_close(struct stream *);
