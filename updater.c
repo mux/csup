@@ -251,9 +251,14 @@ updater_checkout(int rd, char *line)
 static int
 updater_checkfile(char *path)
 {
+	char *cp;
 
-	if (*path == '/' || path[strlen(path) - 1] == '/' ||
-	    strstr(path, "/../") != NULL)
+	if (*path == '/')
+		return (-1);
+	cp = strstr(path, "..");
+	if (cp == NULL)
+		return (0);
+	if (cp == path || cp[2] == '\0' || (cp[-1] == '/' && cp[2] == '/'))
 		return (-1);
 	return (0);
 }
