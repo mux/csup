@@ -142,11 +142,8 @@ main(int argc, char *argv[])
 #endif
 	lprintf(2, "Connecting to %s\n", config->host);
 	f = cvsup_connect(config);
-	if (f == NULL) {
-		lprintf(0, "Cannot connect to %s: %s\n", config->host,
-		    strerror(errno));
+	if (f == NULL)
 		return (1);
-	}
 	lprintf(1, "Connected to %s\n", config->host);
 	cvsup_init(f, config);
 	return (0);
