@@ -260,7 +260,8 @@ again:
 	if (valstart == NULL || valstart > vallim)
 		valstart = vallim;
 	STAILQ_FOREACH(tag, &keyword->keywords, next) {
-		if (strncmp(tag->ident, keystart, valstart - keystart) == 0) {
+		if (strncmp(tag->ident, keystart, valstart - keystart) == 0 &&
+		    tag->ident[valstart - keystart] == '\0') {
 			if (newline != NULL)
 				tmp = newline;
 			else
