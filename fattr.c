@@ -80,6 +80,7 @@ fattr_supported(int type)
 	return (fattr_support[type]);
 }
 
+/* Returns a new file attribute structure based on a stat structure. */
 struct fattr *
 fattr_fromstat(struct stat *sb)
 {
@@ -123,6 +124,7 @@ fattr_fromstat(struct stat *sb)
 	return (fa);
 }
 
+/* Returns a new file attribute structure from its encoded text form. */
 struct fattr *
 fattr_decode(char *attr)
 {
@@ -158,6 +160,15 @@ fattr_decode(char *attr)
 		next = fattr_scanattr(fa, FA_MODE, next);
 		if (next == NULL)
 			goto bad;
+	}
+	if (fa->mask & FA_LINKCOUNT) {
+		next = fattr_scanattr(fa, FA_LINKCOUNT, next);
+		if (next == NULL)
+			goto bad;
+	} else if (fattr_supported(fa->type) & FA_LINKCOUNT) {
+		/* If the link count is missing but supported, fake it as 1. */
+		fa->mask |= FA_LINKCOUNT;
+		fa->linkcount = 1;
 	}
 	return (fa);
 bad:
@@ -308,41 +319,60 @@ fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
 	}
 	fa->mask |= FA_FILETYPE;
 	fa->type = FT_FILE;
+
+	/*
+	 * If the link count attribute is supported by this file type,
+	 * set it to 1.
+	 */
+	if (fattr_supported(FT_FILE) & FA_LINKCOUNT) {
+		fa->linkcount = 1;
+		fa->mask |= FA_LINKCOUNT;
+	}
 	return (fa);
 }
 
+/* Merge attributes from "from" that aren't present in "fa". */
 void
 fattr_merge(struct fattr *fa, struct fattr *from)
 {
+	
+	fattr_override(fa, from, from->mask & ~fa->mask);
+}
 
-	fa->mask |= from->mask;
-	if (fa->mask & FA_FILETYPE)
+/* Override selected attributes of "fa" with values from "from". */
+void
+fattr_override(struct fattr *fa, struct fattr *from, int mask)
+{
+
+	mask &= from->mask;
+	fa->mask |= mask;
+	if (mask & FA_FILETYPE)
 		fa->type = from->type;
-	if (fa->mask & FA_MODTIME)
+	if (mask & FA_MODTIME)
 		fa->modtime = from->modtime;
-	if (fa->mask & FA_SIZE)
+	if (mask & FA_SIZE)
 		fa->size = from->size;
-	if (fa->mask & FA_LINKTARGET) {
+	if (mask & FA_LINKTARGET) {
 		free(fa->linktarget);
 		fa->linktarget = strdup(from->linktarget);
 		if (fa->linktarget == NULL)
 			err(1, "strdup");
 	}
-	if (fa->mask & FA_RDEV)
+	if (mask & FA_RDEV)
 		fa->rdev = from->rdev;
-	if (fa->mask & FA_OWNER)
+	if (mask & FA_OWNER)
 		fa->uid = from->uid;
-	if (fa->mask & FA_GROUP)
+	if (mask & FA_GROUP)
 		fa->gid = from->gid;
-	if (fa->mask & FA_MODE)
+	if (mask & FA_MODE)
 		fa->mode = from->mode;
-	if (fa->mask & FA_FLAGS)
+	if (mask & FA_FLAGS)
 		fa->flags = from->flags;
-	if (fa->mask & FA_LINKCOUNT)
+	if (mask & FA_LINKCOUNT)
 		fa->linkcount = from->linkcount;
-	if (fa->mask & FA_DEV)
+	if (mask & FA_DEV)
 		fa->dev = from->dev;
-	if (fa->mask & FA_INODE)
+	if (mask & FA_INODE)
 		fa->inode = from->inode;
 }
 
