@@ -304,7 +304,6 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 	diff->d_diff = rd;
 	error = diff_apply(diff, coll->keyword);
 	stream_close(orig);
-	stream_sync(to);
 	stream_close(to);
 	if (error) {
 		printf("%s: diff_apply failed\n", __func__);
@@ -373,7 +372,6 @@ updater_checkout(struct collection *coll, struct stream *rd, char *line)
 	}
 	if (memcmp(line, ".", size) == 0)
 		stream_printf(to, "\n");
-	stream_sync(to);
 	stream_close(to);
 	/* Get the checksum line. */
 	line = stream_getln(rd, NULL);
