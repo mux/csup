@@ -294,15 +294,16 @@ bad:
 static int
 cvsup_mux(FILE *f)
 {
-	char pkt[MUX_STARTUPPKTSZ];
-	struct mux_header *mh;
+	int chan0, chan1;
 
 	lprintf(2, "Establishing multiplexed-mode data connection\n");
 	fprintf(f, "MUX\n");
-	mh = (struct mux_header *)pkt;
-	mh->mh_type = MUX_STARTUPREQ;
-	mh->mh_startup.mh_version = MUX_PROTOVER;
-	fwrite(pkt, 1, sizeof(pkt), f);
+	fflush(f);
+	chan0 = mux_open(fileno(f));
+	chan1 = mux_listen();
+#ifdef notyet
+	chan_printf(chan0, "CHAN %d\n", chan1);
+#endif
 	return (0);
 }
 
