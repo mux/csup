@@ -1,3 +1,5 @@
+$Id$
+
 - Fix the diff updating algorithm.
 - Make the stream API good enough to write files and use it in the diff
   updating code instead of mixing the stream and stdio APIs.
