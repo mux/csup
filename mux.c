@@ -44,22 +44,22 @@ __FBSDID("$FreeBSD$");
 
 #include "mux.h"
 
-#define	min(a, b)	((a) > (b) ? (b) : (a))
+#define	min(a, b)		((a) > (b) ? (b) : (a))
 
 /*
  * Packet types.
  */
-#define	MUX_STARTUPREQ	0
-#define	MUX_STARTUPREP	1
-#define	MUX_CONNECT	2			
-#define	MUX_ACCEPT	3
-#define	MUX_RESET	4
-#define	MUX_DATA	5
-#define	MUX_WINDOW	6
-#define	MUX_CLOSE	7
+#define	MUX_STARTUPREQ		0
+#define	MUX_STARTUPREP		1
+#define	MUX_CONNECT		2			
+#define	MUX_ACCEPT		3
+#define	MUX_RESET		4
+#define	MUX_DATA		5
+#define	MUX_WINDOW		6
+#define	MUX_CLOSE		7
 
 /*
- * Defines for header sizes.
+ * Header sizes.
  */
 #define	MUX_STARTUPHDRSZ	3
 #define	MUX_CONNECTHDRSZ	8
@@ -69,7 +69,18 @@ __FBSDID("$FreeBSD$");
 #define	MUX_WINDOWHDRSZ		6
 #define	MUX_CLOSEHDRSZ		2
 
-#define	MUX_PROTOVER	0			/* Protocol version. */
+#define	MUX_PROTOVER		0		/* Protocol version. */
+
+/*
+ * Older FreeBSD versions (and other OSes) don't have __packed,
+ * so in this case, define it ourself.  This is a GCC-specific
+ * keyword, but since the code wouldn't work without it, we
+ * define it even in the !GNUC case.  There are chances other
+ * compilers will support it though.
+ */
+#ifndef __packed
+#define	__packed		__attribute__((__packed__))
+#endif
 
 struct mux_header {
 	uint8_t type;
@@ -104,36 +115,36 @@ struct mux_header {
 	} mh_u;
 } __packed;
 
-#define	mh_startup	mh_u.mh_startup
-#define	mh_connect	mh_u.mh_connect
-#define	mh_accept	mh_u.mh_accept
-#define	mh_reset	mh_u.mh_reset
-#define	mh_data		mh_u.mh_data
-#define	mh_window	mh_u.mh_window
-#define	mh_close	mh_u.mh_close
+#define	mh_startup		mh_u.mh_startup
+#define	mh_connect		mh_u.mh_connect
+#define	mh_accept		mh_u.mh_accept
+#define	mh_reset		mh_u.mh_reset
+#define	mh_data			mh_u.mh_data
+#define	mh_window		mh_u.mh_window
+#define	mh_close		mh_u.mh_close
 
-#define	MUX_MAXCHAN	2
+#define	MUX_MAXCHAN		2
 
 /* Channel states. */
-#define	CS_UNUSED	0
-#define	CS_LISTENING	1
-#define	CS_CONNECTING	2
-#define	CS_ESTABLISHED	3
-#define	CS_RDCLOSED	4
-#define	CS_WRCLOSED	5
-#define	CS_CLOSED	6
+#define	CS_UNUSED		0
+#define	CS_LISTENING		1
+#define	CS_CONNECTING		2
+#define	CS_ESTABLISHED		3
+#define	CS_RDCLOSED		4
+#define	CS_WRCLOSED		5
+#define	CS_CLOSED		6
 
 /* Channel flags. */
-#define	CF_CONNECT	0x01
-#define	CF_ACCEPT	0x02
-#define	CF_RESET	0x04
-#define	CF_WINDOW	0x08
-#define	CF_DATA		0x10
-#define	CF_CLOSE	0x20
+#define	CF_CONNECT		0x01
+#define	CF_ACCEPT		0x02
+#define	CF_RESET		0x04
+#define	CF_WINDOW		0x08
+#define	CF_DATA			0x10
+#define	CF_CLOSE		0x20
 
-#define	CHAN_SBSIZE	(16 * 1024)		/* Send buffer size. */
-#define	CHAN_RBSIZE	(16 * 1024)		/* Receive buffer size. */
-#define	CHAN_MAXSEGSIZE	1024			/* Maximum segment size. */
+#define	CHAN_SBSIZE		(16 * 1024)	/* Send buffer size. */
+#define	CHAN_RBSIZE		(16 * 1024)	/* Receive buffer size. */
+#define	CHAN_MAXSEGSIZE		1024		/* Maximum segment size. */
 
 /* Circular buffer. */
 struct buf {
