@@ -77,7 +77,8 @@ cvsup_connect(struct config *config)
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(config->host, servname, &hints, &res);
 	if (error) {
-		warnx("connect: %s", gai_strerror(error));
+		lprintf(0, "Name lookup failure for \"%s\": %s\n", config->host,
+		    gai_strerror(error));
 		return (NULL);
 	}
 	for (ai = res; ai != NULL; ai = ai->ai_next) {
@@ -92,11 +93,16 @@ cvsup_connect(struct config *config)
 		}
 	}
 	freeaddrinfo(res);
-	if (s == -1)
+	if (s == -1) {
+		lprintf(0, "Cannot connect to %s: %s\n", config->host,
+		    strerror(errno));
 		return (NULL);
+	}
 	f = fdopen(s, "r+");
-	if (f == NULL)
+	if (f == NULL) {
+		close(s);
 		err(1, "fdopen");
+	}
 	return (f);
 }
 
