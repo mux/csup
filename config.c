@@ -126,8 +126,21 @@ config_init(const char *file, char *host, char *base, in_port_t port)
 			if (cur->prefix == NULL)
 				err(1, "malloc");
 		}
-		if (cur->tag != NULL)
-			cur->options |= CO_CHECKOUTMODE;
+		if (cur->tag == NULL && cur->date == NULL) {
+			fprintf(stderr, "Client only supports checkout mode\n");
+			exit (1);
+		}
+		cur->options |= CO_CHECKOUTMODE;
+		if (cur->tag == NULL) {
+			cur->tag = strdup(".");
+			if (cur->tag == NULL)
+				err(1, "malloc");
+		}
+		if (cur->date == NULL) {
+			cur->date = strdup(".");
+			if (cur->date == NULL)
+				err(1, "malloc");
+		}
 	}
 	config->port = port;
 	collec_free(cur_collec);
@@ -230,6 +243,11 @@ options_set(struct collection *collec, int opt, char *value)
 		if (collec->base != NULL)
 			free(collec->base);
 		collec->base = value;
+		break;
+	case DATE:
+		if (collec->date != NULL)
+			free(collec->date);
+		collec->date = value;
 		break;
 	case PREFIX:
 		if (collec->prefix != NULL)

@@ -67,10 +67,11 @@
 
 struct collection {
 	char *name;
-	char *tag;
-	char *release;
 	char *base;
+	char *date;
 	char *prefix;
+	char *release;
+	char *tag;
 	int options;
 	mode_t umask;
 	STAILQ_ENTRY(collection) next;
