@@ -65,7 +65,8 @@
 int
 cvsup_connect(struct config *config)
 {
-	char servname[6];
+	/* This is large enough to hold sizeof("cvsup") or any port number. */
+	char servname[8];
 	struct addrinfo *res, *ai, hints;
 	int error, s;
 
@@ -77,6 +78,14 @@ cvsup_connect(struct config *config)
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(config->host, servname, &hints, &res);
+	/*
+	 * Try with the hardcoded port number for OSes that don't
+	 * have cvsup defined in the /etc/services file.
+	 */
+	if (error == EAI_SERVICE) {
+		strlcpy(servname, "5999", sizeof(servname));
+		error = getaddrinfo(config->host, servname, &hints, &res);
+	}
 	if (error) {
 		lprintf(0, "Name lookup failure for \"%s\": %s\n", config->host,
 		    gai_strerror(error));
