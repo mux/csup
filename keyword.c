@@ -133,8 +133,6 @@ keyword_alias(struct keyword *keyword, char *ident, char *rcskey)
 	while (tag_defaults[i].ident != NULL) {
 		if (strcmp(tag_defaults[i].ident, rcskey) == 0) {
 			new = tag_new(ident, tag_defaults[i].key);
-			if (new == NULL)
-				return (-1);
 			STAILQ_INSERT_HEAD(&keyword->aliases, new, next);
 			return (0);
 		}
@@ -160,15 +158,11 @@ keyword_enable(struct keyword *keyword, char *ident)
 				continue;
 			tag = tag_new(tag_defaults[i].ident,
 			    tag_defaults[i].key);
-			if (tag == NULL)
-				return (-1);
 			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
 			return (0);
 		} else {
 			tag = tag_new(tag_defaults[i].ident,
 			    tag_defaults[i].key);
-			if (tag == NULL)
-				return (-1);
 			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
 		}
 	}
@@ -177,14 +171,10 @@ keyword_enable(struct keyword *keyword, char *ident)
 			if (strcmp(tag->ident, ident) != 0)
 				continue;
 			tag = tag_new(tag->ident, tag->key);
-			if (tag == NULL)
-				return (-1);
 			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
 			return (0);
 		} else {
 			tag = tag_new(tag->ident, tag->key);
-			if (tag == NULL)
-				return (-1);
 			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
 		}
 	}
