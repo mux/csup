@@ -32,6 +32,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/types.h>
 
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,7 +100,8 @@ config_init(const char *file, char *host, char *base, in_port_t port)
 	cur_collec = collec_new();
 	yyin = fopen(file, "r");
 	if (yyin == NULL) {
-		fprintf(stderr, "Cannot open config file %s\n", file);
+		fprintf(stderr, "Cannot open \"%s\": %s\n", file,
+		    strerror(errno));
 		exit(1);
 	}
 	error = yyparse();
