@@ -1,7 +1,5 @@
 - Parse, use and update status file.
 - Implement zlib compression.
-- Rework ".+" handling by delaying the write of '\n' so that we don't
-  need to use ftruncate() afterwards.
 - Implement the diff updating method and possibly the rsync one.  Also,
   update file attributes and not only their content.
 - Correctly handle (un)escaping in tokens as described in the
@@ -10,9 +8,9 @@
 - Always use absolute pathnames and don't use chdir().  Depending on the
   threading library, we may not have a current working directory for each
   thread and it's wrong to rely on it.
-- We can't handle lines bigger than 4kB at the moment.  This could be a
-  problem if people have files with very big lines, which is more likely
-  to happen if we are sent binary files.
+- We can't handle lines bigger than STREAM_BUFSIZ at the moment.  This
+  could be a problem if people have files with very big lines, which is
+  more likely to happen if we are sent binary files.
 - Add missing support for supfile keywords and add sanity checks for
   some of them.  Also, we're not supposed to choke on unknown keywords
   to stay in line with CVSup, which just ignores them in order to
