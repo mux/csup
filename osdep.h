@@ -33,7 +33,7 @@
  * that it's easier if we want to port that code to platforms with
  * different file types support.
  */
-struct fileattr_support fileattr_supported = {
+struct fattr_support fattr_supported = {
 	FT_MAX + 1,
 	{ /* FT_UNKNOWN */ 0,
 	  /* FT_FILE */ FA_FILETYPE | FA_MODTIME | FA_SIZE | FA_OWNER |

@@ -83,7 +83,7 @@ struct config {
 	int socket;
 	struct stream *server;
 	STAILQ_HEAD(, collection) collections;
-	struct fileattr_support *supported;
+	struct fattr_support *supported;
 	struct stream *chan0;
 	struct stream *chan1;
 };

@@ -77,12 +77,12 @@ typedef uint32_t fflags_t;
 
 struct stat;
 
-struct fileattr_support {
+struct fattr_support {
 	int number;
 	int attrs[FT_MAX + 1];
 };
 
-struct fileattr {
+struct fattr {
 	char		*name;
 	int		mask;
 	int		type;
@@ -100,5 +100,5 @@ struct fileattr {
 	STAILQ_ENTRY(file) next;
 };
 
-struct fileattr		*fileattr_fromstat(struct stat *);
-struct fileattr_support	*fileattr_support(void);
+struct fattr		*fattr_fromstat(struct stat *);
+struct fattr_support	*fattr_support(void);

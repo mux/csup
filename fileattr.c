@@ -36,19 +36,19 @@
 #include "fileattr.h"
 #include "osdep.h"
 
-struct fileattr_support *
-fileattr_support(void)
+struct fattr_support *
+fattr_support(void)
 {
 
-	return (&fileattr_supported);
+	return (&fattr_supported);
 }
 
-struct fileattr *
-fileattr_fromstat(struct stat *sb)
+struct fattr *
+fattr_fromstat(struct stat *sb)
 {
-	struct fileattr *fa;
+	struct fattr *fa;
 
-	fa = malloc(sizeof(struct fileattr));
+	fa = malloc(sizeof(struct fattr));
 	if (fa == NULL)
 		err(1, "malloc");
 	switch (sb->st_mode & S_IFMT) {
@@ -71,7 +71,7 @@ fileattr_fromstat(struct stat *sb)
 		fa->type = FT_UNKNOWN;
 		break;
 	}
-	fa->mask = FA_FILETYPE | fileattr_supported.attrs[fa->type];
+	fa->mask = FA_FILETYPE | fattr_supported.attrs[fa->type];
 	if (fa->mask & FA_MODTIME)
 		fa->modtime = sb->st_mtime;
 	if (fa->mask & FA_SIZE)

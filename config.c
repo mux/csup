@@ -69,7 +69,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		err(1, "malloc");
 	config->host = NULL;
 	STAILQ_INIT(&config->collections);
-	config->supported = fileattr_support();
+	config->supported = fattr_support();
 
 	defaults = coll_alloc();
 	mask = umask(0);
