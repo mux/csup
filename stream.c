@@ -636,7 +636,7 @@ zfilter_finish(struct stream *stream)
 		if ((zf->flags & ZFILTER_EOF) == 0) {
 			n = zfilter_inflate(stream);
 			assert(n == 0 && zf->flags & ZFILTER_EOF);
-		};
+		}
 		inflateEnd(state);
 		free(state);
 		buf_free(stream->rdbuf);
