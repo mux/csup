@@ -219,45 +219,78 @@ keyword_disable(struct keyword *keyword, char *ident)
 /*
  * Expand appropriate RCS keywords.  If there's no tag to expand,
  * keyword_expand() returns line, otherwise it returns a malloc()'ed
- * string that needs to be freed by the caller after use.
+ * string that needs to be freed by the caller after use.  The
+ * caller needs to compare the returned string to the line parameter
+ * to determine if it has to free() the data.
  */
 char *
 keyword_expand(struct keyword *keyword, struct diff *diff, char *line)
 {
 	struct tag *tag;
 	char *dollar, *keystart, *valstart, *vallim;
-	char *newline, *newval;
+	char *linestart, *newline, *newval, *cp, *tmp;
 
-	dollar = strchr(line, '$');
-	if (dollar == NULL)
+	newline = NULL;
+	linestart = cp = line;
+again:
+	dollar = strchr(cp, '$');
+	if (dollar == NULL) {
+		if (newline != NULL)
+			return (newline);
 		return (line);
+	}
 	keystart = dollar + 1;
 	vallim = strchr(keystart, '$');
-	if (vallim == NULL || vallim == keystart)
+	if (vallim == NULL) {
+		if (newline != NULL)
+			return (newline);
 		return (line);
+	}
+	if (vallim == keystart) {
+		cp = keystart;
+		goto again;
+	}
 	valstart = strchr(keystart, ':');
-	if (valstart == keystart)
-		return (line);
+	if (valstart == keystart) {
+		cp = vallim;
+		goto again;
+	}
 	if (valstart == NULL || valstart > vallim)
 		valstart = vallim;
 	STAILQ_FOREACH(tag, &keyword->keywords, next) {
 		if (strncmp(tag->ident, keystart, valstart - keystart) == 0) {
+			if (newline != NULL)
+				tmp = newline;
+			else
+				tmp = NULL;
 			newval = tag_expand(tag, diff);
 			*dollar = '\0';
 			*valstart = '\0';
 			*vallim = '\0';
 			if (newval == NULL) {
-				asprintf(&newline, "%s$%s:  $%s", line,
+				asprintf(&newline, "%s$%s:  $%s", linestart,
 				    keystart, vallim + 1);
 			} else {
-				asprintf(&newline, "%s$%s: %s $%s", line,
+				asprintf(&newline, "%s$%s: %s $%s", linestart,
 				    keystart, newval, vallim + 1);
 				free(newval);
 			}
-			return (newline);
+			if (newline == NULL)
+				err(1, "asprintf");
+			if (tmp)
+				free(tmp);
+			/*
+			 * Continue looking for tags in the rest of the line.
+			 * We can't use vallim + 1 because it points in the
+			 * old line and not in the newly allocated one.
+			 */
+			cp = newline + (vallim - linestart - 1);
+			linestart = newline;
+			goto again;
 		}
 	}
-	return (line);
+	cp = vallim + 1;
+	goto again;
 }
 
 static struct tag *
