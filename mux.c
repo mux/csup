@@ -663,8 +663,8 @@ again:
 		pthread_mutex_lock(&chan->lock);
 		chan->sendseq += size;
 		buf->out += size;
-		if (buf->out >= buf->size)
-			buf->out -= buf->size;
+		if (buf->out > buf->size)
+			buf->out -= buf->size + 1;
 		pthread_cond_broadcast(&chan->wrready);
 		pthread_mutex_unlock(&chan->lock);
 	} else {
@@ -813,8 +813,8 @@ receiver_loop(void *arg)
 			}
 			pthread_mutex_lock(&chan->lock);
 			buf->in += len;
-			if (buf->in >= buf->size)
-				buf->in -= buf->size;
+			if (buf->in > buf->size)
+				buf->in -= buf->size + 1;
 			pthread_cond_broadcast(&chan->rdready);
 			pthread_mutex_unlock(&chan->lock);
 			break;
@@ -873,7 +873,7 @@ buf_count(struct buf *buf)
 	if (buf->in >= buf->out)
 		count = buf->in - buf->out;
 	else
-		count = buf->size + buf->in - buf->out;
+		count = buf->size + 1 + buf->in - buf->out;
 	return (count);
 }
 
@@ -886,7 +886,7 @@ buf_avail(struct buf *buf)
 	if (buf->out > buf->in)
 		avail = buf->out - buf->in;
 	else
-		avail = buf->size + buf->out - buf->in;
+		avail = buf->size + 1 + buf->out - buf->in;
 	return (avail);
 }
 
@@ -908,8 +908,8 @@ buf_put(struct buf *buf, const void *data, size_t size)
 		memcpy(buf->data + buf->in, cp, size);
 	}
 	buf->in += size;
-	if (buf->in >= buf->size)
-		buf->in -= buf->size;
+	if (buf->in > buf->size)
+		buf->in -= buf->size + 1;
 }
 
 static void
@@ -930,6 +930,6 @@ buf_get(struct buf *buf, void *data, size_t size)
 		memcpy(cp, buf->data + buf->out, size);
 	}
 	buf->out += size;
-	if (buf->out >= buf->size)
-		buf->out -= buf->size;
+	if (buf->out > buf->size)
+		buf->out -= buf->size + 1;
 }
