@@ -103,8 +103,8 @@ struct zfilter {
 };
 
 static int		 zfilter_init(struct stream *);
-static ssize_t		 zfilter_inflate(struct stream *);
-static int		 zfilter_deflate(struct stream *, int);
+static ssize_t		 zfilter_fill(struct stream *);
+static int		 zfilter_flush(struct stream *, int);
 static void		 zfilter_finish(struct stream *);
 
 /* Create a new buffer. */
@@ -417,7 +417,7 @@ stream_flush(struct stream *stream)
 		return (0);
 	if (stream->filter == SF_ZLIB) {
 		zf = stream->fdata;
-		rv = zfilter_deflate(stream, Z_SYNC_FLUSH);
+		rv = zfilter_flush(stream, Z_SYNC_FLUSH);
 		if (rv != Z_OK)
 			errx(1, "deflate: %s", zf->wrstate->msg);
 		return (0);
@@ -537,7 +537,7 @@ stream_fill(struct stream *stream)
 	buf_makeroom(buf);
 	oldcount = buf_count(buf);
 	if (stream->filter == SF_ZLIB) {
-		n = zfilter_inflate(stream);
+		n = zfilter_fill(stream);
 	} else {
 		assert(stream->filter == SF_NONE);
 		n = stream_fill_buf(stream, buf);
@@ -634,7 +634,7 @@ zfilter_finish(struct stream *stream)
 		 * again to make sure we have eaten all the zlib'ed bytes.
 		 */
 		if ((zf->flags & ZFILTER_EOF) == 0) {
-			n = zfilter_inflate(stream);
+			n = zfilter_fill(stream);
 			assert(n == 0 && zf->flags & ZFILTER_EOF);
 		}
 		inflateEnd(state);
@@ -648,7 +648,7 @@ zfilter_finish(struct stream *stream)
 		/* Compress the remaining bytes in the buffer, if any. */
 		if (buf_count(stream->wrbuf) > 0) {
 			do {
-				rv = zfilter_deflate(stream, Z_FINISH);
+				rv = zfilter_flush(stream, Z_FINISH);
 				stream_flush_buf(stream, zbuf);
 			} while (rv == Z_OK);
 			if (rv != Z_STREAM_END)
@@ -663,7 +663,7 @@ zfilter_finish(struct stream *stream)
 }
 
 static int
-zfilter_deflate(struct stream *stream, int flags)
+zfilter_flush(struct stream *stream, int flags)
 {
 	struct zfilter *zf;
 	struct buf *buf, *zbuf;
@@ -694,7 +694,7 @@ zfilter_deflate(struct stream *stream, int flags)
 }
 
 static ssize_t
-zfilter_inflate(struct stream *stream)
+zfilter_fill(struct stream *stream)
 {
 	struct zfilter *zf;
 	struct buf *buf, *zbuf;
