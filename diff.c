@@ -59,7 +59,7 @@ struct editcmd {
 
 static int	diff_geteditcmd(struct editcmd *, char *);
 static int	diff_copyln(struct editcmd *, lineno_t);
-static void	diff_writeln(struct editcmd *, char *);
+static void	diff_write(struct editcmd *, void *, size_t);
 
 int
 diff_apply(struct diff *diff, struct keyword *keyword)
@@ -67,6 +67,7 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 	struct editcmd ec;
 	lineno_t i;
 	char *line;
+	size_t size;
 	int empty, error, noeol;
 
 	memset(&ec, 0, sizeof(ec));
@@ -97,12 +98,14 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 			if (error)
 				return (-1);
 			for (i = 0; i < ec.count; i++) {
-				line = stream_getln(diff->d_diff, NULL);
+				line = stream_getln(diff->d_diff, &size);
 				if (line == NULL)
 					return (-1);
-				if (line[0] == '.')
+				if (line[0] == '.') {
 					line++;
-				diff_writeln(&ec, line);
+					size--;
+				}
+				diff_write(&ec, line, size);
 			}
 		} else {
 			assert(ec.cmd == EC_DEL);
@@ -124,8 +127,8 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 	if (strcmp(line, ".+") == 0 && !empty)
 		noeol = 1;
 	ec.where = 0;
-	while ((line = stream_getln(diff->d_orig, NULL)) != NULL)
-		diff_writeln(&ec, line);
+	while ((line = stream_getln(diff->d_orig, &size)) != NULL)
+		diff_write(&ec, line, size);
 	stream_flush(diff->d_to);
 	if (noeol) {
 		error = stream_truncate_rel(diff->d_to, -1);
@@ -176,29 +179,39 @@ static int
 diff_copyln(struct editcmd *ec, lineno_t to)
 {
 	char *line;
+	size_t size;
 
 	while (ec->editline < to) {
-		line = stream_getln(ec->diff->d_orig, NULL);
+		line = stream_getln(ec->diff->d_orig, &size);
 		if (line == NULL)
 			return (-1);
 		ec->editline++;
-		diff_writeln(ec, line);
+		diff_write(ec, line, size);
 	}
 	return (0);
 }
 
 /* Write a new line to the file, expanding RCS keywords appropriately. */
 static void
-diff_writeln(struct editcmd *ec, char *line)
+diff_write(struct editcmd *ec, void *buf, size_t size)
 {
-	char *newline;
+	char *line, *newline;
 
 	if (ec->diff->d_expand != EXPAND_OLD &&
 	    ec->diff->d_expand != EXPAND_BINARY) {
-		newline = keyword_expand(ec->keyword, ec->diff, line);
-		stream_printf(ec->diff->d_to, "%s\n", newline);
+		/* XXX - the keyword API doesn't support binary lines. */
+		line = buf;
+		if (line[size] == '\n') {
+			line[size] = '\0';
+			newline = keyword_expand(ec->keyword, ec->diff, line);
+			stream_printf(ec->diff->d_to, "%s\n", newline);
+		} else {
+			assert(line[size] == '\0');
+			newline = keyword_expand(ec->keyword, ec->diff, line);
+			stream_printf(ec->diff->d_to, "%s", newline);
+		}
 		if (newline != line)
 			free(newline);
 	} else
-		stream_printf(ec->diff->d_to, "%s\n", line);
+		stream_write(ec->diff->d_to, buf, size);
 }
