@@ -255,11 +255,12 @@ updater_checkfile(char *path)
 
 	if (*path == '/')
 		return (-1);
-	cp = strstr(path, "..");
-	if (cp == NULL)
-		return (0);
-	if (cp == path || cp[2] == '\0' || (cp[-1] == '/' && cp[2] == '/'))
-		return (-1);
+	while ((cp = strstr(path, "..")) != NULL) {
+		if (cp == path || cp[2] == '\0' ||
+		    (cp[-1] == '/' && cp[2] == '/'))
+			return (-1);
+		path = cp + 2;
+	}
 	return (0);
 }
 
