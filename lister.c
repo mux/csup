@@ -28,6 +28,7 @@
 __FBSDID("$FreeBSD$");
 
 #include <stddef.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "lister.h"
@@ -45,6 +46,7 @@ lister(void *arg)
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
+		chdir(cur->colldir);
 		chan_printf(wr, "COLL %s %s\n", cur->name, cur->release);
 		chan_printf(wr, ".\n");
 	}
