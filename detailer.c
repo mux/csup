@@ -48,7 +48,7 @@ detailer(void *arg)
 
 	config = arg;
 	rdchan = config->chan0;
-	wrchan = config->chan0;
+	wrchan = config->chan1;
 	in = off = 0;
 	for (;;) {
 		line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
