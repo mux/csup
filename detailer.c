@@ -39,9 +39,8 @@ __FBSDID("$FreeBSD$");
 
 #include "config.h"
 #include "detailer.h"
+#include "main.h"
 #include "mux.h"
-
-#define	MD5_DIGEST_LEN	32
 
 #define	LINE_MAX	4096
 

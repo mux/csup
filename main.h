@@ -26,4 +26,8 @@
  * $FreeBSD$
  */
 
+#define	MD5_DIGEST_LEN		32
+
+#define	min(a, b)		((a) > (b) ? (b) : (a))
+
 int	lprintf(int, const char *, ...);
