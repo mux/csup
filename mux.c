@@ -240,8 +240,10 @@ again:
 			return (0);
 		iov->iov_len -= nbytes;
 		iov->iov_base = (char *)iov->iov_base + nbytes;
-	} else if (errno != EINTR)
-		err(1, "writev");
+	} else if (errno != EINTR) {
+		lprintf(-1, "Sender: %s\n", strerror(errno));
+		return (-1);
+	}
 	goto again;
 }
 
@@ -280,8 +282,14 @@ sock_readwait(int s, void *buf, size_t size)
 	left = size;
 	while (left > 0) {
 		nbytes = sock_read(s, cp, left);
-		if (nbytes <= 0)
+		if (nbytes == 0) {
+			lprintf(-1, "Receiver: Connection reset by peer\n");
 			return (-1);
+		}
+		if (nbytes < 0) {
+			lprintf(-1, "Receiver: %s\n", strerror(errno));
+			return (-1);
+		}
 		left -= nbytes;
 		cp += nbytes;
 	}
@@ -645,7 +653,7 @@ sender_loop(void *arg)
 	struct buf *buf;
 	uint32_t winsize;
 	uint16_t hdrsize, size, len;
-	int id, iovcnt, s, what;
+	int error, id, iovcnt, s, what;
 
 	sd = arg;
 	s = sd->s;
@@ -728,7 +736,9 @@ again:
 		 * too long, since write() might block.
 		 */
 		chan_unlock(chan);
-		sock_writev(s, iov, iovcnt);
+		error = sock_writev(s, iov, iovcnt);
+		if (error)
+			goto bad;
 		chan_lock(chan);
 		chan->sendseq += size;
 		buf->out += size;
@@ -738,9 +748,12 @@ again:
 		chan_unlock(chan);
 	} else {
 		chan_unlock(chan);
-		sock_write(s, &mh, hdrsize);
+		error = sock_write(s, &mh, hdrsize);
+		if (error)
+			goto bad;
 	}
 	goto again;
+bad:
 	return (NULL);
 }
 
@@ -813,7 +826,7 @@ receiver_loop(void *arg)
 
 	rd = arg;
 	s = rd->s;
-	while (!(error = sock_readwait(s, &mh.type, sizeof(mh.type)))) {
+	while ((error = sock_readwait(s, &mh.type, sizeof(mh.type))) == 0) {
 		switch (mh.type) {
 		case MUX_CONNECT:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
@@ -851,6 +864,12 @@ receiver_loop(void *arg)
 			}
 			break;
 		case MUX_RESET:
+			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			    MUX_RESETHDRSZ - sizeof(mh.type));
+			if (error)
+				goto bad;
+			lprintf(-1, "Receiver: Got a reset for channel %d\n",
+			    mh.mh_reset.id);
 			goto bad;
 			break;
 		case MUX_WINDOW:
@@ -878,6 +897,8 @@ receiver_loop(void *arg)
 			    (len > buf_avail(buf) ||
 			     len > chan->recvmss)) {
 				chan_unlock(chan);
+				lprintf(-1, "Receiver: Unexpected data for "
+				    "channel %d\n", mh.mh_data.id);
 				goto bad;
 			}
 			/*
@@ -887,9 +908,13 @@ receiver_loop(void *arg)
 			chan_unlock(chan);
 			size = min(buf->size + 1 - buf->in, len);
 			error = sock_readwait(s, buf->data + buf->in, size);
+			if (error)
+				goto bad;
 			if (len > size) {
 				/* Wrapping around. */
 				error = sock_readwait(s, buf->data, len - size);
+				if (error)
+					goto bad;
 			}
 			pthread_mutex_lock(&chan->lock);
 			buf->in += len;
@@ -908,20 +933,22 @@ receiver_loop(void *arg)
 				chan->state = CS_RDCLOSED;
 			else if (chan->state == CS_WRCLOSED)
 				chan->state = CS_CLOSED;
-			else 
+			else  {
+				lprintf(-1, "Receiver: Unexpected close for "
+				    "channel %d\n", mh.mh_close.id);
 				goto bad;
+			}
 			pthread_cond_signal(&chan->rdready);
 			chan_unlock(chan);
 			break;
 		default:
+			lprintf(-1, "Receiver: Unknown packet type (%d)\n",
+			    mh.type);
 			goto bad;
 			break;
 		}
 	}
-	warn("Receiver: socket error");
-	return (NULL);
 bad:
-	warnx("Receiver: protocol error");
 	return (NULL);
 }
 
