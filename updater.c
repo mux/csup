@@ -410,16 +410,12 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 	size_t size;
 	int error, first;
 
-	/*
-	 * It seems I don't need all these meta-data here since I get
-	 * sent a file with its RCS keywords correctly expanded already.
-	 * However, I need to double check that.
-	 */
 	rcsfile = strsep(&line, " ");
-	strsep(&line, " ");	/* XXX - tag */
-	strsep(&line, " ");	/* XXX - date */
-	strsep(&line, " ");	/* XXX - revnum */
-	strsep(&line, " ");	/* XXX - revdate */
+	/* I'll need those when the status file is supported. */
+	strsep(&line, " ");	/* tag */
+	strsep(&line, " ");	/* date */
+	strsep(&line, " ");	/* revnum */
+	strsep(&line, " ");	/* revdate */
 	attr = strsep(&line, " ");
 	if (attr == NULL || line != NULL)
 		return (-1);
