@@ -31,30 +31,47 @@
 #include <sys/stat.h>
 
 #include <err.h>
+#include <errno.h>
+#include <pwd.h>
+#include <stdio.h>	/* XXX - Only used by debug function fattr_printf(). */
 #include <stdlib.h>
+#include <string.h>
 
 #include "fileattr.h"
 #include "osdep.h"
 
+#define	FA_MASK		0x0fff
+
+#define	FA_MASKRADIX		16
+#define	FA_FILETYPERADIX	10
+#define	FA_MODTIMERADIX		10
+#define	FA_SIZERADIX		10
+#define	FA_MODERADIX		8
+#define	FA_FLAGSRADIX		16
+#define	FA_LINKCOUNTRADIX	10
+#define	FA_INODERADIX		10
+
+#define	FA_PERMMASK		(S_IRWXU | S_IRWXG | S_IRWXO)
+#define	FA_SETIDMASK		(S_ISUID | S_ISGID | S_ISVTX)
+
 struct fattr {
-	char		*name;
 	int		mask;
 	int		type;
 	time_t		modtime;
 	off_t		size;
 	char		*linktarget;
 	dev_t		rdev;
-	uid_t		owner;
-	gid_t		group;
+	uid_t		uid;
+	gid_t		gid;
 	mode_t		mode;
 	fflags_t	flags;
 	nlink_t		linkcount;
 	dev_t		dev;
 	ino_t		inode;
-	STAILQ_ENTRY(file) next;
 };
 
 static struct fattr	*fattr_new(void);
+static char		*fattr_scanattr(struct fattr *, int, char *);
 
 struct fattr_support *
 fattr_support(void)
@@ -69,26 +86,19 @@ fattr_fromstat(struct stat *sb)
 	struct fattr *fa;
 
 	fa = fattr_new();
-	switch (sb->st_mode & S_IFMT) {
-	case S_IFREG:
+	if (S_ISREG(sb->st_mode))
 		fa->type = FT_FILE;
-		break;
-	case S_IFDIR:
+	else if (S_ISDIR(sb->st_mode))
 		fa->type = FT_DIRECTORY;
-		break;
-	case S_IFCHR:
+	else if (S_ISCHR(sb->st_mode))
 		fa->type = FT_CDEV;
-		break;
-	case S_IFBLK:
+	else if (S_ISBLK(sb->st_mode))
 		fa->type = FT_BDEV;
-		break;
-	case S_IFLNK:
+	else if (S_ISLNK(sb->st_mode))
 		fa->type = FT_SYMLINK;
-		break;
-	default:
+	else
 		fa->type = FT_UNKNOWN;
-		break;
-	}
+
 	fa->mask = FA_FILETYPE | fattr_supported.attrs[fa->type];
 	if (fa->mask & FA_MODTIME)
 		fa->modtime = sb->st_mtime;
@@ -97,12 +107,11 @@ fattr_fromstat(struct stat *sb)
 	if (fa->mask & FA_RDEV)
 		fa->rdev = sb->st_rdev;
 	if (fa->mask & FA_OWNER)
-		fa->owner = sb->st_uid;
+		fa->uid = sb->st_uid;
 	if (fa->mask & FA_GROUP)
-		fa->group = sb->st_gid;
+		fa->gid = sb->st_gid;
 	if (fa->mask & FA_MODE)
-		fa->mode = sb->st_mode & (S_IRWXU | S_IRWXG | S_IRWXO |
-		    S_ISUID | S_ISGID | S_ISTXT);
+		fa->mode = sb->st_mode & (FA_SETIDMASK | FA_PERMMASK);
 	if (fa->mask & FA_FLAGS)
 		fa->flags = sb->st_flags;
 	if (fa->mask & FA_LINKCOUNT)
@@ -114,6 +123,56 @@ fattr_fromstat(struct stat *sb)
 	return (fa);
 }
 
+struct fattr *
+fattr_parse(char *attr)
+{
+	struct fattr *fa;
+	char *next;
+
+	fa = fattr_new();
+	next = fattr_scanattr(fa, FA_MASK, attr);
+	if (next == NULL || (fa->mask & ~FA_MASK) > 0)
+		goto bad;
+	if (fa->mask & FA_FILETYPE) {
+		next = fattr_scanattr(fa, FA_FILETYPE, next);
+		if (next == NULL)
+			goto bad;
+		if (fa->type < 0 || fa->type > FT_MAX)
+			fa->type = FT_UNKNOWN;
+	} else {
+		/* The filetype attribute is always valid. */
+		fa->mask |= FA_FILETYPE;
+		fa->type = FT_UNKNOWN;
+	}
+	if (fa->mask & FA_MODTIME) {
+		next = fattr_scanattr(fa, FA_MODTIME, next);
+		if (next == NULL)
+			goto bad;
+	}
+	if (fa->mask & FA_SIZE) {
+		next = fattr_scanattr(fa, FA_SIZE, next);
+		if (next == NULL)
+			goto bad;
+	}
+	if (fa->mask & FA_MODE) {
+		next = fattr_scanattr(fa, FA_MODE, next);
+		if (next == NULL)
+			goto bad;
+	}
+	return (fa);
+bad:
+	fattr_free(fa);
+	return (NULL);
+}
+
+void
+fattr_free(struct fattr *fa)
+{
+
+	free(fa->linktarget);
+	free(fa);
+}
+
 static struct fattr *
 fattr_new(void)
 {
@@ -122,5 +181,126 @@ fattr_new(void)
 	new = malloc(sizeof(struct fattr));
 	if (new == NULL)
 		err(1, "malloc");
+	memset(new, 0, sizeof(struct fattr));
 	return (new);
+}
+
+/*
+ * Eat the specified attribute and put it in the file attribute
+ * structure.  Returns NULL on error, or a pointer to the next
+ * attribute to parse.
+ *
+ * This would be much prettier if we had strnto{l, ul, ll, ull}().
+ * Besides, we need to use a (unsigned) long long types here because
+ * some attributes may need 64bits to fit.
+ */
+static char *
+fattr_scanattr(struct fattr *fa, int type, char *attr)
+{
+	struct passwd *pw;
+	char *attrend, *attrstart, *end;
+	size_t len;
+	unsigned long attrlen;
+	int modemask;
+	char tmp;
+
+	errno = 0;
+	attrlen = strtoul(attr, &end, 10);
+	if (errno || *end != '#')
+		return (NULL);
+	len = strlen(attr);
+	attrstart = end + 1;
+	attrend = attrstart + attrlen;
+	tmp = *attrend;
+	*attrend = '\0';
+	switch (type) {
+	/* Using FA_MASK here is a bit bogus semantically. */
+	case FA_MASK:
+		errno = 0;
+		fa->mask = (int)strtol(attrstart, &end, FA_MASKRADIX);
+		if (errno || end != attrend)
+			return (NULL);
+		break;
+	case FA_FILETYPE:
+		errno = 0;
+		fa->type = (int)strtol(attrstart, &end, FA_FILETYPERADIX);
+		break;
+	case FA_MODTIME:
+		errno = 0;
+		fa->modtime = (time_t)strtoll(attrstart, &end, FA_MODTIMERADIX);
+		if (errno || end != attrend)
+			return (NULL);
+		break;
+	case FA_SIZE:
+		errno = 0;
+		fa->size = (off_t)strtoll(attrstart, &end, FA_SIZERADIX);
+		if (errno || end != attrend)
+			return (NULL);
+		break;
+	case FA_LINKTARGET:
+		fa->linktarget = strdup(attrstart);
+		if (fa->linktarget == NULL)
+			err(1, "strdup");
+		break;
+	case FA_RDEV:
+		break;
+	case FA_OWNER:
+		pw = getpwnam(attrstart);
+		if (pw != NULL)
+			fa->uid = pw->pw_uid;
+		else
+			fa->mask &= ~FA_OWNER;
+		break;
+	case FA_GROUP:
+		pw = getpwnam(attrstart);
+		if (pw != NULL)
+			fa->gid = pw->pw_gid;
+		else
+			fa->mask &= ~FA_GROUP;
+		break;
+	case FA_MODE:
+		errno = 0;
+		fa->mode = (mode_t)strtol(attrstart, &end, FA_MODERADIX);
+		if (errno || end != attrend)
+			return (NULL);
+		if (fa->mask & FA_OWNER && fa->mask & FA_GROUP)
+			modemask = FA_SETIDMASK | FA_PERMMASK;
+		else
+			modemask = FA_PERMMASK;
+		fa->mode &= modemask;
+		break;
+	case FA_FLAGS:
+		errno = 0;
+		fa->flags = (fflags_t)strtoul(attrstart, &end, FA_FLAGSRADIX);
+		if (errno || end != attrend)
+			return (NULL);
+		break;
+	case FA_LINKCOUNT:
+		errno = 0;
+		fa->linkcount = (nlink_t)strtol(attrstart, &end, FA_FLAGSRADIX);
+		if (errno || end != attrend)
+			return (NULL);
+		break;
+	case FA_DEV:
+		break;
+	case FA_INODE:
+		break;
+	}
+	*attrend = tmp;
+	return (attrend);
+}
+
+void
+fattr_print(struct fattr *fa)
+{
+
+	printf("Mask is %#x\n", fa->mask);
+	if (fa->mask & FA_FILETYPE)
+		printf("Type is %d\n", fa->type);
+	if (fa->mask & FA_MODTIME)
+		printf("Modification time is %s\n", ctime(&fa->modtime));
+	if (fa->mask & FA_SIZE)
+		printf("Size is %lld\n", (long long)fa->size);
+	if (fa->mask & FA_MODE)
+		printf("Mode is %o\n", fa->mode);
 }

@@ -85,4 +85,7 @@ struct fattr_support {
 struct fattr;
 
 struct fattr		*fattr_fromstat(struct stat *);
+struct fattr		*fattr_parse(char *);
+void			 fattr_print(struct fattr *);
+void			 fattr_free(struct fattr *);
 struct fattr_support	*fattr_support(void);
