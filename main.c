@@ -66,10 +66,10 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	FILE *f;
 	struct config *config;
 	char *base, *colldir, *host, *file;
 	in_port_t port;
+	int error;
 	char c;
 
 	port = 0;
@@ -136,15 +136,11 @@ main(int argc, char *argv[])
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
 	config = config_init(file, host, base, colldir, port);
-
-#ifdef DEBUG
-	config_print(config);
-#endif
 	lprintf(2, "Connecting to %s\n", config->host);
-	f = cvsup_connect(config);
-	if (f == NULL)
+	error = cvsup_connect(config);
+	if (error)
 		return (1);
 	lprintf(1, "Connected to %s\n", config->host);
-	cvsup_init(f, config);
+	cvsup_init(config);
 	return (0);
 }

@@ -41,30 +41,29 @@ __FBSDID("$FreeBSD$");
 #include "detailer.h"
 #include "misc.h"
 #include "mux.h"
+#include "stream.h"
 
 #define	LINE_MAX	4096
 
 void *
 detailer(void *arg)
 {
-	char buf[LINE_MAX];
 	char md5[MD5_DIGEST_LEN + 1];
 	struct stat sb;
 	struct config *config;
 	struct collection *cur;
+	struct stream *rd, *wr;
 	char *cmd, *coll, *file, *line, *release;
-	size_t in, off;
-	int rd, wr, error;
+	int error;
 
 	config = arg;
 	rd = config->chan0;
 	wr = config->chan1;
-	in = off = 0;
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
 		chdir(cur->base);
-		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+		line = stream_getln(rd);
 		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
@@ -72,8 +71,8 @@ detailer(void *arg)
 		    strcmp(cmd, "COLL") != 0 || strcmp(coll, cur->name) != 0 ||
 		    strcmp(release, cur->release) != 0)
 			goto bad;
-		chan_printf(wr, "COLL %s %s\n", cur->name, cur->release);
-		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+		stream_printf(wr, "COLL %s %s\n", cur->name, cur->release);
+		line = stream_getln(rd);
 		if (line == NULL)
 			goto bad;
 		while (strcmp(line, ".") != 0) {
@@ -82,24 +81,28 @@ detailer(void *arg)
 			if (cmd == NULL || file == NULL ||
 			    strcmp(cmd, "U") != 0)
 				goto bad;
+			/* XXX */
 			file[strlen(file) - 2] = '\0';
 			error = stat(file, &sb);
 			if (!error && MD5file(file, md5) == 0)
-				chan_printf(wr, "S %s,v %s %s %s\n", file,
+				stream_printf(wr, "S %s,v %s %s %s\n", file,
 				    cur->tag, cur->date, md5);
 			else
-				chan_printf(wr, "C %s,v %s %s\n", file,
+				stream_printf(wr, "C %s,v %s %s\n", file,
 				    cur->tag, cur->date);
-			line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+			stream_flush(wr);
+			line = stream_getln(rd);
 			if (line == NULL)
 				goto bad;
 		}
-		chan_printf(wr, ".\n");
+		stream_printf(wr, ".\n");
+		stream_flush(wr);
 	}
-	line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+	line = stream_getln(rd);
 	if (line == NULL || strcmp(line, ".") != 0)
 		goto bad;
-	chan_printf(wr, ".\n");
+	stream_printf(wr, ".\n");
+	stream_flush(wr);
 	return (NULL);
 bad:
 	fprintf(stderr, "Detailer: Protocol error\n");

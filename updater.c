@@ -45,35 +45,33 @@ __FBSDID("$FreeBSD$");
 #include "updater.h"
 #include "misc.h"
 #include "mux.h"
-
-static char buf[4096];
-static size_t in, off;
+#include "stream.h"
 
 static int	updater_checkfile(char *);
 static int	updater_makedirs(char *);
 static void	updater_prunedirs(char *, char *);
-static int	updater_checkout(int, char *);
+static int	updater_checkout(struct stream *, char *);
 static int	updater_delete(struct collection *, char *);
-static int	updater_diff(int, char *);
+static int	updater_diff(struct stream *, char *);
 
 void *
 updater(void *arg)
 {
 	struct config *config;
 	struct collection *cur;
+	struct stream *rd;
 	char *line, *cmd, *coll, *release;
-	int rd, error;
+	int error;
 
 	config = arg;
 	rd = config->chan1;
-	in = off = 0;
 	error = 0;
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
 		chdir(cur->base);
 		umask(cur->umask);
-		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+		line = stream_getln(rd);
 		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
@@ -86,7 +84,7 @@ updater(void *arg)
 		lprintf(1, "Updating collection %s/%s\n", cur->name,
 		    cur->release);
 		for (;;) {
-			line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+			line = stream_getln(rd);
 			if (strcmp(line, ".") == 0)
 				break;
 			cmd = strsep(&line, " ");
@@ -136,7 +134,7 @@ updater_delete(struct collection *collec, char *line)
 }
 
 static int
-updater_diff(int rd, char *line)
+updater_diff(struct stream *rd, char *line)
 {
 	char *cp, *tok, *file, *revnum, *revdate, *author;
 
@@ -149,7 +147,7 @@ updater_diff(int rd, char *line)
 	*cp = '\0';
 	lprintf(1, " Edit %s\n", file);
 	for (;;) {
-		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+		line = stream_getln(rd);
 		if (strcmp(line, ".") == 0)
 			break;
 		tok = strsep(&line, " ");
@@ -164,8 +162,7 @@ updater_diff(int rd, char *line)
 			lprintf(2, "  Add delta %s %s %s\n", revnum, revdate,
 			    author);
 			for (;;) {
-				line = chan_getln(rd, buf, sizeof(buf),
-				    &in, &off);
+				line = stream_getln(rd);
 				if (line == NULL)
 					return (-1);
 				if (strcmp(line, ".") == 0)
@@ -173,13 +170,11 @@ updater_diff(int rd, char *line)
 				tok = strsep(&line, " ");
 				if (strcmp(tok, "T") == 0 ||
 				    strcmp(tok, "L") == 0) {
-					line = chan_getln(rd, buf, sizeof(buf),
-					    &in, &off);
+					line = stream_getln(rd);
 					while (line != NULL &&
 					    strcmp(line, ".") != 0 &&
 					    strcmp(line, ".+") != 0) {
-						line = chan_getln(rd, buf,
-						    sizeof(buf), &in, &off);
+						line = stream_getln(rd);
 					}
 					if (line == NULL)
 						return (-1);
@@ -191,7 +186,7 @@ updater_diff(int rd, char *line)
 }
 
 static int
-updater_checkout(int rd, char *line)
+updater_checkout(struct stream *rd, char *line)
 {
 	char pathbuf[PATH_MAX];
 	char md5[MD5_DIGEST_LEN + 1];
@@ -208,7 +203,7 @@ updater_checkout(int rd, char *line)
 		return (-1);
 	/*
 	 * We need to copy the filename because we'll need it later and
-	 * the pointer is only valid until the next chan_getln() call.
+	 * the pointer is only valid until the next stream_getln() call.
 	 */
 	strlcpy(pathbuf, file, min(sizeof(pathbuf), (unsigned)(cp - file + 1)));
 	file = pathbuf;
@@ -221,13 +216,13 @@ updater_checkout(int rd, char *line)
 		warn("fopen");
 		return (-1);
 	}
-	line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+	line = stream_getln(rd);
 	while (line != NULL && strcmp(line, ".") != 0 &&
 	    strcmp(line, ".+") != 0) {
 		if (strncmp(line, "..", 2) == 0)
 			line++;
 		fprintf(to, "%s\n", line);
-		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+		line = stream_getln(rd);
 	}
 	fflush(to);
 	if (line == NULL) {
@@ -243,7 +238,7 @@ updater_checkout(int rd, char *line)
 	fsync(fileno(to));
 	fclose(to);
 	/* Get the checksum line. */
-	line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+	line = stream_getln(rd);
 	cmd = strsep(&line, " ");
 	cksum = strsep(&line, " ");
 	if (cmd == NULL || cksum == NULL || line != NULL ||

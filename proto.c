@@ -50,6 +50,7 @@ __FBSDID("$FreeBSD$");
 #include "misc.h"
 #include "mux.h"
 #include "proto.h"
+#include "stream.h"
 #include "updater.h"
 
 #define	PROTO_MAJ	17
@@ -60,10 +61,9 @@ __FBSDID("$FreeBSD$");
 /*
  * XXX - we only print the error for the last connection attempt
  */
-FILE *
+int
 cvsup_connect(struct config *config)
 {
-	FILE *f;
 	char servname[6];
 	struct addrinfo *res, *ai, hints;
 	int error, s;
@@ -79,7 +79,7 @@ cvsup_connect(struct config *config)
 	if (error) {
 		lprintf(0, "Name lookup failure for \"%s\": %s\n", config->host,
 		    gai_strerror(error));
-		return (NULL);
+		return (-1);
 	}
 	for (ai = res; ai != NULL; ai = ai->ai_next) {
 		s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
@@ -96,40 +96,24 @@ cvsup_connect(struct config *config)
 	if (s == -1) {
 		lprintf(0, "Cannot connect to %s: %s\n", config->host,
 		    strerror(errno));
-		return (NULL);
+		return (-1);
 	}
-	f = fdopen(s, "r+");
-	if (f == NULL) {
-		close(s);
-		err(1, "fdopen");
-	}
-	return (f);
-}
-
-/*
- * Get next line sent by server.
- */
-static char *
-cvsup_getline(FILE *f)
-{
-	size_t len;
-	char *line;
-
-	line = fgetln(f, &len);
-	/* XXX - handle EOF from server. */
-	line[len - 1] = '\0';
-	return (line);
+	config->socket = s;
+	return (0);
 }
 
 /* Negotiate protocol version with the server. */
 static int
-cvsup_negproto(FILE *f)
+cvsup_negproto(struct config *config)
 {
+	struct stream *s;
 	char *cmd, *line, *maj, *min;
 	int pmaj, pmin;
 
-	fprintf(f, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
-	line = cvsup_getline(f);
+	s = config->server;
+	stream_printf(s, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
+	stream_flush(s);
+	line = stream_getln(s);
 	cmd = strsep(&line, " "); 
 	if (strcmp(cmd, "!") == 0) {
 		printf("Protocol negotiation failed: %s\n", line);
@@ -160,15 +144,18 @@ bad:
 }
 
 static int
-cvsup_login(FILE *f)
+cvsup_login(struct config *config)
 {
+	struct stream *s;
 	char host[MAXHOSTNAMELEN];
 	char *line, *cmd, *realm, *challenge;
 
+	s = config->server;
 	gethostname(host, sizeof(host));
 	host[sizeof(host) - 1] = '\0';
-	fprintf(f, "USER %s %s\n", getlogin(), host);
-	line = cvsup_getline(f);
+	stream_printf(s, "USER %s %s\n", getlogin(), host);
+	stream_flush(s);
+	line = stream_getln(s);
 	cmd = strsep(&line, " ");
 	realm = strsep(&line, " ");
 	challenge = strsep(&line, " ");
@@ -179,8 +166,9 @@ cvsup_login(FILE *f)
 		    "by client\n");
 		return (1);
 	}
-	fprintf(f, "AUTHMD5 . . .\n");
-	line = cvsup_getline(f);
+	stream_printf(s, "AUTHMD5 . . .\n");
+	stream_flush(s);
+	line = stream_getln(s);
 	cmd = strsep(&line, " "); 
 	if (strcmp(cmd, "OK") == 0)
 		return (0);
@@ -199,17 +187,20 @@ bad:
  * to have the same attributes support as us.
  */
 static int
-cvsup_fileattr(FILE *f, struct config *config)
+cvsup_fileattr(struct config *config)
 {
+	struct stream *s;
 	char *line, *cmd;
 	int i, n, attr;
 
+	s = config->server;
 	lprintf(2, "Negotiating file attribute support\n");
-	fprintf(f, "ATTR %d\n", config->supported->number);
+	stream_printf(s, "ATTR %d\n", config->supported->number);
 	for (i = 0; i < config->supported->number; i++)
-		fprintf(f, "%x\n", config->supported->attrs[i]);
-	fprintf(f, ".\n");
-	line = cvsup_getline(f);
+		stream_printf(s, "%x\n", config->supported->attrs[i]);
+	stream_printf(s, ".\n");
+	stream_flush(s);
+	line = stream_getln(s);
 	cmd = strsep(&line, " ");
 	if (line == NULL || strcmp(cmd, "ATTR") != 0)
 		goto bad;
@@ -218,13 +209,13 @@ cvsup_fileattr(FILE *f, struct config *config)
 	if (errno || n != config->supported->number)
 		goto bad;
 	for (i = 0; i < n; i++) {
-		line = cvsup_getline(f);
+		line = stream_getln(s);
 		errno = 0;
 		attr = strtol(line, NULL, 16);
 		if (errno || attr != config->supported->attrs[i])
 			goto bad;
 	}
-	line = cvsup_getline(f);
+	line = stream_getln(s);
 	if (strcmp(line, ".") != 0)
 		goto bad;
 	return (0);
@@ -255,21 +246,24 @@ cvsup_unescape(char *str)
  * Exchange collection information.
  */
 static int
-cvsup_xchgcoll(FILE *f, struct config *config)
+cvsup_xchgcoll(struct config *config)
 {
 	struct collection *cur;
+	struct stream *s;
 	char *line, *cmd, *coll, *release, *options, *tok;
 	int opts;
 
+	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
 	STAILQ_FOREACH(cur, &config->collections, next)
-		fprintf(f, "COLL %s %s %o %d\n.\n", cur->name,
+		stream_printf(s, "COLL %s %s %o %d\n.\n", cur->name,
 		    cur->release, cur->umask, cur->options);
-	fprintf(f, ".\n");
+	stream_printf(s, ".\n");
+	stream_flush(s);
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
-		line = cvsup_getline(f);
+		line = stream_getln(s);
 		cmd = strsep(&line, " ");
 		if (strcmp(cmd, "COLL") != 0)
 			goto bad;
@@ -291,7 +285,7 @@ cvsup_xchgcoll(FILE *f, struct config *config)
 		    ~(~opts & CO_SERVMAYCLEAR);
 		/* Eat the rest for now. */
 		do {
-			line = cvsup_getline(f);
+			line = stream_getln(s);
 			tok = line;
 			cmd = strsep(&tok, " ");
 			if (tok != NULL && strcmp(cmd, "!") == 0)
@@ -306,33 +300,43 @@ bad:
 }
 
 static int
-cvsup_mux(FILE *f, struct config *config)
+cvsup_mux(struct config *config)
 {
-	int chan0, chan1;
+	struct stream *s;
+	int id0, id1;
 	int error;
 
+	s = config->server;
 	lprintf(2, "Establishing multiplexed-mode data connection\n");
-	fprintf(f, "MUX\n");
-	fflush(f);
-	chan0 = chan_open(fileno(f));
-	if (chan0 == -1) {
+	stream_printf(s, "MUX\n");
+	stream_flush(s);
+	id0 = chan_open(config->socket);
+	if (id0 == -1) {
 		fprintf(stderr, "chan_open() failed\n");
 		return (-1);
 	}
-	chan1 = chan_listen();
-	if (chan1 == -1) {
+	id1 = chan_listen();
+	if (id1 == -1) {
 		fprintf(stderr, "chan_listen() failed\n");
 		return (-1);
 	}
-	chan_printf(chan0, "CHAN %d\n", chan1);
-	error = chan_accept(chan1);
+	config->chan0 = stream_open(id0, chan_read, chan_write);
+	if (config->chan0 == NULL)
+		return (-1);
+	stream_printf(config->chan0, "CHAN %d\n", id1);
+	stream_flush(config->chan0);
+	error = chan_accept(id1);
 	if (error) {
 		/* XXX - Sync error message with CVSup. */
-		fprintf(stderr, "Accept failed for chan %d\n", chan1);
+		fprintf(stderr, "Accept failed for chan %d\n", id1);
 		return (-1);
 	}
-	config->chan0 = chan0;
-	config->chan1 = chan1;
+	config->chan1 = stream_open(id1, chan_read, chan_write);
+	if (config->chan1 == NULL) {
+		stream_close(config->chan0);
+		return (-1);
+	}
+	stream_close(config->server);
 	return (0);
 }
 
@@ -342,15 +346,20 @@ cvsup_mux(FILE *f, struct config *config)
  * support and collections information.
  */
 int
-cvsup_init(FILE *f, struct config *config)
+cvsup_init(struct config *config)
 {
+	struct stream *s;
 	char *cur, *line;
 	pthread_t lister_thread;
 	pthread_t detailer_thread;
 	pthread_t updater_thread;
 	int error;
 
-	line = cvsup_getline(f);
+	config->server = stream_open(config->socket, read, write);
+	if (config->server == NULL)
+		return (-1);
+	s = config->server;
+	line = stream_getln(s);
 	cur = strsep(&line, " "); 
 	if (strcmp(cur, "OK") == 0) {
 		cur = strsep(&line, " "); 
@@ -364,19 +373,19 @@ cvsup_init(FILE *f, struct config *config)
 		return (1);
 	}
 	lprintf(2, "Server software version: %s\n", cur != NULL ? cur : ".");
-	error = cvsup_negproto(f);
+	error = cvsup_negproto(config);
 	if (error)
 		return (error);
-	error = cvsup_login(f);
+	error = cvsup_login(config);
 	if (error)
 		return (error);
-	error = cvsup_fileattr(f, config);
+	error = cvsup_fileattr(config);
 	if (error)
 		return (error);
-	error = cvsup_xchgcoll(f, config);
+	error = cvsup_xchgcoll(config);
 	if (error)
 		return (error);
-	error = cvsup_mux(f, config);
+	error = cvsup_mux(config);
 	pthread_create(&lister_thread, NULL, lister, config);
 	pthread_create(&detailer_thread, NULL, detailer, config);
 	pthread_create(&updater_thread, NULL, updater, config);

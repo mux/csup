@@ -26,5 +26,5 @@
  * $FreeBSD$
  */
 
-FILE	*cvsup_connect(struct config *);
-int	cvsup_init(FILE *, struct config *);
+int	cvsup_connect(struct config *);
+int	cvsup_init(struct config *);

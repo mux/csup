@@ -183,26 +183,6 @@ collec_add(struct collection *collec, char *name)
 	STAILQ_INSERT_TAIL(&config->collections, collec, next);
 }
 
-#ifdef DEBUG
-void
-config_print(struct config *cfg)
-{
-	struct collection *cur;
-	int i;
-
-	printf("Host \"%s\"\n", cfg->host);
-	printf("Printing all collections\n");
-	STAILQ_FOREACH(cur, &cfg->collections, next)
-		printf("Collection %s\n  base=%s\n  prefix=%s\n  tag=%s\n"
-		    "  release=%s\n  umask=%#o\n  options=%d\n",
-		    cur->name, cur->base, cur->prefix, cur->tag, cur->release,
-		    cur->umask, cur->options);
-	printf("File attributes\n");
-	for (i = 0; i < FT_NUMBER; i++)
-		printf("  %x\n", cfg->ftypes[i]);
-}
-#endif
-
 /*
  * XXX - relies on a C99 compliant free() function,
  * ie: free(NULL) is allowed.

@@ -26,8 +26,12 @@
  * $FreeBSD$
  */
 
-int	chan_open(int);
-int	chan_listen(void);
-int	chan_accept(int);
-ssize_t	chan_read(int, void *, size_t);
-ssize_t	chan_write(int, const void *, size_t);
+struct stream;
+
+struct stream	*stream_open(int, ssize_t (*)(int, void *, size_t),
+		    ssize_t (*)(int, const void *, size_t));
+ssize_t		stream_read(struct stream *, void *, size_t);
+char		*stream_getln(struct stream *);
+int		stream_printf(struct stream *, const char *, ...);
+int		stream_flush(struct stream *);
+void		stream_close(struct stream *);

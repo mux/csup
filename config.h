@@ -77,17 +77,15 @@ struct collection {
 struct config {
 	char *host;
 	uint16_t port;
+	int socket;
+	struct stream *server;
 	STAILQ_HEAD(, collection) collections;
 	struct fileattr_support *supported;
-	int chan0;
-	int chan1;
+	struct stream *chan0;
+	struct stream *chan1;
 };
 
 struct config	*config_init(const char *, char *, char *, char *, in_port_t);
-#ifdef DEBUG
-void		config_print(struct config *);
-void		config_delete(struct config *);
-#endif
 struct collection *collec_new(void);
 void		collec_add(struct collection *, char *);
 void		collec_free(struct collection *);
