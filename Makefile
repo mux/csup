@@ -20,7 +20,7 @@ SRCS=	config.c config.h \
 CFLAGS+=-g -pthread # -DNDEBUG
 WARNS?=	6
 NOMAN=	yes
-DPADD=	${LIBCRYPTO} ${LIBL} ${LIBZ}
-LDADD=	-lcrypto -ll -lz
+DPADD=	${LIBCRYPTO} ${LIBZ}
+LDADD=	-lcrypto -lz
 
 .include <bsd.prog.mk>

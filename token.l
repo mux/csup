@@ -41,6 +41,8 @@ int lineno = 1;
 
 %}
 
+%option noyywrap
+
 %%
 
 [ \t]+			;
