@@ -3,7 +3,7 @@
 PROG=	csup
 SRCS=	main.h main.c proto.h proto.c token.l parse.y y.tab.h parse.h \
 	file.h config.h config.c mux.h mux.c lister.h lister.c \
-	detailer.h detailer.c
+	detailer.h detailer.c updater.h updater.c
 #CFLAGS+=-DNDEBUG -g
 CFLAGS+=-g
 WARNS?=	6

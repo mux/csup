@@ -48,6 +48,7 @@ __FBSDID("$FreeBSD$");
 #include "main.h"
 #include "mux.h"
 #include "proto.h"
+#include "updater.h"
 
 #define	PROTO_MAJ	17
 #define	PROTO_MIN	0
@@ -323,22 +324,6 @@ cvsup_mux(FILE *f, struct config *config)
 	config->chan0 = chan0;
 	config->chan1 = chan1;
 	return (0);
-}
-
-static void *
-updater(void *arg)
-{
-	char buf[4096];
-	struct config *config;
-	size_t n;
-	int rd;
-
-	config = arg;
-	rd = config->chan1;
-	for (;;) {
-		n = chan_read(rd, buf, sizeof(buf));
-		printf("%.*s", n, buf);
-	}
 }
 
 /*
