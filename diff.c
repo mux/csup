@@ -32,7 +32,6 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -90,23 +89,17 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 			continue;
 		}
 		error = diff_geteditcmd(&ec, line);
-		if (error) {
-			printf("%s: diff_geteditcmd() failed\n", __func__);
+		if (error)
 			return (-1);
-		}
 
 		if (ec.cmd == EC_ADD) {
 			error = diff_copyln(&ec, ec.where);
-			if (error) {
-				printf("%s: diff_copyln() failed\n", __func__);
+			if (error)
 				return (-1);
-			}
 			for (i = 0; i < ec.count; i++) {
 				line = stream_getln(diff->d_diff, NULL);
-				if (line == NULL) {
-					printf("%s: boom\n", __func__);
+				if (line == NULL)
 					return (-1);
-				}
 				if (line[0] == '.')
 					line++;
 				diff_writeln(&ec, line);
@@ -114,25 +107,19 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 		} else {
 			assert(ec.cmd == EC_DEL);
 			error = diff_copyln(&ec, ec.where - 1);
-			if (error) {
-				printf("%s: diff_copyln() failed\n", __func__);
+			if (error)
 				return (-1);
-			}
 			for (i = 0; i < ec.count; i++) {
 				line = stream_getln(diff->d_orig, NULL);
-				if (line == NULL) {
-					printf("%s: aie\n", __func__);
+				if (line == NULL)
 					return (-1);
-				}
 				ec.editline++;
 			}
 		}
 		line = stream_getln(diff->d_diff, NULL);
 	}
-	if (line == NULL) {
-		printf("%s: line == NULL\n", __func__);
+	if (line == NULL)
 		return (-1);
-	}
 	/* If we got ".+", there's no ending newline. */
 	if (strcmp(line, ".+") == 0 && !empty)
 		noeol = 1;
@@ -160,24 +147,17 @@ diff_geteditcmd(struct editcmd *ec, char *line)
 		ec->cmd = EC_ADD;
 	else if (line[0] == 'd')
 		ec->cmd = EC_DEL;
-	else {
-		printf("%s: Bad editing command from server (%s)\n",
-		    __func__, line);
+	else
 		return (-1);
-	}
 	errno = 0;
 	ec->where = strtol(line + 1, &end, 10);
-	if (errno || ec->where < 0 || *end != ' ') {
-		printf("kaboom\n");
+	if (errno || ec->where < 0 || *end != ' ')
 		return (-1);
-	}
 	line = end + 1;
 	errno = 0;
 	ec->count = strtol(line, &end, 10);
-	if (errno || ec->count <= 0 || *end != '\0') {
-		printf("kaboom (2)\n");
+	if (errno || ec->count <= 0 || *end != '\0')
 		return (-1);
-	}
 	if (ec->cmd == EC_ADD) {
 		if (ec->where < ec->lasta)
 			return (-1);
