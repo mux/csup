@@ -621,13 +621,22 @@ zfilter_finish(struct stream *stream)
 	struct zfilter *zf;
 	struct buf *zbuf;
 	z_stream *state;
+	ssize_t n;
 	int rv;
 
 	zf = stream->fdata;
 	if (zf->rdbuf != NULL) {
 		state = zf->rdstate;
 		zbuf = zf->rdbuf;
-		assert(zf->flags & ZFILTER_EOF);
+		/*
+		 * Even if it has produced all the bytes, zlib sometimes
+		 * hasn't seen the EOF marker, so we need to call inflate()
+		 * again to make sure we have eaten all the zlib'ed bytes.
+		 */
+		if ((zf->flags & ZFILTER_EOF) == 0) {
+			n = zfilter_inflate(stream);
+			assert(n == 0 && zf->flags & ZFILTER_EOF);
+		};
 		inflateEnd(state);
 		free(state);
 		buf_free(stream->rdbuf);
