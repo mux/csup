@@ -28,10 +28,11 @@
  */
 
 #include <err.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "y.tab.h"
+#include "misc.h"
 #include "parse.h"
 
 #define	YY_NO_UNPUT
@@ -70,6 +71,6 @@ void
 yyerror(const char *s)
 {
 
-	fprintf(stderr, "Parse error line %d: %s: %s\n", lineno, s, yytext);
+	lprintf(-1, "Parse error line %d: %s: %s\n", lineno, s, yytext);
 	exit(1);
 }

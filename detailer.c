@@ -32,7 +32,6 @@
 
 #include <md5.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -130,6 +129,6 @@ detailer(void *arg)
 bad:
 	stream_close(wr);
 	stream_close(rd);
-	fprintf(stderr, "Detailer: Protocol error\n");
+	lprintf(-1, "Detailer: Protocol error\n");
 	return (NULL);
 }

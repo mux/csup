@@ -39,6 +39,7 @@
 
 #include "config.h"
 #include "keyword.h"
+#include "misc.h"
 #include "parse.h"
 #include "y.tab.h"
 
@@ -94,7 +95,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	cur_coll = coll_new();
 	yyin = fopen(file, "r");
 	if (yyin == NULL) {
-		fprintf(stderr, "Cannot open \"%s\": %s\n", file,
+		lprintf(-1, "Cannot open \"%s\": %s\n", file,
 		    strerror(errno));
 		exit(1);
 	}
@@ -107,12 +108,12 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	/* Fixup the list of collections. */
 	STAILQ_FOREACH(cur, &config->colls, co_next) {
 		if (cur->co_release == NULL) {
-			fprintf(stderr, "Release not specified for collection "
+			lprintf(-1, "Release not specified for collection "
 			    "\"%s\"\n", cur->co_name);
 			exit(1);
 		}
 		if (cur->co_tag == NULL && cur->co_date == NULL) {
-			fprintf(stderr, "Client only supports checkout mode\n");
+			lprintf(-1, "Client only supports checkout mode\n");
 			exit(1);
 		}
 		cur->co_options |= CO_CHECKOUTMODE;
@@ -159,7 +160,7 @@ config_sethost(char *host)
 {
 
 	if (config->host != NULL) {
-		fprintf(stderr, "All \"host\" fields in the supfile "
+		lprintf(-1, "All \"host\" fields in the supfile "
 		    "must be the same\n");
 		exit(1);
 	}
@@ -260,7 +261,7 @@ coll_setopt(int opt, char *value)
 		coll->co_umask = strtol(value, NULL, 8);
 		free(value);
 		if (errno) {
-			fprintf(stderr, "Parse error in \"%s\": Invalid "
+			lprintf(-1, "Parse error in \"%s\": Invalid "
 			    "umask value\n", cfgfile);
 			exit(1);
 		}

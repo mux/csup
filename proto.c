@@ -144,14 +144,14 @@ cvsup_greet(struct config *config)
 		tok = strsep(&line, " "); 
 		tok = strsep(&line, " "); 
 	} else if (strcmp(tok, "!") == 0) {
-		fprintf(stderr, "Rejected by server: %s\n", line);
+		lprintf(-1, "Rejected by server: %s\n", line);
 		return (-1);
 	} else
 		goto bad;
 	lprintf(2, "Server software version: %s\n", tok != NULL ? tok : ".");
 	return (0);
 bad:
-	fprintf(stderr, "Invalid greeting from server\n");
+	lprintf(-1, "Invalid greeting from server\n");
 	return (-1);
 }
 
@@ -169,7 +169,7 @@ cvsup_negproto(struct config *config)
 	line = stream_getln(s, NULL);
 	cmd = strsep(&line, " "); 
 	if (strcmp(cmd, "!") == 0) {
-		fprintf(stderr, "Protocol negotiation failed: %s\n", line);
+		lprintf(-1, "Protocol negotiation failed: %s\n", line);
 		return (1);
 	} else if (strcmp(cmd, "PROTO") != 0)
 		goto bad;
@@ -186,13 +186,13 @@ cvsup_negproto(struct config *config)
 	if (errno == EINVAL)
 		goto bad;
 	if (pmaj != PROTO_MAJ || pmin != PROTO_MIN) {
-		fprintf(stderr, "Server protocol version %s.%s not supported "
+		lprintf(-1, "Server protocol version %s.%s not supported "
 		    "by client\n", maj, min);
 		return (1);
 	}
 	return (0);
 bad:
-	fprintf(stderr, "Invalid PROTO command from server\n");
+	lprintf(-1, "Invalid PROTO command from server\n");
 	return (1);
 }
 
@@ -215,7 +215,7 @@ cvsup_login(struct config *config)
 	if (challenge == NULL || line != NULL)
 		goto bad;
 	if (strcmp(realm, ".") != 0 || strcmp(challenge, ".") != 0) {
-		fprintf(stderr, "Authentication required by the server and not "
+		lprintf(-1, "Authentication required by the server and not "
 		    "supported by client\n");
 		return (1);
 	}
@@ -226,11 +226,11 @@ cvsup_login(struct config *config)
 	if (strcmp(cmd, "OK") == 0)
 		return (0);
 	if (strcmp(cmd, "!") == 0 && line != NULL) {
-		fprintf(stderr, "Server error: %s\n", line);
+		lprintf(-1, "Server error: %s\n", line);
 		return (1);
 	}
 bad:
-	fprintf(stderr, "Invalid server reply to AUTHMD5\n");
+	lprintf(-1, "Invalid server reply to AUTHMD5\n");
 	return (1);
 }
 
@@ -273,7 +273,7 @@ cvsup_fileattr(struct config *config)
 		goto bad;
 	return (0);
 bad:
-	fprintf(stderr, "Protocol error negotiating attribute support\n");
+	lprintf(-1, "Protocol error negotiating attribute support\n");
 	return (1);
 }
 
@@ -345,7 +345,7 @@ cvsup_xchgcoll(struct config *config)
 			if (cmd == NULL)
 				goto bad;
 			if (strcmp(cmd, "!") == 0) {
-				fprintf(stderr, "Server message: %s\n",
+				lprintf(-1, "Server message: %s\n",
 				    cvsup_unescape(line));
 			} else if (strcmp(cmd, "PRFX") == 0) {
 				cur->co_cvsroot = strdup(line);
@@ -381,7 +381,7 @@ cvsup_xchgcoll(struct config *config)
 	}
 	return (0);
 bad:
-	fprintf(stderr, "Protocol error during collection exchange\n");
+	lprintf(-1, "Protocol error during collection exchange\n");
 	return (1);
 }
 
@@ -398,17 +398,17 @@ cvsup_mux(struct config *config)
 	stream_flush(s);
 	error = mux_init(config->socket);
 	if (error) {
-		fprintf(stderr, "mux_init() failed\n");
+		lprintf(-1, "mux_init() failed\n");
 		return (error);
 	}
 	id0 = chan_open();
 	if (id0 == -1) {
-		fprintf(stderr, "chan_open() failed\n");
+		lprintf(-1, "chan_open() failed\n");
 		return (-1);
 	}
 	id1 = chan_listen();
 	if (id1 == -1) {
-		fprintf(stderr, "chan_listen() failed\n");
+		lprintf(-1, "chan_listen() failed\n");
 		return (-1);
 	}
 	chan0 = stream_fdopen(id0, chan_read, chan_write, NULL);
@@ -417,7 +417,7 @@ cvsup_mux(struct config *config)
 	error = chan_accept(id1);
 	if (error) {
 		/* XXX - Sync error message with CVSup. */
-		fprintf(stderr, "Accept failed for channel %d\n", id1);
+		lprintf(-1, "Accept failed for channel %d\n", id1);
 		return (-1);
 	}
 	stream_close(config->server);

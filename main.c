@@ -26,14 +26,10 @@
  * $Id$
  */
 
-#include <sys/queue.h>
 #include <sys/types.h>
+#include <sys/queue.h>
 
-#include <err.h>
 #include <errno.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -49,23 +45,23 @@ int verbose = 1;
 static void
 usage(void)
 {
-	fprintf(stderr, "Usage: %s [options] supfile [destDir]\n",
+	lprintf(-1, "Usage: %s [options] supfile [destDir]\n",
 	    getprogname());
-	fprintf(stderr, "  Options:\n");
-	fprintf(stderr, USAGE_OPTFMT, "-b base", 
+	lprintf(-1, "  Options:\n");
+	lprintf(-1, USAGE_OPTFMT, "-b base", 
 	    "Override supfile's \"base\" directory");
-	fprintf(stderr, USAGE_OPTFMT, "-c collDir",
+	lprintf(-1, USAGE_OPTFMT, "-c collDir",
 	    "Subdirectory of \"base\" for collections (default \"sup\")");
-	fprintf(stderr, USAGE_OPTFMT, "-h host",
+	lprintf(-1, USAGE_OPTFMT, "-h host",
 	    "Override supfile's \"host\" name");
-	fprintf(stderr, USAGE_OPTFMT, "-L n",
+	lprintf(-1, USAGE_OPTFMT, "-L n",
 	    "Verbosity level (0..2, default 1)");
-	fprintf(stderr, USAGE_OPTFMT, "-p port",
+	lprintf(-1, USAGE_OPTFMT, "-p port",
 	    "Alternate server port (default 5999)");
-	fprintf(stderr, USAGE_OPTFMT, "-v", "Print version and exit");
-	fprintf(stderr, USAGE_OPTFMT, "-z", "Enable compression for all "
+	lprintf(-1, USAGE_OPTFMT, "-v", "Print version and exit");
+	lprintf(-1, USAGE_OPTFMT, "-z", "Enable compression for all "
 	    "collections");
-	fprintf(stderr, USAGE_OPTFMT, "-Z", "Disable compression for all "
+	lprintf(-1, USAGE_OPTFMT, "-Z", "Disable compression for all "
 	    "collections");
 }
 
@@ -98,7 +94,7 @@ main(int argc, char *argv[])
 			errno = 0;
 			verbose = strtol(optarg, NULL, 0);
 			if (errno == EINVAL) {
-				fprintf(stderr, "Invalid verbosity\n");
+				lprintf(-1, "Invalid verbosity\n");
 				usage();
 				return (1);
 			}
@@ -108,7 +104,7 @@ main(int argc, char *argv[])
 			errno = 0;
 			port = strtol(optarg, NULL, 0);
 			if (errno == EINVAL) {
-				fprintf(stderr, "Invalid server port\n");
+				lprintf(-1, "Invalid server port\n");
 				usage();
 				return (1);
 			}
@@ -116,13 +112,13 @@ main(int argc, char *argv[])
 		case 'P':
 			/* For compatibility. */
 			if (strcmp(optarg, "m") != 0) {
-				fprintf(stderr,
+				lprintf(-1,
 				    "Client only supports multiplexed mode\n");
 				return (1);
 			}
 			break;
 		case 'v':
-			fprintf(stderr, "Csup version 0.1\n");
+			lprintf(-1, "Csup version 0.1\n");
 			return (0);
 			break;
 		case 'z':

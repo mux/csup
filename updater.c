@@ -140,7 +140,7 @@ updater(void *arg)
 	stream_close(rd);
 	return (NULL);
 bad:
-	fprintf(stderr, "Updater: error (%s)\n", line);
+	lprintf(-1, "Updater: error (%s)\n", line);
 	stream_close(rd);
 	return (NULL);
 }
@@ -154,7 +154,7 @@ updater_delete(struct coll *coll, char *line)
 	rcsfile = strsep(&line, " ");
 	file = updater_getpath(coll, rcsfile);
 	if (file == NULL) {
-		printf("Updater: bad filename \"%s\"\n", rcsfile);
+		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
 		return (-1);
 	}
 	lprintf(1, " Delete %s\n", file + strlen(coll->co_base) + 1);
@@ -202,7 +202,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 		goto bad;
 	path = updater_getpath(coll, rcsfile);
 	if (path == NULL) {
-		fprintf(stderr, "Updater: bad filename %s\n", rcsfile);
+		lprintf(-1, "Updater: bad filename %s\n", rcsfile);
 		goto bad;
 	}
 	if (strcmp(expand, ".") == 0)
@@ -220,13 +220,13 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	else if (strcmp(expand, "v") == 0)
 		up.expand = EXPAND_VALUE;
 	else {
-		fprintf(stderr, "Updater: invalid expansion mode \"%s\"\n",
+		lprintf(-1, "Updater: invalid expansion mode \"%s\"\n",
 		    expand);
 		goto bad;
 	}
 	rcsattr = fattr_decode(attr);
 	if (rcsattr == NULL) {
-		fprintf(stderr, "Updater: invalid file attributes \"%s\"\n",
+		lprintf(-1, "Updater: invalid file attributes \"%s\"\n",
 		    attr);
 		goto bad;
 	}
@@ -283,10 +283,8 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 		}
 		lprintf(2, "  Add delta %s %s %s\n", revnum, revdate, author);
 		error = updater_diff_batch(&up);
-		if (error) {
-			printf("%s: updater_diff_batch failed\n", __func__);
+		if (error)
 			goto bad;
-		}
 	}
 	if (line == NULL)
 		goto bad;
@@ -296,11 +294,11 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	fattr_free(fa);
 	/* XXX - Compute MD5 while writing the file. */
 	if (MD5file(path, md5) == -1) {
-		printf("%s: MD5file() failed\n", __func__);
+		lprintf(-1, "%s: MD5file() failed\n", __func__);
 		goto bad;
 	}
 	if (strcmp(cksum, md5) != 0) {
-		printf("%s: bad md5 checksum\n", __func__);
+		lprintf(-1, "Updater: Bad MD5 checksum for \"%s\"\n", path);
 		goto bad;
 	}
 	stream_close(up.from);
@@ -354,8 +352,11 @@ updater_diff_batch(struct update *up)
 				err(1, "strdup");
 		} else if (strcmp(tok, "T") == 0) {
 			error = updater_diff_apply(up);
-			if (error)
-				goto bad;
+			if (error) {
+				free(up->state);
+				up->state = NULL;
+				return (error);
+			}
 		}
 	}
 	if (line == NULL)
@@ -364,6 +365,7 @@ updater_diff_batch(struct update *up)
 	up->state = NULL;
 	return (0);
 bad:
+	lprintf(-1, "Updater: Protocol error\n");
 	free(up->state);
 	up->state = NULL;
 	return (-1);
@@ -389,7 +391,7 @@ updater_diff_apply(struct update *up)
 	diff.d_expand = up->expand;
 	error = diff_apply(&diff, up->coll->co_keyword);
 	if (error) {
-		fprintf(stderr, "Updater: bad diff from server\n");
+		lprintf(-1, "Updater: Bad diff from server\n");
 		return (-1);
 	}
 	return (0);
@@ -421,20 +423,21 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 
 	fa = fattr_decode(attr);
 	if (fa == NULL) {
-		printf("Updater: bad attribute %s\n", attr);
+		lprintf(-1, "Updater: Bad attribute %s\n", attr);
 		return (-1);
 	}
 
 	file = updater_getpath(coll, rcsfile);
 	if (file == NULL) {
-		printf("Updater: bad filename \"%s\"\n", rcsfile);
+		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
 		goto bad;
 	}
 
 	lprintf(1, " Checkout %s\n", file + strlen(coll->co_base) + 1);
 	error = updater_makedirs(file);
 	if (error) {
-		printf("Updater: updater_makedirs() failed\n");
+		lprintf(-1, "Updater: Can't create directory hierarchy: %s\n",
+		    strerror(errno));
 		goto bad;
 	}
 
@@ -475,7 +478,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		goto bad;
 	}
 	if (MD5file(file, md5) == -1 || strcmp(cksum, md5) != 0) {
-		printf("%s: bad md5 checksum\n", __func__);
+		lprintf(-1, "Updater: Bad MD5 checksum for \"%s\"\n", file);
 		goto bad;
 	}
 	updater_install(coll, fa, NULL, file);
