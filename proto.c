@@ -48,7 +48,7 @@ __FBSDID("$FreeBSD$");
 
 #define	PROTO_MAJ	17
 #define	PROTO_MIN	0
-#define	PROTO_SWVER	"CVSup_lite_0.1"
+#define	PROTO_SWVER	"Csup_0.1"
 #define	PROTO_MAXLINE	2048
 
 /*
