@@ -26,8 +26,6 @@
 - Handle some signals (SIGINT, SIGPIPE and maybe others) gracefully, like
   CVSup does and like we should.
 - Properly close the channels at the end of a session.
-- Switch from libmd to the openssl library.  It is more portable and
-  libmd should die soon in FreeBSD.
 - Write a manual page (the CVSup one should probably be reused).
 - Make the code work on other systems than FreeBSD.  OpenBSD and NetBSD
   support will probably be easy, Linux support will probably require more

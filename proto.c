@@ -47,7 +47,7 @@ __FBSDID("$FreeBSD$");
 #include "detailer.h"
 #include "fileattr.h"
 #include "lister.h"
-#include "main.h"
+#include "misc.h"
 #include "mux.h"
 #include "proto.h"
 #include "updater.h"

@@ -43,7 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 #include <unistd.h>
 
-#include "main.h"
+#include "misc.h"
 #include "mux.h"
 
 /*

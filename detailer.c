@@ -39,7 +39,7 @@ __FBSDID("$FreeBSD$");
 
 #include "config.h"
 #include "detailer.h"
-#include "main.h"
+#include "misc.h"
 #include "mux.h"
 
 #define	LINE_MAX	4096
@@ -84,7 +84,7 @@ detailer(void *arg)
 				goto bad;
 			file[strlen(file) - 2] = '\0';
 			error = stat(file, &sb);
-			if (!error && MD5File(file, md5) != NULL)
+			if (!error && MD5file(file, md5) == 0)
 				chan_printf(wr, "S %s,v %s %s %s\n", file,
 				    cur->tag, cur->date, md5);
 			else

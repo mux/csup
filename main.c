@@ -37,8 +37,8 @@ __FBSDID("$FreeBSD$");
 #include <unistd.h>
 
 #include "config.h"
+#include "misc.h"
 #include "proto.h"
-#include "main.h"
 
 #define	USAGE_OPTFMT	"    %-12s %s\n"
 
@@ -149,20 +149,5 @@ main(int argc, char *argv[])
 	}
 	lprintf(1, "Connected to %s\n", config->host);
 	cvsup_init(f, config);
-	return (0);
-}
-
-int
-lprintf(int level, const char *fmt, ...)
-{
-	va_list ap;
-	int ret;
-
-	if (level <= verbose) {
-		va_start(ap, fmt);
-		ret = vprintf(fmt, ap);
-		va_end(ap);
-		return (ret);
-	}
 	return (0);
 }

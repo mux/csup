@@ -41,7 +41,7 @@ __FBSDID("$FreeBSD$");
 
 #include "config.h"
 #include "updater.h"
-#include "main.h"
+#include "misc.h"
 #include "mux.h"
 
 static char buf[4096];
@@ -234,14 +234,10 @@ updater_checkout(int rd, char *line)
 	cmd = strsep(&line, " ");
 	cksum = strsep(&line, " ");
 	if (cmd == NULL || cksum == NULL || line != NULL ||
-	    strcmp(cmd, "5") != 0) {
-		printf("foo\n");
+	    strcmp(cmd, "5") != 0)
 		return (-1);
-	}
-	if (MD5File(file, md5) == NULL || strcmp(cksum, md5) != 0) {
-		printf("bar");
+	if (MD5file(file, md5) == -1 || strcmp(cksum, md5) != 0)
 		return (-1);
-	}
 	return (0);
 }
 
