@@ -1,8 +1,10 @@
 - Parse, use and update status file.
 - Implement zlib compression.
-- The delete updating command should apparently remove directories that
-  become empty.  This sounds like consistent with how we have to create
-  them if they don't exist in the checkout method.
+- The delete updating command should prune empty directories that become
+  empty.  This sounds like consistent with how we have to create them if
+  they don't exist in the checkout method.
+- Rework ".+" handling by delaying the write of '\n' so that we don't
+  need to use ftruncate() afterwards.
 - Implement the diff updating method and possibly the rsync one.  Also,
   update file attributes and not only their content.
 - Correctly handle (un)escaping in tokens as described in the
