@@ -1,9 +1,9 @@
 # $FreeBSD$
 
 PROG=	csup
-SRCS=	main.h main.c proto.h proto.c token.l parse.y y.tab.h parse.h \
-	file.h config.h config.c mux.h mux.c lister.h lister.c \
-	detailer.h detailer.c updater.h updater.c
+SRCS=	config.c config.h detailer.c detailer.h fileattr.c fileattr.h \
+	lister.c lister.h main.c main.h mux.c mux.h osdep.h parse.h \
+	parse.y proto.h proto.c token.l updater.c updater.h y.tab.h 
 CFLAGS+=-g	# -DNDEBUG
 WARNS?=	6
 NOMAN=	yes

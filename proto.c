@@ -29,6 +29,7 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 #include <netinet/in.h>
 
@@ -44,6 +45,7 @@ __FBSDID("$FreeBSD$");
 
 #include "config.h"
 #include "detailer.h"
+#include "fileattr.h"
 #include "lister.h"
 #include "main.h"
 #include "mux.h"
@@ -195,9 +197,9 @@ cvsup_fileattr(FILE *f, struct config *config)
 	int i, n, attr;
 
 	lprintf(2, "Negotiating file attribute support\n");
-	fprintf(f, "ATTR %d\n", config->ftnumber);
-	for (i = 0; i < config->ftnumber; i++)
-		fprintf(f, "%x\n", config->ftypes[i]);
+	fprintf(f, "ATTR %d\n", config->supported->number);
+	for (i = 0; i < config->supported->number; i++)
+		fprintf(f, "%x\n", config->supported->attrs[i]);
 	fprintf(f, ".\n");
 	line = cvsup_getline(f);
 	cmd = strsep(&line, " ");
@@ -205,13 +207,13 @@ cvsup_fileattr(FILE *f, struct config *config)
 		goto bad;
 	errno = 0;
 	n = strtol(line, NULL, 10);
-	if (errno || n != config->ftnumber)
+	if (errno || n != config->supported->number)
 		goto bad;
 	for (i = 0; i < n; i++) {
 		line = cvsup_getline(f);
 		errno = 0;
 		attr = strtol(line, NULL, 16);
-		if (errno || attr != config->ftypes[i])
+		if (errno || attr != config->supported->attrs[i])
 			goto bad;
 	}
 	line = cvsup_getline(f);

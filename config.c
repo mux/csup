@@ -39,7 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 
 #include "config.h"
-#include "file.h"
+#include "fileattr.h"
 #include "parse.h"
 #include "y.tab.h"
 
@@ -53,7 +53,7 @@ static struct config *config;
 
 /*
  * Extract all the configuration information from the config
- * file and some commnd line parameters.
+ * file and some command line parameters.
  */
 struct config *
 config_init(const char *file, char *host, char *base, in_port_t port)
@@ -67,8 +67,7 @@ config_init(const char *file, char *host, char *base, in_port_t port)
 		err(1, "malloc");
 	config->host = NULL;
 	STAILQ_INIT(&config->collections);
-	config->ftypes = ftypes_supported;
-	config->ftnumber = sizeof(ftypes_supported) / sizeof(int);
+	config->supported = fileattr_support();
 
 	defaults = malloc(sizeof(struct collection));
 	if (defaults == NULL)

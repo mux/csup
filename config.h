@@ -79,8 +79,7 @@ struct config {
 	char *host;
 	uint16_t port;
 	STAILQ_HEAD(, collection) collections;
-	int *ftypes;
-	int ftnumber;
+	struct fileattr_support *supported;
 	int chan0;
 	int chan1;
 };
