@@ -199,10 +199,14 @@ static int		sender_scan(int *);
 
 static void		*receiver_loop(void *);
 
+/* Multiplexer data. */
 static pthread_mutex_t mux_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct chan *chans[MUX_MAXCHAN];
 static int nchans;
+
+/* Sender thread data. */
 static pthread_cond_t sender_newwork = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t sender_ready = PTHREAD_COND_INITIALIZER;
 static pthread_t sender;
 static struct sender_data {
 	int s;
@@ -529,7 +533,7 @@ chan_insert(struct chan *chan)
 }
 
 /*
- * Initialize the multiplexer.
+ * Initialize the multiplexer protocol.
  *
  * This means negotiating protocol version and starting
  * the receiver and sender threads.
@@ -557,7 +561,9 @@ mux_initproto(int s)
 	if (error)
 		return (-1);
 	/* Make sure the sender has run and is waiting for new work. */
-	pthread_yield();
+	pthread_mutex_lock(&mux_lock);
+	pthread_cond_wait(&sender_ready, &mux_lock);
+	pthread_mutex_unlock(&mux_lock);
 	receiver_data.s = s;
 	receiver_data.error = 0;
 	error = pthread_create(&receiver, NULL, receiver_loop, &receiver_data);
@@ -689,6 +695,7 @@ sender_waitforwork(int *what)
 	int id;
 
 	pthread_mutex_lock(&mux_lock);
+	pthread_cond_signal(&sender_ready);
 	while ((id = sender_scan(what)) == -1)
 		pthread_cond_wait(&sender_newwork, &mux_lock);
 	pthread_mutex_unlock(&mux_lock);
