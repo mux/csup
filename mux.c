@@ -97,6 +97,7 @@ struct chan {
 	uint16_t	sendmss;
 };
 
+static int		sock_writev(int, struct iovec *, int);
 static int		sock_write(int, void *, size_t);
 
 static int		mux_initproto(int);
