@@ -205,8 +205,11 @@ updater_diff(struct collection *coll, struct stream *rd, char *line)
 		}
 	}
 	diff_free(&diff);
-	if (MD5file(path, md5) == -1 || strcmp(cksum, md5) != 0)
+	if (MD5file(path, md5) == -1 || strcmp(cksum, md5) != 0) {
+		free(path);
 		printf("%s: bad md5 checksum\n", __func__);
+		return (-1);
+	}
 	free(path);
 	return (0);
 bad:
