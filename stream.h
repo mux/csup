@@ -39,4 +39,5 @@ int		 stream_flush(struct stream *);
 int		 stream_sync(struct stream *);
 int		 stream_truncate(struct stream *, off_t);
 int		 stream_truncate_rel(struct stream *, off_t);
+int		 stream_rewind(struct stream *);
 int		 stream_close(struct stream *);

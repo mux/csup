@@ -365,6 +365,15 @@ stream_truncate_rel(struct stream *stream, off_t off)
 	return (error);
 }
 
+int
+stream_rewind(struct stream *stream)
+{
+	int error;
+
+	error = lseek(stream->id, 0, SEEK_SET);
+	return (error);
+}
+
 /* Close a stream and free any resources held by it. */
 int
 stream_close(struct stream *stream)
