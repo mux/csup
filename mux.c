@@ -406,7 +406,7 @@ chan_connect(int id)
 
 	chan = chan_get(id);
 	chan->state = CS_CONNECTING;
-	chan->flags &= CF_CONNECT;
+	chan->flags |= CF_CONNECT;
 	pthread_cond_signal(&sender_newwork);
 	while (chan->state == CS_CONNECTING)
 		pthread_cond_wait(&chan->wrready, &chan->lock);
@@ -505,6 +505,8 @@ mux_initproto(int s)
 	error = pthread_create(&sender, NULL, sender_loop, &sender_data);
 	if (error)
 		return (-1);
+	/* Make sure the sender has run ans is waiting for new work. */
+	pthread_yield();
 	receiver_data.s = s;
 	receiver_data.error = 0;
 	error = pthread_create(&receiver, NULL, receiver_loop, &receiver_data);
