@@ -126,9 +126,12 @@ stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 	if (readfn != NULL) {
 		stream->rdbuf = buf_new(STREAM_BUFSIZ + 1);
 		stream->rdbuf->buf[--stream->rdbuf->size] = '\0';
-	}
+	} else
+		stream->rdbuf = NULL;
 	if (writefn != NULL)
 		stream->wrbuf = buf_new(STREAM_BUFSIZ);
+	else
+		stream->wrbuf = NULL;
 	stream->id = id;
 	stream->readfn = readfn;
 	stream->writefn = writefn;
