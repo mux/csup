@@ -148,7 +148,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	char md5[MD5_DIGEST_SIZE];
 	struct diff diff;
 #if 0
-	struct fattr *fa, *rcsattr;
+	struct fattr *fa, *rcsattr, *tmp;
 #endif
 	char *author, *tag, *rcsfile, *revnum, *revdate;
 	char *attr, *cp, *cksum, *line2, *line3, *tok, *path;
@@ -174,7 +174,10 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	rcsattr = fattr_decode(attr);
 	if (rcsattr == NULL)
 		errx(1, "fattr_decode failed");
-	fa = fattr_forcheckout(rcsattr, coll->co_umask);
+	fa = fattr_dup(rcsattr);
+	tmp = fattr_forcheckout(rcsattr, coll->co_umask);
+	fattr_override(fa, tmp, FA_MASK);
+	fattr_free(tmp);
 	fattr_free(fa);
 	fattr_free(rcsattr);
 #endif
@@ -212,7 +215,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 		diff.d_revnum = revnum;
 		diff.d_revdate = revdate;
 		diff.d_author = author;
-		lprintf(2, "  Add diff %s %s %s\n", revnum, revdate, author);
+		lprintf(2, "  Add delta %s %s %s\n", revnum, revdate, author);
 		error = updater_diff_apply(coll, path, rd, &diff);
 		if (error) {
 			printf("%s: updater_diff_apply failed\n", __func__);
