@@ -602,11 +602,17 @@ mux_initproto(int s)
 		return (-1);
 	sender_data.s = s;
 	sender_data.error = 0;
-	error = pthread_create(&sender, NULL, sender_loop, &sender_data);
-	if (error)
-		return (-1);
-	/* Make sure the sender has run and is waiting for new work. */
+	/*
+	 * Make sure the sender thread has run and is waiting for new work
+	 * before going on.  Otherwise, it might lose the race and a
+	 * request, which will cause a deadlock.
+	 */
 	pthread_mutex_lock(&mux_lock);
+	error = pthread_create(&sender, NULL, sender_loop, &sender_data);
+	if (error) {
+		pthread_mutex_unlock(&mux_lock);
+		return (-1);
+	}
 	pthread_cond_wait(&sender_ready, &mux_lock);
 	pthread_mutex_unlock(&mux_lock);
 	receiver_data.s = s;
