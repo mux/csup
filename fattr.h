@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2005, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,6 +67,8 @@ typedef uint32_t fflags_t;
 
 #define	FA_MASK		0x0fff
 
+#define	FA_NUMBER	12		/* Number of file attributes. */
+
 /* Attributes that we might be able to change. */
 #define	FA_CHANGEABLE	(FA_MODTIME | FA_OWNER | FA_GROUP | FA_MODE | FA_FLAGS)
 
@@ -79,12 +81,16 @@ typedef uint32_t fflags_t;
 struct stat;
 struct fattr;
 
+struct fattr		*fattr_new(int);
 struct fattr		*fattr_fromstat(struct stat *);
-struct fattr		*fattr_frompath(const char *);
+struct fattr		*fattr_frompath(const char *, int);
 struct fattr		*fattr_fromfd(int);
 struct fattr		*fattr_decode(char *);
+struct fattr		*fattr_bogus(void);
 struct fattr		*fattr_forcheckout(struct fattr *, mode_t);
 struct fattr		*fattr_dup(struct fattr *);
+char			*fattr_encode(struct fattr *);
+int			 fattr_type(struct fattr *);
 void			 fattr_maskout(struct fattr *, int);
 void			 fattr_merge(struct fattr *, struct fattr *);
 void			 fattr_override(struct fattr *, struct fattr *, int);

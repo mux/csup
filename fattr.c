@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2005, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,6 +34,7 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
+#include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,7 +72,22 @@ struct fattr {
 	ino_t		inode;
 };
 
-static struct fattr	*fattr_new(void);
+struct fattr bogus = {
+	FA_MODE | FA_MODTIME | FA_SIZE,
+	FT_UNKNOWN,
+	1,
+	0,
+	NULL,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0
+};
+
 static char		*fattr_scanattr(struct fattr *, int, char *);
 
 int
@@ -81,13 +97,37 @@ fattr_supported(int type)
 	return (fattr_support[type]);
 }
 
+struct fattr *
+fattr_new(int type)
+{
+	struct fattr *new;
+
+	new = malloc(sizeof(struct fattr));
+	if (new == NULL)
+		err(1, "malloc");
+	memset(new, 0, sizeof(struct fattr));
+	new->type = type;
+	if (fattr_supported(new->type) & FA_LINKCOUNT) {
+		new->mask |= FA_LINKCOUNT;
+		new->linkcount = 1;
+	}
+	return (new);
+}
+
+struct fattr *
+fattr_bogus(void)
+{
+
+	return (&bogus);
+}
+
 /* Returns a new file attribute structure based on a stat structure. */
 struct fattr *
 fattr_fromstat(struct stat *sb)
 {
 	struct fattr *fa;
 
-	fa = fattr_new();
+	fa = fattr_new(0);
 	if (S_ISREG(sb->st_mode))
 		fa->type = FT_FILE;
 	else if (S_ISDIR(sb->st_mode))
@@ -126,13 +166,16 @@ fattr_fromstat(struct stat *sb)
 }
 
 struct fattr *
-fattr_frompath(const char *path)
+fattr_frompath(const char *path, int nofollow)
 {
 	struct fattr *fa;
 	struct stat sb;
 	int error;
 
-	error = stat(path, &sb);
+	if (nofollow)
+		error = lstat(path, &sb);
+	else
+		error = stat(path, &sb);
 	if (error)
 		return (NULL);
 	fa = fattr_fromstat(&sb);
@@ -153,6 +196,13 @@ fattr_fromfd(int fd)
 	return (fa);
 }
 
+int
+fattr_type(struct fattr *fa)
+{
+
+	return (fa->type);
+}
+
 /* Returns a new file attribute structure from its encoded text form. */
 struct fattr *
 fattr_decode(char *attr)
@@ -160,7 +210,7 @@ fattr_decode(char *attr)
 	struct fattr *fa;
 	char *next;
 
-	fa = fattr_new();
+	fa = fattr_new(0);
 	next = fattr_scanattr(fa, FA_MASK, attr);
 	if (next == NULL || (fa->mask & ~FA_MASK) > 0)
 		goto bad;
@@ -210,12 +260,163 @@ bad:
 	return (NULL);
 }
 
+char *
+fattr_encode(struct fattr *fa)
+{
+	struct {
+		char val[32];
+		char len[4];
+		int extval;
+		char *ext;
+	} pieces[FA_NUMBER], *piece;
+	struct passwd *pw;
+	struct group *gr;
+	char *cp, *s;
+	size_t len, vallen;
+	mode_t mode, modemask;
+	int mask, n, i;
+
+	pw = NULL;
+	gr = NULL;
+	mask = fa->mask;
+	/* XXX - Use getpwuid_r() and getgrgid_r(). */
+	if (fa->mask & FA_OWNER) {
+		pw = getpwuid(fa->uid);
+		if (pw == NULL)
+			mask &= ~FA_OWNER;
+	}
+	if (fa->mask & FA_GROUP) {
+		gr = getgrgid(fa->gid);
+		if (gr == NULL)
+			mask &= ~FA_GROUP;
+	}
+	if (fa->mask & FA_LINKCOUNT && fa->linkcount == 1)
+		mask &= ~FA_LINKCOUNT;
+
+	memset(pieces, 0, FA_NUMBER * sizeof(*pieces));
+	len = 0;
+	piece = pieces;
+	vallen = snprintf(piece->val, sizeof(piece->val), "%x", mask);
+	len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+	    vallen + 1;
+	piece++;
+	if (mask & FA_FILETYPE) {
+		vallen = snprintf(piece->val, sizeof(piece->val),
+		    "%d", fa->type);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_MODTIME) {
+		vallen = snprintf(piece->val, sizeof(piece->val),
+		    "%lld", (long long)fa->modtime);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_SIZE) {
+		vallen = snprintf(piece->val, sizeof(piece->val),
+		    "%lld", (long long)fa->size);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_LINKTARGET) {
+		vallen = strlen(fa->linktarget);
+		piece->extval = 1;
+		piece->ext = fa->linktarget;
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_RDEV) {
+		vallen = snprintf(piece->val, sizeof(piece->val),
+		    "%lld", (long long)fa->rdev);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_OWNER) {
+		vallen = strlen(pw->pw_name);
+		piece->extval = 1;
+		piece->ext = pw->pw_name;
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_GROUP) {
+		vallen = strlen(gr->gr_name);
+		piece->extval = 1;
+		piece->ext = gr->gr_name;
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_MODE) {
+		if (mask & FA_OWNER && mask & FA_GROUP)
+			modemask = FA_SETIDMASK | FA_PERMMASK;
+		else
+			modemask = FA_PERMMASK;
+		mode = fa->mode & modemask;
+		vallen = snprintf(piece->val, sizeof(piece->val),
+		    "%o", mode);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_FLAGS) {
+		vallen = snprintf(piece->val, sizeof(piece->val), "%llx",
+		    (long long)fa->flags);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_LINKCOUNT) {
+		vallen = snprintf(piece->val, sizeof(piece->val), "%lld",
+		    (long long)fa->linkcount);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_DEV) {
+		vallen = snprintf(piece->val, sizeof(piece->val), "%lld",
+		    (long long)fa->dev);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+	if (mask & FA_INODE) {
+		vallen = snprintf(piece->val, sizeof(piece->val), "%lld",
+		    (long long)fa->inode);
+		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
+		    vallen + 1;
+		piece++;
+	}
+
+	s = malloc(len);
+	if (s == NULL)
+		err(1, "malloc");
+
+	n = piece - pieces;
+	piece = pieces;
+	cp = s;
+	for (i = 0; i < n; i++) {
+		if (piece->extval)
+			len = sprintf(cp, "%s#%s", piece->len, piece->ext);
+		else
+			len = sprintf(cp, "%s#%s", piece->len, piece->val);
+		cp += len;
+	      	piece++;
+	}
+	return (s);
+}
+
 struct fattr *
 fattr_dup(struct fattr *from)
 {
 	struct fattr *fa;
 
-	fa = fattr_new();
+	fa = fattr_new(0);
 	fattr_override(fa, from, FA_MASK);
 	return (fa);
 }
@@ -258,7 +459,7 @@ fattr_scanattr(struct fattr *fa, int type, char *attr)
 	char *attrend, *attrstart, *end;
 	size_t len;
 	unsigned long attrlen;
-	int modemask;
+	mode_t modemask;
 	char tmp;
 
 	if (attr == NULL)
@@ -304,6 +505,10 @@ fattr_scanattr(struct fattr *fa, int type, char *attr)
 	case FA_RDEV:
 		break;
 	case FA_OWNER:
+		/*
+		 * XXX - We need to use getpwnam_r() since getpwnam()
+		 * is not thread-safe, and we also need to use a cache.
+		 */
 		pw = getpwnam(attrstart);
 		if (pw != NULL)
 			fa->uid = pw->pw_uid;
@@ -355,7 +560,7 @@ fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
 {
 	struct fattr *fa;
 
-	fa = fattr_new();
+	fa = fattr_new(0);
 	fattr_merge(fa, rcsattr);
 	if (rcsattr->mask & FA_MODE) {
 		if ((rcsattr->mode & 0111) > 0)
@@ -451,7 +656,7 @@ fattr_install(struct fattr *fa, const char *frompath, const char *topath)
 		frompath = topath;
 		inplace = 1;
 	}
-	old = fattr_frompath(topath);
+	old = fattr_frompath(topath, 0);
 	if (old == NULL)
 		return (-1);
 	if (inplace && fattr_cmp(fa, old) == 0) {
@@ -581,16 +786,4 @@ fattr_cmp(struct fattr *fa1, struct fattr *fa2)
 		if (fa1->inode != fa2->inode)
 			return (-1);
 	return (0);
-}
-
-static struct fattr *
-fattr_new(void)
-{
-	struct fattr *new;
-
-	new = malloc(sizeof(struct fattr));
-	if (new == NULL)
-		err(1, "malloc");
-	memset(new, 0, sizeof(struct fattr));
-	return (new);
 }
