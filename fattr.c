@@ -26,6 +26,7 @@
  * $Id$
  */
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/queue.h>
 #include <sys/stat.h>
@@ -34,13 +35,13 @@
 #include <err.h>
 #include <errno.h>
 #include <pwd.h>
+#include <stdio.h>	/* XXX - debug */
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "fattr.h"
 #include "fattr_os.h"
-
-#define	FA_MASK		0x0fff
 
 #define	FA_MASKRADIX		16
 #define	FA_FILETYPERADIX	10
@@ -121,6 +122,34 @@ fattr_fromstat(struct stat *sb)
 		fa->dev = sb->st_dev;
 	if (fa->mask & FA_INODE)
 		fa->inode = sb->st_ino;
+	return (fa);
+}
+
+struct fattr *
+fattr_frompath(const char *path)
+{
+	struct fattr *fa;
+	struct stat sb;
+	int error;
+
+	error = stat(path, &sb);
+	if (error)
+		return (NULL);
+	fa = fattr_fromstat(&sb);
+	return (fa);
+}
+
+struct fattr *
+fattr_fromfd(int fd)
+{
+	struct fattr *fa;
+	struct stat sb;
+	int error;
+
+	error = fstat(fd, &sb);
+	if (error)
+		return (NULL);
+	fa = fattr_fromstat(&sb);
 	return (fa);
 }
 
@@ -391,6 +420,69 @@ fattr_override(struct fattr *fa, struct fattr *from, int mask)
 		fa->dev = from->dev;
 	if (mask & FA_INODE)
 		fa->inode = from->inode;
+}
+
+/*
+ * Changes those attributes we can change.  Returns -1 on error,
+ * 0 if no update was needed, and 1 if an update was needed and
+ * it has been applied successfully.
+ */
+int
+fattr_apply(struct fattr *fa, int fd)
+{
+	struct timeval tv[2];
+	struct fattr *old;
+	int error;
+	mode_t mask, newmode;
+	uid_t uid;
+	gid_t gid;
+
+	old = fattr_fromfd(fd);
+	if (old == NULL)
+		return (-1);
+	if (fattr_cmp(fa, old) == 0)
+		return (0);
+	printf("%s: need to update\n", __func__);
+	if (fa->mask & FA_OWNER && fa->mask & FA_GROUP)
+		mask = FA_SETIDMASK | FA_PERMMASK;
+	else
+		mask = FA_PERMMASK;
+	if (fa->mask & FA_MODTIME) {
+		gettimeofday(tv, NULL);		/* Access time. */
+		tv[1].tv_sec = fa->modtime;	/* Modification time. */
+		tv[1].tv_usec = 0;
+		error = futimes(fd, tv);
+		if (error)
+			return (-1);
+	}
+	if (fa->mask & FA_OWNER || fa->mask & FA_GROUP) {
+		uid = -1;
+		gid = -1;
+		if (fa->mask & FA_OWNER)
+			uid = fa->uid;
+		if (fa->mask & FA_GROUP)
+			gid = fa->gid;
+		error = fchown(fd, uid, gid);
+		if (error)
+			return (-1);
+	}
+	if (fa->mask & FA_MODE) {
+		newmode = fa->mode & mask;
+		/* Merge in set*id bits from the old attribute. */
+		if (old->mask & FA_MODE) {
+			newmode |= (old->mode &~ mask);
+			newmode &= (FA_SETIDMASK | FA_PERMMASK);
+		}
+		error = fchmod(fd, newmode);
+		if (error)
+			return (-1);
+	}
+	if (fa->mask & FA_FLAGS) {
+		error = fchflags(fd, fa->flags);
+		if (error)
+			return (-1);
+	}
+	return (1);
 }
 
 /*
