@@ -27,6 +27,7 @@
  */
 
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #include <assert.h>
 #include <err.h>
@@ -119,12 +120,24 @@ stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 }
 
 struct stream *
-stream_open_file(char *path, mode_t mode)
+stream_open_file(char *path, int flags, ...)
 {
 	struct stream *stream;
+	va_list ap;
+	mode_t mode;
 	int fd;
 
-	fd = open(path, mode);
+	va_start(ap, flags);
+	if (flags & O_CREAT) {
+		/*
+		 * GCC says I should not be using mode_t here since it's
+		 * promoted to an int when passed through `...'.
+		 */
+		mode = va_arg(ap, int);
+		fd = open(path, flags, mode);
+	} else
+		fd = open(path, flags);
+	va_end(ap);
 	if (fd == -1)
 		return (NULL);
 	stream = stream_fdopen(fd, read, write, close);
@@ -237,8 +250,8 @@ again:
 	va_end(ap);
 	if (ret < 0)
 		return (ret);
-	if ((unsigned)ret > buf->size - buf->in) {
-		if ((unsigned)ret > buf->size) {
+	if ((unsigned)ret >= buf->size - buf->off - buf->in) {
+		if ((unsigned)ret >= buf->size) {
 			printf("%s: Implement buffer resizing\n", __func__);
 			return (-1);
 		}
@@ -284,11 +297,29 @@ stream_truncate(struct stream *stream, off_t size)
 }
 
 int
+stream_truncate_rel(struct stream *stream, off_t off)
+{
+	struct stat sb;
+	int error;
+
+	error = stream_flush(stream);
+	if (error)
+		return (-1);
+	error = fstat(stream->id, &sb);
+	if (error)
+		return (-1);
+	error = stream_truncate(stream, sb.st_size + off);
+	return (error);
+}
+
+int
 stream_close(struct stream *stream)
 {
 	int error;
 
-	error = 0;
+	error = stream_flush(stream);
+	if (error)
+		return (-1);
 	if (stream->closefn != NULL)
 		error = (*stream->closefn)(stream->id);
 	buf_delete(stream->rdbuf);
