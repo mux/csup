@@ -1,5 +1,7 @@
 # $Id$
 
+BINDIR?=	/usr/local/bin
+
 PROG=	csup
 SRCS=	config.c config.h \
 	detailer.c detailer.h \
