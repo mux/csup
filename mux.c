@@ -423,10 +423,10 @@ chan_get(int id)
 {
 	struct chan *chan;
 
+	assert(id < MUX_MAXCHAN);
 	pthread_mutex_lock(&mux_lock);
 	chan = chans[id];
-	if (chan != NULL)
-		pthread_mutex_lock(&chan->lock);
+	pthread_mutex_lock(&chan->lock);
 	pthread_mutex_unlock(&mux_lock);
 	return (chan);
 }
