@@ -28,9 +28,7 @@
 __FBSDID("$FreeBSD$");
 
 #include <sys/param.h>
-#include <sys/event.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/uio.h>
 
 #include <netinet/in.h>
@@ -491,22 +489,12 @@ void *
 receiver_loop(void *arg)
 {
 	struct mux_header mh;
-	struct kevent kev;
-	struct timespec ts;
 	struct chan *chan;
-	int error, kq, s;
+	struct buf *buf;
+	uint16_t size, len;
+	int error, id, s;
 
 	s = *(int *)arg;
-	kq = kqueue();
-	if (kq == -1)
-		return (NULL);
-	/* First, register our filter. */
-	ts.tv_sec = 0;
-	ts.tv_nsec = 0;
-	EV_SET(&kev, s, EVFILT_READ, EV_ADD, 0, 0, NULL);
-	error = kevent(kq, &kev, 1, NULL, 0, &ts);
-	if (error)
-		abort();
 	for (;;) {
 		error = sock_readwait(s, &mh.type, sizeof(mh.type));
 		switch (mh.type) {
@@ -554,17 +542,42 @@ receiver_loop(void *arg)
 			pthread_cond_signal(&sender_newwork);
 			break;
 		case MUX_DATA:
+			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			    MUX_DATAHDRSZ - sizeof(mh.type));
+			id = mh.mh_data.id;
+			len = ntohs(mh.mh_data.len);
+			chan = chan_get(id);
+			buf = chan->recvbuf;
+			if ((chan->state != CS_ESTABLISHED &&
+			     chan->state != CS_WRCLOSED) ||
+			    (len > buf_avail(buf) ||
+			     len > chan->recvmss)) {
+				/* XXX - Protocol error. */
+				pthread_mutex_unlock(&chan->lock);
+				abort();
+			}
+			pthread_mutex_unlock(&chan->lock);
+			size = min(buf->size - buf->in, len);
+			error = sock_readwait(s, buf->data + buf->in, size);
+			if (len > size) {
+				/* Wrapping around. */
+				error = sock_readwait(s, buf->data, len - size);
+			}
+			pthread_mutex_lock(&chan->lock);
+			buf->in += len;
+			if (buf->in >= buf->size)
+				buf->in -= buf->size;
+			pthread_mutex_unlock(&chan->lock);
+			pthread_cond_broadcast(&chan->rdready);
 			break;
 		case MUX_CLOSE:
 			break;
 		default:
-			/* Protocol error. */
+			/* XXX - Protocol error. */
 			abort();
 			break;
 		}
-		/* kevent(kq, NULL, 0, &kev, 1, NULL); */
 	}
-	close(kq);
 	return (NULL);
 }
  
