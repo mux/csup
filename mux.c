@@ -508,7 +508,7 @@ mux_initproto(int s)
 	error = pthread_create(&sender, NULL, sender_loop, &sender_data);
 	if (error)
 		return (-1);
-	/* Make sure the sender has run ans is waiting for new work. */
+	/* Make sure the sender has run and is waiting for new work. */
 	pthread_yield();
 	receiver_data.s = s;
 	receiver_data.error = 0;
