@@ -373,9 +373,9 @@ again:
 	if (ret < 0)
 		return (ret);
 	if ((unsigned)ret >= buf_avail(buf)) {
-		if ((unsigned)ret > buf_size(buf))
-			buf_grow(buf, ret);
-		else {
+		if ((unsigned)ret >= buf_size(buf))
+			buf_grow(buf, ret + 1);
+		if ((unsigned)ret >= buf_avail(buf)) {
 			error = stream_flush(stream);
 			if (error)
 				return (-1);
