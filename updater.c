@@ -80,30 +80,30 @@ void *
 updater(void *arg)
 {
 	struct config *config;
-	struct coll *cur;
+	struct coll *coll;
 	struct stream *rd;
-	char *line, *cmd, *coll, *release;
+	char *line, *cmd, *collname, *release;
 	int error;
 
 	config = arg;
 	rd = config->chan1;
 	error = 0;
-	STAILQ_FOREACH(cur, &config->colls, co_next) {
-		if (cur->co_options & CO_SKIP)
+	STAILQ_FOREACH(coll, &config->colls, co_next) {
+		if (coll->co_options & CO_SKIP)
 			continue;
-		umask(cur->co_umask);
+		umask(coll->co_umask);
 		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
-		coll = strsep(&line, " ");
+		collname = strsep(&line, " ");
 		release = strsep(&line, " ");
 		if (release == NULL || line != NULL)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0 ||
-		    strcmp(coll, cur->co_name) != 0 ||
-		    strcmp(release, cur->co_release) != 0)
+		    strcmp(collname, coll->co_name) != 0 ||
+		    strcmp(release, coll->co_release) != 0)
 			goto bad;
-		lprintf(1, "Updating collection %s/%s\n", cur->co_name,
-		    cur->co_release);
+		lprintf(1, "Updating collection %s/%s\n", coll->co_name,
+		    coll->co_release);
 			
 		while ((line = stream_getln(rd, NULL)) != NULL) {
 			if (strcmp(line, ".") == 0)
@@ -116,11 +116,11 @@ updater(void *arg)
 			else if (strcmp(cmd, "c") == 0)
 				/* XXX */;
 			else if (strcmp(cmd, "U") == 0)
-				error = updater_diff(cur, rd, line);
+				error = updater_diff(coll, rd, line);
 			else if (strcmp(cmd, "u") == 0)
-				error = updater_delete(cur, line);
+				error = updater_delete(coll, line);
 			else if (strcmp(cmd, "C") == 0)
-				error = updater_checkout(cur, rd, line);
+				error = updater_checkout(coll, rd, line);
 			else
 				goto bad;
 			if (error)
