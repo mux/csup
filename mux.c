@@ -35,6 +35,7 @@ __FBSDID("$FreeBSD$");
 
 #include <assert.h>
 #include <errno.h>
+#include <err.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -231,7 +232,7 @@ again:
 		iov->iov_len -= nbytes;
 		iov->iov_base = (char *)iov->iov_base + nbytes;
 	} else if (errno != EINTR)
-		return (-1);
+		err(1, "writev");
 	goto again;
 }
 
@@ -270,8 +271,17 @@ sock_readwait(int s, void *buf, size_t size)
 	left = size;
 	while (left > 0) {
 		nbytes = sock_read(s, cp, left);
-		if (nbytes <= 0)
+		if (nbytes <= 0) {
+			if (nbytes == 0) {
+				fprintf(stderr, "Server closed connection\n");
+				fprintf(stderr, "Chan 0 send window %#x\n",
+				    chans[0]->sendwin);
+				fprintf(stderr, "Chan 1 send window %#x\n",
+				    chans[1]->sendwin);
+				exit(1);
+			}
 			return (-1);
+		}
 		left -= nbytes;
 		cp += nbytes;
 	}
@@ -427,7 +437,7 @@ chan_printf(int id, const char *fmt, ...)
 	ret = vasprintf(&buf, fmt, ap);
 	va_end(ap);
 	if (ret == -1)
-		return (-1);
+		err(1, "vasprintf");
 	chan_write(id, buf, ret);
 	free(buf);
 	return (ret);
@@ -638,12 +648,13 @@ again:
 		 */
 		iov[0].iov_base = (char *)&mh;
 		iov[0].iov_len = hdrsize;
+		iovcnt = 1;
 		/* We access the buffer directly to avoid some copying. */
 		buf = chan->sendbuf;
 		len = min(size, buf->size + 1 - buf->out);
-		iov[1].iov_base = buf->data + buf->out;
-		iov[1].iov_len = len;
-		iovcnt = 2;
+		iov[iovcnt].iov_base = buf->data + buf->out;
+		iov[iovcnt].iov_len = len;
+		iovcnt++;
 		if (size > len) {
 			/* Wrapping around. */
 			iov[iovcnt].iov_base = buf->data;
@@ -884,9 +895,9 @@ buf_avail(struct buf *buf)
 	size_t avail;
 
 	if (buf->out > buf->in)
-		avail = buf->out - buf->in;
+		avail = buf->out - buf->in - 1;
 	else
-		avail = buf->size + 1 + buf->out - buf->in;
+		avail = buf->size + buf->out - buf->in;
 	return (avail);
 }
 
