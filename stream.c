@@ -81,6 +81,7 @@ buf_new(size_t size)
 		free(buf);
 		return (NULL);
 	}
+	buf->buf[size] = '\0';
 	buf->size = size;
 	buf->in = 0;
 	buf->off = 0;
