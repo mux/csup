@@ -178,6 +178,11 @@ coll_new(void)
 		if (new->co_base == NULL)
 			err(1, "strdup");
 	}
+	if (defaults->co_date != NULL) {
+		new->co_date = strdup(defaults->co_date);
+		if (new->co_date == NULL)
+			err(1, "strdup");
+	}
 	if (defaults->co_prefix != NULL) {
 		new->co_prefix = strdup(defaults->co_prefix);
 		if (new->co_prefix == NULL)
@@ -210,6 +215,7 @@ coll_free(struct coll *coll)
 {
 
 	free(coll->co_base);
+	free(coll->co_date);
 	free(coll->co_prefix);
 	free(coll->co_release);
 	free(coll->co_tag);
