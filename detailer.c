@@ -30,9 +30,9 @@ __FBSDID("$FreeBSD$");
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <assert.h>
 #include <md5.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -52,7 +52,7 @@ detailer(void *arg)
 	struct stat sb;
 	struct config *config;
 	struct collection *cur;
-	char *tok, *line;
+	char *cmd, *coll, *file, *line, *release;
 	size_t in, off;
 	int rd, wr, error;
 
@@ -65,33 +65,43 @@ detailer(void *arg)
 			continue;
 		chdir(cur->base);
 		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
-		tok = strsep(&line, " ");
-		assert(strcmp(tok, "COLL") == 0);
-		tok = strsep(&line, " ");
-		assert(strcmp(tok, cur->name) == 0);
-		assert(line != NULL);
+		cmd = strsep(&line, " ");
+		coll = strsep(&line, " ");
+		release = strsep(&line, " ");
+		if (cmd == NULL || coll == NULL || release == NULL ||
+		    strcmp(cmd, "COLL") != 0 || strcmp(coll, cur->name) != 0 ||
+		    strcmp(release, cur->release) != 0)
+			goto bad;
 		chan_printf(wr, "COLL %s %s\n", cur->name, cur->release);
-		for (;;) {
-			line = chan_getln(rd, buf, sizeof(buf), &in, &off);
-			if (strcmp(line, ".") == 0)
-				break;
-			assert(line != NULL);
-			tok = strsep(&line, " ");
-			assert(strcmp(tok, "U") == 0);
-			tok = strsep(&line, " ");
-			tok[strlen(tok) - 2] = '\0';
-			error = stat(tok, &sb);
-			if (!error && MD5File(tok, md5) != NULL)
-				chan_printf(wr, "S %s,v %s %s %s\n", tok,
+		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+		if (line == NULL)
+			goto bad;
+		while (strcmp(line, ".") != 0) {
+			cmd = strsep(&line, " ");
+			file = strsep(&line, " ");
+			if (cmd == NULL || file == NULL ||
+			    strcmp(cmd, "U") != 0)
+				goto bad;
+			file[strlen(file) - 2] = '\0';
+			error = stat(file, &sb);
+			if (!error && MD5File(file, md5) != NULL)
+				chan_printf(wr, "S %s,v %s %s %s\n", file,
 				    cur->tag, cur->date, md5);
 			else
-				chan_printf(wr, "C %s,v %s %s\n", tok,
+				chan_printf(wr, "C %s,v %s %s\n", file,
 				    cur->tag, cur->date);
+			line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+			if (line == NULL)
+				goto bad;
 		}
 		chan_printf(wr, ".\n");
 	}
 	line = chan_getln(rd, buf, sizeof(buf), &in, &off);
-	assert(strcmp(line, ".") == 0);
+	if (line == NULL || strcmp(line, ".") != 0)
+		goto bad;
 	chan_printf(wr, ".\n");
+	return (NULL);
+bad:
+	fprintf(stderr, "Detailer: Protocol error\n");
 	return (NULL);
 }
