@@ -312,11 +312,12 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 		return (-1);
 	}
 	error = rename(tmp, path);
-	free(tmp);
 	if (error) {
-		warn("rename");
+		warn("rename(\"%s\", \"%s\")", tmp, path);
+		free(tmp);
 		return (-1);
 	}
+	free(tmp);
 	return (0);
 }
 
