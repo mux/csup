@@ -305,6 +305,7 @@ cvsup_mux(FILE *f)
 #ifdef notyet
 	chan_printf(chan0, "CHAN %d\n", chan1);
 #endif
+	sleep(60 * 60);
 	return (0);
 }
 

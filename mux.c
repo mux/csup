@@ -263,6 +263,7 @@ again:
 		size = MUX_WINDOWPKTSZ;
 		break;
 	case CF_DATA:
+		printf("Sender: need to send data\n");
 		break;
 	case CF_CLOSE:
 		mh.type = MUX_CLOSE;
@@ -283,9 +284,12 @@ sender_waitforwork(int *what)
 	int id;
 
 	pthread_mutex_lock(&mux_lock);
-	while ((id = sender_scan(what)) == -1)
+	while ((id = sender_scan(what)) == -1) {
+		printf("Sender: sleeping for work\n");
 		pthread_cond_wait(&newwork, &mux_lock);
+	}
 	pthread_mutex_unlock(&mux_lock);
+	printf("Sender: waking up\n");
 	return (id);
 }
 
@@ -302,24 +306,30 @@ sender_scan(int *what)
 	for (i = 0; i < nchans; i++) {
 		chan = chans[i];
 		pthread_mutex_lock(&chan->lock);
-		if (chan->flags != 0) {
-			/* By order of importance. */
-			if (chan->flags & CF_CONNECT)
-				*what = CF_CONNECT;
-			else if (chan->flags & CF_ACCEPT)
-				*what = CF_ACCEPT;
-			else if (chan->flags & CF_RESET)
-				*what = CF_RESET;
-			else if (chan->flags & CF_WINDOW)
-				*what = CF_WINDOW;
-			else if (chan->flags & CF_DATA)
-				*what = CF_DATA;
-			else if (chan->flags & CF_CLOSE)
-				*what = CF_CLOSE;
-			assert(*what != 0);
-			chan->flags &= ~*what;
-			pthread_mutex_unlock(&chan->lock);
-			return (i);
+		if (chan->state != CS_UNUSED) {
+			printf("Sender: %zd bytes in buffer\n",
+			    buf_count(chan->sendbuf));
+			if (chan->sendseq != chan->sendwin &&
+			    buf_count(chan->sendbuf) > 0)
+				chan->flags |= CF_DATA;
+			if (chan->flags) {
+				/* By order of importance. */
+				if (chan->flags & CF_CONNECT)
+					*what = CF_CONNECT;
+				else if (chan->flags & CF_ACCEPT)
+					*what = CF_ACCEPT;
+				else if (chan->flags & CF_RESET)
+					*what = CF_RESET;
+				else if (chan->flags & CF_WINDOW)
+					*what = CF_WINDOW;
+				else if (chan->flags & CF_DATA)
+					*what = CF_DATA;
+				else if (chan->flags & CF_CLOSE)
+					*what = CF_CLOSE;
+				chan->flags &= ~*what;
+				pthread_mutex_unlock(&chan->lock);
+				return (i);
+			}
 		}
 		pthread_mutex_unlock(&chan->lock);
 	}
@@ -349,7 +359,6 @@ receiver_loop(void *arg)
 	for (;;) {
 		kevent(kq, NULL, 0, &kev, 1, NULL);
 		assert(kev.filter == EVFILT_READ);
-		printf("Receiver: reading bytes\n");
 		recv(s, &mh, MUX_ACCEPTPKTSZ, MSG_WAITALL);
 		if (mh.type == MUX_ACCEPT) {
 			id = mh.mh_accept.id;
@@ -359,8 +368,9 @@ receiver_loop(void *arg)
 				pthread_mutex_unlock(&chan->lock);
 				continue;
 			}
-			chan->sendmss = mh.mh_accept.mss;
-			chan->sendwin = mh.mh_accept.window;
+			printf("Receiver: connection accepted\n");
+			chan->sendmss = ntohs(mh.mh_accept.mss);
+			chan->sendwin = ntohl(mh.mh_accept.window);
 			chan->state = CS_ESTABLISHED;
 			pthread_cond_broadcast(&chan->wrready);
 			pthread_mutex_unlock(&chan->lock);
@@ -396,7 +406,7 @@ buf_count(struct buf *buf)
 {
 	size_t count;
 
-	if (buf->in > buf->out)
+	if (buf->in >= buf->out)
 		count = buf->in - buf->out;
 	else
 		count = buf->size + buf->in - buf->out;
@@ -494,10 +504,8 @@ chan_write(int id, const void *buf, size_t size)
 	cp = buf;
 	chan = chan_get(id);
 	while (pos < size) {
-		while ((avail = buf_avail(chan->sendbuf)) == 0) {
-			printf("%s: waiting\n", __func__);
+		while ((avail = buf_avail(chan->sendbuf)) == 0)
 			pthread_cond_wait(&chan->wrready, &chan->lock);
-		}
 		n = min(avail, size - pos);
 		buf_put(chan->sendbuf, cp + pos, n);
 		pos += n;
