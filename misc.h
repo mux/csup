@@ -32,3 +32,4 @@
 
 int	lprintf(int, const char *, ...);
 int	MD5file(char *, char *);
+void	md5tostr(unsigned char *, char *);

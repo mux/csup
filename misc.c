@@ -67,10 +67,9 @@ MD5file(char *path, char *md)
 {
 	char buf[1024];
 	unsigned char md5[MD5_DIGEST_LENGTH];
-	const char hex[] = "0123456789abcdef";
 	MD5_CTX ctx;
 	ssize_t n;
-	int fd, i, j;
+	int fd;
 
 	fd = open(path, O_RDONLY);
 	if (fd == -1)
@@ -83,11 +82,26 @@ MD5file(char *path, char *md)
 		return (-1);
 	MD5_Final(md5, &ctx);
 	/* Now convert the message digest to a string. */
+	md5tostr(md5, md);
+	return (0);
+}
+
+/*
+ * Convert a binary MD5 to a string in hexadecimal.
+ *
+ * The "md5" parameter should be at least MD5_DIGEST_LENGTH big, while
+ * "s" should * be at least MD5_DIGEST_SIZE big.
+ */
+void
+md5tostr(unsigned char *md5, char *s)
+{
+	const char hex[] = "0123456789abcdef";
+	int i, j;
+
 	j = 0;
 	for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
-		md[j++] = hex[md5[i] >> 4];
-		md[j++] = hex[md5[i] & 0xf];
+		s[j++] = hex[md5[i] >> 4];
+		s[j++] = hex[md5[i] & 0xf];
 	}
-	md[j] = '\0';
-	return (0);
+	s[j] = '\0';
 }
