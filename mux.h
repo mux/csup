@@ -97,3 +97,5 @@ struct mux_header {
 
 int	mux_open(int);
 int	mux_listen(void);
+size_t	chan_read(int, void *, size_t);
+void	chan_write(int, void *, size_t);

@@ -102,6 +102,12 @@ static struct chan	*chan_get(int);
 static int		chan_insert(struct chan *);
 static int		chan_connect(int);
 
+static struct buf	*buf_new(size_t);
+static size_t		buf_count(struct buf *);
+static size_t		buf_avail(struct buf *);
+static void		buf_get(struct buf *, void *, size_t);
+static void		buf_put(struct buf *, void *, size_t);
+
 static void		*sender_loop(void *);
 static int		sender_waitforwork(int *);
 static int		sender_scan(int *);
@@ -360,26 +366,119 @@ buf_new(size_t size)
 	return (buf);
 }
 
-#if 0
-/*
- * Read bytes from a channel.
- */
-ssize_t
-chan_read(struct chan *chan, void *buf, size_t size)
+/* Number of bytes stored in the buffer. */
+static size_t
+buf_count(struct buf *buf)
 {
-	ssize_t n;
+	size_t count;
 
-	pthread_mutex_lock(&chan->lock);
-	pthread_cond_wait(&chan->rdready, &chan->lock);
-	n = min(chan->recvbuf->in, size);
-	assert(n >= 0);
-	chan->recvbuf->in -= n;
-	chan->recvbuf.off += n;
-	chan->flags &= CF_WINDOW;
+	if (buf->in > buf->out)
+		count = buf->in - buf->out;
+	else
+		count = buf->size + buf->in - buf->out;
+	return (count);
+}
+
+/* Number of bytes available in the buffer. */
+static size_t
+buf_avail(struct buf *buf)
+{
+	size_t avail;
+
+	if (buf->out >= buf->in)
+		avail = buf->out - buf->in;
+	else
+		avail = buf->size + buf->out - buf->in;
+	return (avail);
+}
+
+static void
+buf_put(struct buf *buf, void *data, size_t size)
+{
+	char *cp;
+	size_t len;
+
+	assert(buf_avail(buf) >= size);
+	cp = data;
+	len = buf->size - buf->in;
+	if (len < size) {
+		/* Wrapping around. */
+		memcpy(buf->data + buf->in, cp, len);
+		memcpy(buf->data, cp + len, size - len);
+	} else {
+		/* Not wrapping around. */
+		memcpy(buf->data + buf->in, cp, size);
+	}
+	buf->in += size;
+	if (buf->in >= buf->size)
+		buf->in -= buf->size;
+}
+
+static void
+buf_get(struct buf *buf, void *data, size_t size)
+{
+	char *cp;
+	size_t len;
+
+	assert(buf_count(buf) >= size);
+	cp = data;
+	len = buf->size - buf->out;
+	if (len < size) {
+		/* Wrapping around. */
+		memcpy(cp, buf->data + buf->out, len);
+		memcpy(cp + len, buf->data, size - len);
+	} else {
+		/* Not wrapping around. */
+		memcpy(cp, buf->data + buf->out, size);
+	}
+	buf->out += size;
+	if (size >= buf->size)
+		buf->out -= buf->size;
+}
+
+/* Read bytes from a channel. */
+size_t
+chan_read(int id, void *buf, size_t size)
+{
+	struct chan *chan;
+	char *cp;
+	size_t count, n;
+
+	cp = buf;
+	chan = chan_get(id);
+	while ((count = buf_count(chan->recvbuf)) == 0)
+		pthread_cond_wait(&chan->rdready, &chan->lock);
+	n = min(count, size);
+	buf_get(chan->recvbuf, cp, n);
+	chan->recvseq += n;
+	chan->flags |= CF_WINDOW;
 	pthread_mutex_unlock(&chan->lock);
+	/* We need to wake up the sender so that it sends a window update. */
+	pthread_cond_signal(&newwork);
 	return (n);
 }
-#endif
+
+/* Write bytes to a channel. */
+void
+chan_write(int id, void *buf, size_t size)
+{
+	struct chan *chan;
+	char *cp;
+	size_t avail, n, pos;
+
+	pos = 0;
+	cp = buf;
+	chan = chan_get(id);
+	while (pos < size) {
+		while ((avail = buf_avail(chan->sendbuf)) == 0)
+			pthread_cond_wait(&chan->wrready, &chan->lock);
+		n = min(avail, size - pos);
+		buf_put(chan->sendbuf, cp + pos, n);
+		pos += n;
+	}
+	pthread_mutex_unlock(&chan->lock);
+	pthread_cond_signal(&newwork);
+}
 
 /*
  * Get a channel from its ID.  The channel is returned locked.
