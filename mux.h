@@ -27,6 +27,7 @@
  */
 
 int	chan_open(int);
+int	chan_close(int);
 int	chan_listen(void);
 int	chan_accept(int);
 ssize_t	chan_read(int, void *, size_t);
