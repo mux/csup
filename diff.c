@@ -30,8 +30,8 @@ __FBSDID("$FreeBSD$");
 #include <sys/types.h>
 #include <sys/queue.h>
 
+#include <assert.h>
 #include <errno.h>
-#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,18 +41,47 @@ __FBSDID("$FreeBSD$");
 #include "keyword.h"
 #include "stream.h"
 
-static void	diff_writeln(struct keyword *, struct diff *, FILE *, char *);
+#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
+typedef long lineno_t;
+#define	strtoimax	strtol
+#else
+#include <inttypes.h>
+typedef intmax_t lineno_t;
+#endif
+
+#define	EC_ADD	0
+#define	EC_DEL	1
+
+/* Editing command and state. */
+struct editcmd {
+	int cmd;
+	lineno_t where;
+	lineno_t count;
+	lineno_t lasta;
+	lineno_t lastd;
+	lineno_t editline;
+	/* Those are here for convenience. */
+	struct diff *diff;
+	struct keyword *keyword;
+	FILE *to;
+};
+
+static int	diff_geteditcmd(struct editcmd *, char *);
+static int	diff_copyln(struct editcmd *, lineno_t);
+static void	diff_writeln(struct editcmd *, char *);
 
 int
 diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
 {
-	intmax_t at, count, i, n;
-	char *end, *line;
-	char cmd, last;
+	struct editcmd ec;
+	lineno_t i;
+	char *line;
+	int error;
 
-
-	last = 'a';
-	n = 0;
+	memset(&ec, 0, sizeof(ec));
+	ec.diff = diff;
+	ec.keyword = keyword;
+	ec.to = to;
 	line = stream_getln(diff->d_diff, NULL);
 	/* XXX - Handle .+ termination properly. */
 	while (line != NULL && strcmp(line, ".") != 0 &&
@@ -66,74 +95,118 @@ diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
 			line = stream_getln(diff->d_diff, NULL);
 			continue;
 		}
-		cmd = line[0];
-		if (cmd != 'a' && cmd != 'd') {
-			printf("bad command (%s)\n", line);
+		error = diff_geteditcmd(&ec, line);
+		if (error) {
+			printf("%s: diff_geteditcmd() failed\n", __func__);
 			return (-1);
 		}
-		errno = 0;
-		at = strtoimax(line + 1, &end, 10);
-		if (errno || at < 0 || *end != ' ') {
-			printf("kaboom\n");
-			return (-1);
-		}
-		line = end + 1;
-		errno = 0;
-		count = strtoimax(line, &end, 10);
-		if (errno || count <= 0 || *end != '\0') {
-			printf("kaboom (2)\n");
-			return (-1);
-		}
-		if (cmd == 'a' && last == 'a')
-			at += 1;
-		while (n < at - 1) {
-			line = stream_getln(diff->d_orig, NULL);
-			if (line == NULL) {
-				printf("boom");
+
+		if (ec.cmd == EC_ADD) {
+			error = diff_copyln(&ec, ec.where);
+			if (error) {
+				printf("%s: diff_copyln() failed\n", __func__);
 				return (-1);
 			}
-			n++;
-			diff_writeln(keyword, diff, to, line);
-		}
-		if (cmd == 'a') {
-			for (i = 0; i < count; i++) {
+			for (i = 0; i < ec.count; i++) {
 				line = stream_getln(diff->d_diff, NULL);
 				if (line == NULL) {
-					printf("boom\n");
+					printf("%s: boom\n", __func__);
 					return (-1);
 				}
 				if (line[0] == '.')
 					line++;
-				diff_writeln(keyword, diff, to, line);
+				diff_writeln(&ec, line);
 			}
-		} else if (cmd == 'd') {
-			while (count-- > 0) {
+		} else {
+			assert(ec.cmd == EC_DEL);
+			error = diff_copyln(&ec, ec.where - 1);
+			if (error) {
+				printf("%s: diff_copyln() failed\n", __func__);
+				return (-1);
+			}
+			for (i = 0; i < ec.count; i++) {
 				line = stream_getln(diff->d_orig, NULL);
-				if (line == NULL)
-					printf("aie\n");
-				n++;
+				if (line == NULL) {
+					printf("%s: aie\n", __func__);
+					return (-1);
+				}
+				ec.editline++;
 			}
 		}
 		line = stream_getln(diff->d_diff, NULL);
-		last = cmd;
 	}
 	if (line == NULL) {
-		printf("line = NULL\n");
+		printf("%s: line == NULL\n", __func__);
 		return (-1);
 	}
-	/* XXX - Should probably be done in a more efficient manner. */
+	ec.where = 0;
 	while ((line = stream_getln(diff->d_orig, NULL)) != NULL)
-		diff_writeln(keyword, diff, to, line);
+		diff_writeln(&ec, line);
+	return (0);
+}
+
+static int
+diff_geteditcmd(struct editcmd *ec, char *line)
+{
+	char *end;
+
+	if (line[0] == 'a')
+		ec->cmd = EC_ADD;
+	else if (line[0] == 'd')
+		ec->cmd = EC_DEL;
+	else {
+		printf("%s: Bad editing command from server (%s)\n",
+		    __func__, line);
+		return (-1);
+	}
+	errno = 0;
+	ec->where = strtoimax(line + 1, &end, 10);
+	if (errno || ec->where < 0 || *end != ' ') {
+		printf("kaboom\n");
+		return (-1);
+	}
+	line = end + 1;
+	errno = 0;
+	ec->count = strtoimax(line, &end, 10);
+	if (errno || ec->count <= 0 || *end != '\0') {
+		printf("kaboom (2)\n");
+		return (-1);
+	}
+	if (ec->cmd == EC_ADD) {
+		if (ec->where < ec->lasta)
+			return (-1);
+		ec->lasta = ec->where + 1;
+	} else {
+		if (ec->where < ec->lasta || ec->where < ec->lastd)
+			return (-1);
+		ec->lasta = ec->where;
+		ec->lastd = ec->where + ec->count;
+	}
+	return (0);
+}
+
+static int
+diff_copyln(struct editcmd *ec, lineno_t to)
+{
+	char *line;
+
+	while (ec->editline < to) {
+		line = stream_getln(ec->diff->d_orig, NULL);
+		if (line == NULL)
+			return (-1);
+		ec->editline++;
+		diff_writeln(ec, line);
+	}
 	return (0);
 }
 
 static void
-diff_writeln(struct keyword *keyword, struct diff *diff, FILE *to, char *line)
+diff_writeln(struct editcmd *ec, char *line)
 {
 	char *newline;
 
-	newline = keyword_expand(keyword, diff, line);
-	fprintf(to, "%s\n", newline);
+	newline = keyword_expand(ec->keyword, ec->diff, line);
+	fprintf(ec->to, "%s\n", newline);
 	if (newline != line)
 		free(newline);
 }
