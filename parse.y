@@ -95,7 +95,12 @@ boolean
 
 value
 	: name EQUAL STRING
-		{ coll_setopt($1, $3); }
+		{
+		  if ($1 == HOST)
+		  	config_sethost($3);
+		  else
+		  	coll_setopt($1, $3);
+		}
 	;
 
 name

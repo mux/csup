@@ -85,6 +85,7 @@ struct config {
 };
 
 struct config	*config_init(const char *, char *, char *, char *, in_port_t);
+int		 config_sethost(char *);
 
 struct coll	*coll_new(void);
 void		coll_add(char *);

@@ -138,8 +138,27 @@ config_init(const char *file, char *host, char *base, char *colldir,
 bad:
 	coll_free(cur_coll);
 	coll_free(defaults);
+	if (config->host != host)
+		free(config->host);
 	free(config);
 	return (NULL);
+}
+
+/*
+ * Kludge because it seems I can't pass anything nor get anything back
+ * from the yacc parser properly, without resorting to global variables.
+ */
+int
+config_sethost(char *host)
+{
+
+	if (config->host != NULL) {
+		fprintf(stderr, "All \"host\" fields in the supfile "
+		    "must be the same\n");
+		exit(1);
+	}
+	config->host = host;
+	return (0);
 }
 
 /* Create a new collection, inheriting options from the default collection. */
@@ -203,14 +222,6 @@ coll_setopt(int opt, char *value)
 	
 	coll = cur_coll;
 	switch (opt) {
-	case HOST:	/* XXX Move this out. */
-		if (config->host != NULL) {
-			fprintf(stderr, "All \"host\" fields in the supfile "
-			    "must be the same\n");
-			exit(1);
-		}
-		config->host = value;
-		break;
 	case BASE:
 		free(coll->base);
 		coll->base = value;
