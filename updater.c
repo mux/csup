@@ -50,6 +50,7 @@ static size_t in, off;
 static int	updater_checkfile(char *);
 static int	updater_makedirs(char *);
 static int	updater_checkout(int, char *);
+static int	updater_delete(char *);
 static int	updater_diff(int, char *);
 
 void *
@@ -94,6 +95,8 @@ updater(void *arg)
 				;
 			else if (strcmp(cmd, "U") == 0)
 				error = updater_diff(rd, line);
+			else if (strcmp(cmd, "u") == 0)
+				error = updater_delete(line);
 			else if (strcmp(cmd, "C") == 0)
 				error = updater_checkout(rd, line);
 			else
@@ -109,12 +112,30 @@ bad:
 }
 
 static int
+updater_delete(char *line)
+{
+	char *cp, *file;
+	int error;
+
+	file = strsep(&line, " ");
+	if (file == NULL || updater_checkfile(file) != 0)
+		return (-1);
+	cp = strstr(file, ",v");
+	if (cp == NULL || cp[2] != '\0')
+		return (-1);
+	*cp = '\0';
+	lprintf(1, " Delete %s\n", file);
+	error = unlink(file);
+	return (error);
+}
+
+static int
 updater_diff(int rd, char *line)
 {
 	char *cp, *tok, *file, *revnum, *revdate, *author;
 
 	file = strsep(&line, " ");
-	if (file == NULL)
+	if (file == NULL || updater_checkfile(file) != 0)
 		return (-1);
 	cp = strstr(file, ",v");
 	if (cp == NULL || cp[2] != '\0')
