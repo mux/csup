@@ -114,14 +114,21 @@ stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 	stream = malloc(sizeof(struct stream));
 	if (stream == NULL)
 		err(1, "malloc");
-	stream->rdbuf = buf_new(STREAM_BUFSIZ + 1);
+	if (readfn == NULL && writefn == NULL) {
+		errno = EINVAL;
+		return (NULL);
+	}
 	/*
 	 * We keep one spare byte in the read buffer so that
 	 * stream_getln() can put a '\0' there in case the stream
 	 * doesn't have an ending newline.
 	 */
-	stream->rdbuf->buf[--stream->rdbuf->size] = '\0';
-	stream->wrbuf = buf_new(STREAM_BUFSIZ);
+	if (readfn != NULL) {
+		stream->rdbuf = buf_new(STREAM_BUFSIZ + 1);
+		stream->rdbuf->buf[--stream->rdbuf->size] = '\0';
+	}
+	if (writefn != NULL)
+		stream->wrbuf = buf_new(STREAM_BUFSIZ);
 	stream->id = id;
 	stream->readfn = readfn;
 	stream->writefn = writefn;
