@@ -220,7 +220,7 @@ coll_setopt(struct coll *coll, int opt, char *value)
 		coll->date = value;
 		break;
 	case PREFIX:
-		free(coll->base);
+		free(coll->prefix);
 		coll->prefix = value;
 		break;
 	case RELEASE:
