@@ -301,7 +301,8 @@ tag_expand(struct tag *tag, struct diff *diff)
 	char *filename, *val;
 
 	if (strptime(diff->d_revdate, "%Y.%m.%d.%H.%M.%S", &tm) == NULL)
-		err(1, "strptime");
+		if (strptime(diff->d_revdate, "%y.%m.%d.%H.%M.%S", &tm) == NULL)
+			err(1, "strptime");
 	if (strftime(cvsdate, sizeof(cvsdate), "%Y/%m/%d %H:%M:%S", &tm) == 0)
 		err(1, "strftime");
 	filename = strrchr(diff->d_rcsfile, '/');
