@@ -169,14 +169,14 @@ struct stream_filter stream_filters[] = {
 		NULL,
 		NULL,
 		stream_flush_default,
-		stream_fill_default,
+		stream_fill_default
 	},
 	{
 	       	STREAM_FILTER_ZLIB,
 		zfilter_init,
 		zfilter_fini,
 		zfilter_flush,
-		zfilter_fill,
+		zfilter_fill
 	}
 };
 
