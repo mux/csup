@@ -105,3 +105,28 @@ md5tostr(unsigned char *md5, char *s)
 	}
 	s[j] = '\0';
 }
+
+int
+pathcmp(const char *s1, const char *s2)
+{
+	int c1, c2;
+
+	do {
+		c1 = *s1++ & 0xff;
+		if (c1 == '/') {
+			if (*s1 != '\0')
+				c1 = 0x100;
+			else
+				c1 = 0;
+		}
+		c2 = *s2++ & 0xff;
+		if (c2 == '/') {
+			if (*s2 != '\0') 
+				c2 = 0x100;
+			else
+				c2 = 0;
+		}
+	} while (c1 == c2 && c1 != '\0');
+
+	return (c1 - c2);
+}
