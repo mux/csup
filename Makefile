@@ -17,13 +17,10 @@ SRCS=	config.c config.h \
 	token.l \
 	updater.c updater.h \
 	y.tab.h 
-CFLAGS+=-g	# -DNDEBUG
+CFLAGS+=-g -pthread # -DNDEBUG
 WARNS?=	6
 NOMAN=	yes
 DPADD=	${LIBL} ${LIBCRYPTO}
 LDADD=	-ll -lcrypto
-
-DPADD+=	${LIBKSE}
-LDADD+=	-lkse
 
 .include <bsd.prog.mk>
