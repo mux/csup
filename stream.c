@@ -42,6 +42,15 @@
 #include "misc.h"
 #include "stream.h"
 
+/*
+ * Simple stream API to make my life easier.  If the fgetln() and
+ * funopen() functions were standard and if funopen() wasn't using
+ * wrong types for the function pointers, I could have just used
+ * stdio, but life sucks.
+ *
+ * For now, streams are always block-buffered.
+ */
+
 #define	STREAM_BUFSIZ	4096
 
 typedef ssize_t	(*readfn_t)(int, void *, size_t);
@@ -96,6 +105,7 @@ buf_delete(struct buf *buf)
 	free(buf);
 }
 
+/* Associate a file descriptor with a stream. */
 struct stream *
 stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 {
@@ -119,6 +129,7 @@ stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 	return (stream);
 }
 
+/* Like open() but returns a stream. */
 struct stream *
 stream_open_file(char *path, int flags, ...)
 {
@@ -146,6 +157,7 @@ stream_open_file(char *path, int flags, ...)
 	return (stream);
 }
 
+/* Read some bytes from the stream. */
 ssize_t
 stream_read(struct stream *stream, void *buf, size_t size)
 {
@@ -235,6 +247,7 @@ stream_getln(struct stream *stream, size_t *len)
 	return (s);
 }
 
+/* Formatted output to a stream. */
 int
 stream_printf(struct stream *stream, const char *fmt, ...)
 {
@@ -262,6 +275,7 @@ again:
 	return (ret);
 }
 
+/* Commit any pending write. */
 int
 stream_flush(struct stream *stream)
 {
@@ -284,6 +298,7 @@ again:
 	return (0);
 }
 
+/* Like truncate() but on a stream. */
 int
 stream_truncate(struct stream *stream, off_t size)
 {
@@ -296,6 +311,7 @@ stream_truncate(struct stream *stream, off_t size)
 	return (error);
 }
 
+/* Like stream_truncate() except the off_t parameter is an offset. */
 int
 stream_truncate_rel(struct stream *stream, off_t off)
 {
@@ -312,6 +328,7 @@ stream_truncate_rel(struct stream *stream, off_t off)
 	return (error);
 }
 
+/* Close a stream and free any resources held by it. */
 int
 stream_close(struct stream *stream)
 {
