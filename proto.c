@@ -366,8 +366,6 @@ cvsup_mux(struct config *config)
 		return (-1);
 	}
 	config->chan0 = stream_fdopen(id0, chan_read, chan_write, NULL);
-	if (config->chan0 == NULL)
-		return (-1);
 	stream_printf(config->chan0, "CHAN %d\n", id1);
 	stream_flush(config->chan0);
 	error = chan_accept(id1);
@@ -377,10 +375,6 @@ cvsup_mux(struct config *config)
 		return (-1);
 	}
 	config->chan1 = stream_fdopen(id1, chan_read, chan_write, NULL);
-	if (config->chan1 == NULL) {
-		stream_close(config->chan0);
-		return (-1);
-	}
 	stream_close(config->server);
 	return (0);
 }
@@ -405,8 +399,6 @@ cvsup_init(struct config *config)
 	 * the socket after the stream is closed.
 	 */
 	config->server = stream_fdopen(config->socket, read, write, NULL);
-	if (config->server == NULL)
-		return (-1);
 	s = config->server;
 	line = stream_getln(s, NULL);
 	cur = strsep(&line, " "); 
