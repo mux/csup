@@ -115,8 +115,8 @@ struct stream_filter {
 	stream_filter_t id;
 	stream_filter_initfn_t initfn;
 	stream_filter_finifn_t finifn;
-	stream_filter_flushfn_t flushfn;
 	stream_filter_fillfn_t fillfn;
+	stream_filter_flushfn_t flushfn;
 };
 
 /* Low-level buffer API. */
@@ -157,10 +157,10 @@ struct zfilter {
 };
 
 static int		 zfilter_init(struct stream *, void *);
+static void		 zfilter_fini(struct stream *);
 static ssize_t		 zfilter_fill(struct stream *, struct buf *);
 static int		 zfilter_flush(struct stream *, struct buf *,
 			     stream_flush_t);
-static void		 zfilter_fini(struct stream *);
 
 /* The available stream filters. */
 struct stream_filter stream_filters[] = {
@@ -168,15 +168,15 @@ struct stream_filter stream_filters[] = {
 		STREAM_FILTER_NULL,
 		NULL,
 		NULL,
-		stream_flush_default,
-		stream_fill_default
+		stream_fill_default,
+		stream_flush_default
 	},
 	{
 	       	STREAM_FILTER_ZLIB,
 		zfilter_init,
 		zfilter_fini,
-		zfilter_flush,
-		zfilter_fill
+		zfilter_fill,
+		zfilter_flush
 	}
 };
 
