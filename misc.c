@@ -66,7 +66,7 @@ MD5file(char *path, char *md)
 {
 	char buf[1024];
 	unsigned char md5[MD5_DIGEST_LENGTH];
-	char hex[] = "0123456789abcdef";
+	const char hex[] = "0123456789abcdef";
 	MD5_CTX ctx;
 	ssize_t n;
 	int fd, i, j;
