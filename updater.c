@@ -33,9 +33,8 @@ __FBSDID("$FreeBSD$");
 
 #include <assert.h>
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
-#include <libgen.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -287,14 +286,16 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 {
 	FILE *to;
 	struct stream *orig;
-	char *tmp;
+	char *cp, *tmp;
 	int fd, error;
 
-	asprintf(&tmp, "%s/%s", dirname(path), "#cvs.csup-XXXXX");
-	if (tmp == NULL) {
-		warn("asprintf");
-		return (-1);
-	}
+	cp = strrchr(path, '/');
+	assert(cp != NULL);
+	*cp = '\0';
+	asprintf(&tmp, "%s/%s", path, "#cvs.csup-XXXXX");
+	if (tmp == NULL)
+		err(1, "asprintf");
+	*cp = '/';
 	fd = mkstemp(tmp);
 	if (fd == -1) {
 		warn("mkstemp");
@@ -460,26 +461,25 @@ updater_makedirs(char *path)
 }
 
 /*
- * Remove all empty directories until base.
+ * Remove all empty directories below file.
  * This function will trash the path passed to it.
  */
 static void
-updater_prunedirs(char *base, char *path)
+updater_prunedirs(char *base, char *file)
 {
-	char *cp;
+	char *cp, *path;
 	int error;
 
-	while ((cp = strrchr(path, '/')) != NULL) {
+	while ((cp = strrchr(file, '/')) != NULL) {
 		*cp = '\0';
-		if (strcmp(path, base) == 0)
-			return;
+		asprintf(&path, "%s/%s", base, file);
+		if (path == NULL)
+			err(1, "asprintf");
 		error = rmdir(path);
-		/*
-		 * XXX - we should probably check that errno is ENOTEMPTY
-		 * here but it seems CVSup just stops at the first error.
-		 * This needs to be double checked.
-		 */
-		if (error)
+		if (error) {
+			if (errno != ENOTEMPTY)
+				err(1, "rmdir");
 			return;
+		}
 	}
 }
