@@ -33,8 +33,6 @@
 #include "config.h"
 #include "parse.h"
 
-extern struct coll *cur_coll;
-
 %}
 
 %union {
@@ -70,18 +68,12 @@ config
 
 default_line
 	: DEFAULT options
-		{
-			coll_setdef(cur_coll);
-			cur_coll = coll_new();
-		}
+		{ coll_setdef(); }
 	;
 
 collection
 	: STRING options
-		{
-			coll_add(cur_coll, $1);
-			cur_coll = coll_new();
-		}
+		{ coll_add($1); }
 	;
 
 options
@@ -91,7 +83,7 @@ options
 
 option
 	: boolean
-		{ coll_setopt(cur_coll, $1, NULL); }
+		{ coll_setopt($1, NULL); }
 	| value
 	;
 
@@ -103,7 +95,7 @@ boolean
 
 value
 	: name EQUAL STRING
-		{ coll_setopt(cur_coll, $1, $3); }
+		{ coll_setopt($1, $3); }
 	;
 
 name

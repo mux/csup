@@ -61,7 +61,6 @@
 struct coll {
 	char *name;
 	char *base;
-	char *colldir;
 	char *date;
 	char *prefix;
 	char *release;
@@ -74,19 +73,21 @@ struct coll {
 };
 
 struct config {
+	STAILQ_HEAD(, coll) colls;
+	const char *colldir;
+	struct fattr_support *supported;
 	char *host;
-	uint16_t port;
+	in_port_t port;
 	int socket;
 	struct stream *server;
-	STAILQ_HEAD(, coll) colls;
-	struct fattr_support *supported;
 	struct stream *chan0;
 	struct stream *chan1;
 };
 
 struct config	*config_init(const char *, char *, char *, char *, in_port_t);
-struct coll *coll_new(void);
-void		coll_add(struct coll *, char *);
+
+struct coll	*coll_new(void);
+void		coll_add(char *);
 void		coll_free(struct coll *);
-void		coll_setdef(struct coll *);
-void		coll_setopt(struct coll *, int, char *);
+void		coll_setdef(void);
+void		coll_setopt(int, char *);
