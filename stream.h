@@ -29,7 +29,8 @@
 /* Stream filters. */
 typedef enum {
 	STREAM_FILTER_NULL,
-	STREAM_FILTER_ZLIB
+	STREAM_FILTER_ZLIB,
+	STREAM_FILTER_MD5
 } stream_filter_t;
 
 struct stream;

@@ -29,6 +29,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <openssl/md5.h>
+
 #include <assert.h>
 #include <zlib.h>
 #include <err.h>
@@ -142,12 +144,9 @@ static struct stream_filter *stream_filter_lookup(stream_filter_t);
 static int		 stream_filter_init(struct stream *, void *);
 static void		 stream_filter_fini(struct stream *);
 
-/*
- * The zlib stream filter declarations.
- */
+/* The zlib stream filter declarations. */
 #define	ZFILTER_EOF	1				/* Got Z_STREAM_END. */
 
-/* Used by the zlib filter to keep state. */
 struct zfilter {
 	int flags;
 	struct buf *rdbuf;
@@ -160,6 +159,19 @@ static int		 zfilter_init(struct stream *, void *);
 static void		 zfilter_fini(struct stream *);
 static ssize_t		 zfilter_fill(struct stream *, struct buf *);
 static int		 zfilter_flush(struct stream *, struct buf *,
+			     stream_flush_t);
+
+/* The MD5 stream filter. */
+struct md5filter {
+	MD5_CTX ctx;
+	char *md5;
+	unsigned char md[MD5_DIGEST_LENGTH];
+};
+
+static int		 md5filter_init(struct stream *, void *);
+static void		 md5filter_fini(struct stream *);
+static ssize_t		 md5filter_fill(struct stream *, struct buf *);
+static int		 md5filter_flush(struct stream *, struct buf *,
 			     stream_flush_t);
 
 /* The available stream filters. */
@@ -177,6 +189,13 @@ struct stream_filter stream_filters[] = {
 		zfilter_fini,
 		zfilter_fill,
 		zfilter_flush
+	},
+	{
+		STREAM_FILTER_MD5,
+		md5filter_init,
+		md5filter_fini,
+		md5filter_fill,
+		md5filter_flush
 	}
 };
 
@@ -698,6 +717,7 @@ stream_filter_stop(struct stream *stream)
 	stream_filter_start(stream, STREAM_FILTER_NULL, NULL);
 }
 
+/* The zlib stream filter implementation. */
 static int
 zfilter_init(struct stream *stream, void __unused *data)
 {
@@ -892,3 +912,51 @@ again:
 	buf_more(buf, new);
 	return (new);
 }
+
+/* The MD5 stream filter implementation. */
+static int
+md5filter_init(struct stream *stream, void *data)
+{
+	struct md5filter *mf;
+
+	mf = malloc(sizeof(struct md5filter));
+	if (mf == NULL)
+		errx(1, "malloc");
+	MD5_Init(&mf->ctx);
+	mf->md5 = data;
+	stream->fdata = mf;
+	return (0);
+}
+
+static void
+md5filter_fini(struct stream *stream)
+{
+	struct md5filter *mf;
+
+	mf = stream->fdata;
+	MD5_Final(mf->md, &mf->ctx);
+	md5tostr(mf->md, mf->md5);
+	free(stream->fdata);
+}
+
+static ssize_t
+md5filter_fill(struct stream *stream, struct buf *buf)
+{
+	ssize_t n;
+
+	n = stream_fill_default(stream, buf);
+	return (n);
+}
+
+static int
+md5filter_flush(struct stream *stream, struct buf *buf, stream_flush_t how)
+{
+	struct md5filter *mf;
+	int error;
+
+	mf = stream->fdata;
+	MD5_Update(&mf->ctx, buf->buf + buf->off, buf->in);
+	error = stream_flush_default(stream, buf, how);
+	return (error);
+}
+

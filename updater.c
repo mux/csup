@@ -445,6 +445,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		warn("stream_open_file(\"%s\")", file);
 		goto bad;
 	}
+	stream_filter_start(to, STREAM_FILTER_MD5, md5);
 	line = stream_getln(rd, &size);
 	first = 1;
 	while (line != NULL) {
@@ -478,7 +479,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 	    strcmp(cmd, "5") != 0) {
 		goto bad;
 	}
-	if (MD5file(file, md5) == -1 || strcmp(cksum, md5) != 0) {
+	if (strcmp(cksum, md5) != 0) {
 		lprintf(-1, "Updater: Bad MD5 checksum for \"%s\"\n", file);
 		goto bad;
 	}
