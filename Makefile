@@ -10,7 +10,7 @@ WARNS?=	6
 NOMAN=	yes
 #DPADD=	${LIBL} ${LIBKSE}
 #LDADD=	-ll -lkse
-DPADD=	${LIBL} ${LIBTHR}
-LDADD=	-ll -lthr
+DPADD=	${LIBL} ${LIBTHR} ${LIBMD}
+LDADD=	-ll -lthr -lmd
 
 .include <bsd.prog.mk>

@@ -27,13 +27,22 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #include <assert.h>
+#include <md5.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "detailer.h"
 #include "mux.h"
+
+#define	MD5_DIGEST_LEN	32
 
 #define	LINE_MAX	4096
 
@@ -41,19 +50,47 @@ void *
 detailer(void *arg)
 {
 	char buf[LINE_MAX];
+	struct stat sb;
 	struct config *config;
-	char *line;
+	struct collection *cur;
+	char *tok, *line, *md5;
 	size_t in, off;
-	int rdchan, wrchan;
+	int rdchan, wrchan, error;
 
 	config = arg;
 	rdchan = config->chan0;
 	wrchan = config->chan1;
 	in = off = 0;
-	for (;;) {
+	chdir("/usr");
+	STAILQ_FOREACH(cur, &config->collections, next) {
+		if (cur->options & CO_SKIP)
+			continue;
 		line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
-		assert(line != NULL);
-		printf("%s\n", line);
+		tok = strsep(&line, " ");
+		assert(strcmp(tok, "COLL") == 0);
+		tok = strsep(&line, " ");
+		assert(strcmp(tok, cur->name) == 0);
+		chan_printf(wrchan, "COLL %s %s\n", cur->name, cur->release);
+		for (;;) {
+			line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
+			if (strcmp(line, ".") == 0)
+				break;
+			assert(line != NULL);
+			tok = strsep(&line, " ");
+			tok = strsep(&line, " ");
+			tok[strlen(tok) - 2] = '\0';
+			error = stat(tok, &sb);
+			if (!error) {
+				md5 = MD5File(tok, NULL);
+				chan_printf(wrchan, "S %s,v %s %s %s\n", tok,
+				    cur->tag, cur->date, md5);
+				free(md5);
+			} else
+				chan_printf(wrchan, "C %s,v %s %s\n", tok,
+				    cur->tag, cur->date);
+		}
+		chan_printf(wrchan, ".\n");
 	}
+	chan_printf(wrchan, ".\n");
 	return (NULL);
 }
