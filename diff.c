@@ -41,6 +41,7 @@ __FBSDID("$FreeBSD$");
 #include "keyword.h"
 #include "stream.h"
 
+/* Only use intmax_t and strtoimax() if C99 is supported. */
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
 #define	strtoimax	strtol
 
