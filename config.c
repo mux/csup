@@ -77,6 +77,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	defaults = coll_alloc();
 	mask = umask(0);
 	umask(mask);
+	defaults->umask = mask;
 	if (base != NULL)
 		defaults->base = strdup(base);
 	else
@@ -86,7 +87,6 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	defaults->prefix = strdup(defaults->base);
 	if (defaults->prefix == NULL)
 		err(1, "strdup");
-	defaults->umask = mask;
 	defaults->options = CO_SETMODE | CO_EXACTRCS | CO_CHECKRCS;
 
 	/* Extract a list of collections from the configuration file. */
