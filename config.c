@@ -100,7 +100,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		} else if (cur->base == NULL) {
 			cur->base = strdup("/usr/local/etc/cvsup");
 			if (cur->base == NULL)
-				err(1, "malloc");
+				err(1, "strdup");
 		}
 		if (colldir)
 			ret = asprintf(&cur->colldir, "%s/%s", cur->base,
@@ -112,7 +112,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		if (cur->prefix == NULL) {
 			cur->prefix = strdup(cur->base);
 			if (cur->prefix == NULL)
-				err(1, "malloc");
+				err(1, "strdup");
 		}
 		if (cur->tag == NULL && cur->date == NULL) {
 			fprintf(stderr, "Client only supports checkout mode\n");
@@ -122,12 +122,12 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		if (cur->tag == NULL) {
 			cur->tag = strdup(".");
 			if (cur->tag == NULL)
-				err(1, "malloc");
+				err(1, "strdup");
 		}
 		if (cur->date == NULL) {
 			cur->date = strdup(".");
 			if (cur->date == NULL)
-				err(1, "malloc");
+				err(1, "strdup");
 		}
 	}
 	config->port = port;
@@ -150,22 +150,22 @@ coll_new(void)
 	if (defaults->base != NULL) {
 		new->base = strdup(defaults->base);
 		if (new->base == NULL)
-			err(1, "malloc");
+			err(1, "strdup");
 	}
 	if (defaults->prefix != NULL) {
 		new->prefix = strdup(defaults->prefix);
 		if (new->prefix == NULL)
-			err(1, "malloc");
+			err(1, "strdup");
 	}
 	if (defaults->release != NULL) {
 		new->release = strdup(defaults->release);
 		if (new->release == NULL)
-			err(1, "malloc");
+			err(1, "strdup");
 	}
 	if (defaults->tag != NULL) {
 		new->tag = strdup(defaults->tag);
 		if (new->tag == NULL)
-			err(1, "malloc");
+			err(1, "strdup");
 	}
 	return (new);
 }
