@@ -163,8 +163,9 @@ updater_checkout(int rd, char *line)
 	char pathbuf[PATH_MAX];
 	char md5[MD5_DIGEST_LEN + 1];
 	char *cp, *cmd, *file, *cksum;
-	int error;
 	FILE *to;
+	off_t size;
+	int error;
 
 	file = strsep(&line, " ");
 	if (file == NULL || updater_checkfile(file) != 0)
@@ -187,8 +188,8 @@ updater_checkout(int rd, char *line)
 		warn("fopen");
 		return (-1);
 	}
-	while (strcmp(line = chan_getln(rd, buf, sizeof(buf), &in, &off),
-	    ".") != 0) {
+	line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+	while (strcmp(line, ".") != 0 && strcmp(line, ".+") != 0) {
 		if (line == NULL) {
 			fclose(to);
 			return (-1);
@@ -196,6 +197,14 @@ updater_checkout(int rd, char *line)
 		if (strncmp(line, "..", 2) == 0)
 			line++;
 		fprintf(to, "%s\n", line);
+		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
+	}
+	fflush(to);
+	if (strcmp(line, ".+") == 0) {
+		/* Supress the ending newline. */
+		fseek(to, -1, SEEK_CUR);
+		size = ftello(to);
+		ftruncate(fileno(to), size);
 	}
 	fsync(fileno(to));
 	fclose(to);

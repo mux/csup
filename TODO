@@ -1,8 +1,5 @@
 - Parse, use and update status file.
 - Implement zlib compression.
-- In the checkout updating method, if the server ends the file sending
-  with ".+" and not ".", it means we should suppress the newline at the
-  end of the last line.  Add support for that.
 - Implement the diff updating method and possibly the rsync one.  Also,
   update file attributes and not only their content.
 - Correctly handle (un)escaping in tokens as described in the
