@@ -43,6 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <unistd.h>
 
 #include "config.h"
+#include "detailer.h"
 #include "lister.h"
 #include "main.h"
 #include "mux.h"
@@ -332,10 +333,8 @@ cvsup_mux(FILE *f, struct config *config)
 int
 cvsup_init(FILE *f, struct config *config)
 {
-	char buf[4096];
 	char *cur, *line;
-	pthread_t lister_thread;
-	size_t size;
+	pthread_t lister_thread, detailer_thread;
 	int error;
 
 	line = cvsup_getline(f);
@@ -366,15 +365,8 @@ cvsup_init(FILE *f, struct config *config)
 		return (error);
 	error = cvsup_mux(f, config);
 	pthread_create(&lister_thread, NULL, lister, config);
+	pthread_create(&detailer_thread, NULL, detailer, config);
 	lprintf(2, "Running\n");
-	/*
-	 * XXX - Just read bytes received on chan0 and discard them,
-	 * so that we send window updates and can test the code.
-	 */
-	for (;;) {
-		size = chan_read(config->chan0, buf, sizeof(buf) - 1);
-		buf[size] = '\0';
-		printf("%s", buf);
-	}
+	sleep(60 * 60);
 	return (error);
 }

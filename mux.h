@@ -30,5 +30,6 @@ int	chan_open(int);
 int	chan_listen(void);
 int	chan_accept(int);
 size_t	chan_read(int, void *, size_t);
+char	*chan_getln(int, void *, size_t, size_t *, size_t *);
 void	chan_write(int, const void *, size_t);
 int	chan_printf(int, const char *, ...);

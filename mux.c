@@ -366,6 +366,36 @@ chan_read(int id, void *buf, size_t size)
 	return (n);
 }
 
+/* Read next line from a channel. */
+char *
+chan_getln(int id, void *buf, size_t size, size_t *inp, size_t *offp)
+{
+	char *cp, *s;
+	size_t in, off, nbytes, len;
+
+	cp = buf;
+	in = *inp;
+	off = *offp;
+	while ((s = memchr(cp + off, '\n', in)) == NULL) {
+		if (in == size)
+			return (NULL);
+		if (off + in == size) {
+			memmove(cp, cp + off, in);
+			off = 0;
+		}
+		nbytes = chan_read(id, cp + off + in, size - off - in);
+		in += nbytes;
+	}
+	len = s - (cp + off) + 1;
+	*inp = in - len;
+	if (*inp == 0)
+		*offp = 0;
+	else
+		*offp = off + len;
+	*s = '\0';
+	return (cp + off);
+}
+
 /* Write bytes to a channel. */
 void
 chan_write(int id, const void *buf, size_t size)
