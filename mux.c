@@ -269,17 +269,8 @@ sock_readwait(int s, void *buf, size_t size)
 	left = size;
 	while (left > 0) {
 		nbytes = sock_read(s, cp, left);
-		if (nbytes <= 0) {
-			if (nbytes == 0) {
-				fprintf(stderr, "Server closed connection\n");
-				fprintf(stderr, "Chan 0 send window %#x\n",
-				    chans[0]->sendwin);
-				fprintf(stderr, "Chan 1 send window %#x\n",
-				    chans[1]->sendwin);
-				exit(1);
-			}
+		if (nbytes <= 0)
 			return (-1);
-		}
 		left -= nbytes;
 		cp += nbytes;
 	}
@@ -491,10 +482,7 @@ chan_insert(struct chan *chan)
 			return (i);
 		}
 	}
-#ifndef NDEBUG
-	abort();
-#endif
-	return (-1);
+	errx(1, "%s: no free channel", __func__);
 }
 
 /*
@@ -717,10 +705,7 @@ receiver_loop(void *arg)
 
 	rd = arg;
 	s = rd->s;
-	for (;;) {
-		error = sock_readwait(s, &mh.type, sizeof(mh.type));
-		if (error)
-			abort();
+	while (!(error = sock_readwait(s, &mh.type, sizeof(mh.type)))) {
 		switch (mh.type) {
 		case MUX_CONNECT:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
@@ -775,9 +760,8 @@ receiver_loop(void *arg)
 			     chan->state != CS_WRCLOSED) ||
 			    (len > buf_avail(buf) ||
 			     len > chan->recvmss)) {
-				/* XXX - Protocol error. */
 				pthread_mutex_unlock(&chan->lock);
-				abort();
+				goto bad;
 			}
 			/*
 			 * Similarly to the sender code, it's safe to
@@ -806,17 +790,19 @@ receiver_loop(void *arg)
 			else if (chan->state == CS_WRCLOSED)
 				chan->state = CS_CLOSED;
 			else 
-				/* XXX - Protocol error. */
-				abort();
+				goto bad;
 			pthread_cond_signal(&chan->rdready);
 			pthread_mutex_unlock(&chan->lock);
 			break;
 		default:
-			/* XXX - Protocol error. */
-			abort();
+			goto bad;
 			break;
 		}
 	}
+	warn("Receiver: socket error");
+	return (NULL);
+bad:
+	warnx("Receiver: protocol error");
 	return (NULL);
 }
 
