@@ -301,6 +301,7 @@ cvsup_mux(FILE *f)
 	fflush(f);
 	chan0 = mux_open(fileno(f));
 	chan1 = mux_listen();
+	chan_write(chan0, "CHAN 1\n", 7);
 #ifdef notyet
 	chan_printf(chan0, "CHAN %d\n", chan1);
 #endif

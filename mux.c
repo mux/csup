@@ -32,10 +32,13 @@ __FBSDID("$FreeBSD$");
 #include <sys/socket.h>
 #include <sys/time.h>
 
+#include <netinet/in.h>
+
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -106,7 +109,7 @@ static struct buf	*buf_new(size_t);
 static size_t		buf_count(struct buf *);
 static size_t		buf_avail(struct buf *);
 static void		buf_get(struct buf *, void *, size_t);
-static void		buf_put(struct buf *, void *, size_t);
+static void		buf_put(struct buf *, const void *, size_t);
 
 static void		*sender_loop(void *);
 static int		sender_waitforwork(int *);
@@ -172,11 +175,11 @@ mux_initproto(int s)
 	int error, id;
 
 	mh.type = MUX_STARTUPREQ;
-	mh.mh_startup.version = MUX_PROTOVER;
+	mh.mh_startup.version = htons(MUX_PROTOVER);
 	sock_write(s, &mh, MUX_STARTUPPKTSZ);
 	n = recv(s, &mh, MUX_STARTUPPKTSZ, MSG_WAITALL);
 	if (n != MUX_STARTUPPKTSZ || mh.type != MUX_STARTUPREP ||
-	    mh.mh_startup.version != MUX_PROTOVER)
+	    ntohs(mh.mh_startup.version) != MUX_PROTOVER)
 		return (-1);
 	pthread_create(&sender, NULL, sender_loop, &s);
 	pthread_create(&receiver, NULL, receiver_loop, &s);
@@ -234,15 +237,17 @@ again:
 	case CF_CONNECT:
 		mh.type = MUX_CONNECT;
 		mh.mh_connect.id = id;
-		mh.mh_connect.mss = chan->recvmss;
-		mh.mh_connect.window = chan->recvseq + chan->recvbuf->size;
+		mh.mh_connect.mss = htons(chan->recvmss);
+		mh.mh_connect.window = htonl(chan->recvseq +
+		    chan->recvbuf->size);
 		size = MUX_CONNECTPKTSZ;
 		break;
 	case CF_ACCEPT:
 		mh.type = MUX_ACCEPT;
 		mh.mh_accept.id = id;
-		mh.mh_accept.mss = chan->recvmss;
-		mh.mh_accept.window = chan->recvseq + chan->recvbuf->size;
+		mh.mh_accept.mss = htons(chan->recvmss);
+		mh.mh_accept.window = htonl(chan->recvseq +
+		    chan->recvbuf->size);
 		size = MUX_ACCEPTPKTSZ;
 		break;
 	case CF_RESET:
@@ -253,7 +258,8 @@ again:
 	case CF_WINDOW:
 		mh.type = MUX_WINDOW;
 		mh.mh_window.id = id;
-		mh.mh_window.window = chan->recvseq + chan->recvbuf->size;
+		mh.mh_window.window = htonl(chan->recvseq +
+		    chan->recvbuf->size);
 		size = MUX_WINDOWPKTSZ;
 		break;
 	case CF_DATA:
@@ -323,9 +329,11 @@ sender_scan(int *what)
 void *
 receiver_loop(void *arg)
 {
+	struct mux_header mh;
 	struct kevent kev;
 	struct timespec ts;
-	int error, kq, s;
+	struct chan *chan;
+	int error, id, kq, s;
 
 	s = *(int *)arg;
 	kq = kqueue();
@@ -341,6 +349,22 @@ receiver_loop(void *arg)
 	for (;;) {
 		kevent(kq, NULL, 0, &kev, 1, NULL);
 		assert(kev.filter == EVFILT_READ);
+		printf("Receiver: reading bytes\n");
+		recv(s, &mh, MUX_ACCEPTPKTSZ, MSG_WAITALL);
+		if (mh.type == MUX_ACCEPT) {
+			id = mh.mh_accept.id;
+			chan = chan_get(id);
+			if (chan->state != CS_CONNECTING) {
+				chan->flags |= CF_RESET;
+				pthread_mutex_unlock(&chan->lock);
+				continue;
+			}
+			chan->sendmss = mh.mh_accept.mss;
+			chan->sendwin = mh.mh_accept.window;
+			chan->state = CS_ESTABLISHED;
+			pthread_cond_broadcast(&chan->wrready);
+			pthread_mutex_unlock(&chan->lock);
+		}
 		/* XXX */
 	}
 	close(kq);
@@ -385,7 +409,7 @@ buf_avail(struct buf *buf)
 {
 	size_t avail;
 
-	if (buf->out >= buf->in)
+	if (buf->out > buf->in)
 		avail = buf->out - buf->in;
 	else
 		avail = buf->size + buf->out - buf->in;
@@ -393,9 +417,9 @@ buf_avail(struct buf *buf)
 }
 
 static void
-buf_put(struct buf *buf, void *data, size_t size)
+buf_put(struct buf *buf, const void *data, size_t size)
 {
-	char *cp;
+	const char *cp;
 	size_t len;
 
 	assert(buf_avail(buf) >= size);
@@ -460,18 +484,20 @@ chan_read(int id, void *buf, size_t size)
 
 /* Write bytes to a channel. */
 void
-chan_write(int id, void *buf, size_t size)
+chan_write(int id, const void *buf, size_t size)
 {
 	struct chan *chan;
-	char *cp;
+	const char *cp;
 	size_t avail, n, pos;
 
 	pos = 0;
 	cp = buf;
 	chan = chan_get(id);
 	while (pos < size) {
-		while ((avail = buf_avail(chan->sendbuf)) == 0)
+		while ((avail = buf_avail(chan->sendbuf)) == 0) {
+			printf("%s: waiting\n", __func__);
 			pthread_cond_wait(&chan->wrready, &chan->lock);
+		}
 		n = min(avail, size - pos);
 		buf_put(chan->sendbuf, cp + pos, n);
 		pos += n;

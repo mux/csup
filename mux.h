@@ -59,31 +59,31 @@ struct mux_header {
 	union {
 		struct {
 			uint16_t version;
-		} mh_startup;
+		} __packed mh_startup;
 		struct {
 			uint8_t id;
 			uint16_t mss;
 			uint32_t window;
-		} mh_connect;
+		} __packed mh_connect;
 		struct {
 			uint8_t id;
 			uint16_t mss;
 			uint32_t window;
-		} mh_accept;
+		} __packed mh_accept;
 		struct {
 			uint8_t id;
-		} mh_reset;
+		} __packed mh_reset;
 		struct {
 			uint8_t id;
 			uint16_t len;
-		} mh_data;
+		} __packed mh_data;
 		struct {
 			uint8_t id;
-			uint32_t window;	/* XXX - unaligned */
-		} mh_window;
+			uint32_t window;
+		} __packed mh_window;
 		struct {
 			uint8_t id;
-		} mh_close;
+		} __packed mh_close;
 	} mh_u;
 } __packed;
 
@@ -98,4 +98,4 @@ struct mux_header {
 int	mux_open(int);
 int	mux_listen(void);
 size_t	chan_read(int, void *, size_t);
-void	chan_write(int, void *, size_t);
+void	chan_write(int, const void *, size_t);
