@@ -355,7 +355,12 @@ cvsup_mux(struct config *config)
 	lprintf(2, "Establishing multiplexed-mode data connection\n");
 	stream_printf(s, "MUX\n");
 	stream_flush(s);
-	id0 = chan_open(config->socket);
+	error = mux_init(config->socket);
+	if (error) {
+		fprintf(stderr, "mux_init() failed\n");
+		return (error);
+	}
+	id0 = chan_open();
 	if (id0 == -1) {
 		fprintf(stderr, "chan_open() failed\n");
 		return (-1);
@@ -376,6 +381,8 @@ cvsup_mux(struct config *config)
 	}
 	config->chan1 = stream_fdopen(id1, chan_read, chan_write, NULL);
 	stream_close(config->server);
+	config->id0 = id0;
+	config->id1 = id1;
 	return (0);
 }
 
@@ -440,6 +447,12 @@ cvsup_init(struct config *config)
 	error = pthread_join(updater_thread, NULL);
 	if (error)
 		err(1, "pthread_join");
+	lprintf(2, "Shutting down connection to server\n");
+	chan_close(config->id0);
+	chan_close(config->id1);
+	chan_wait(config->id0);
+	chan_wait(config->id1);
+	mux_fini();
 	lprintf(2, "Finished successfully\n");
 	return (error);
 }

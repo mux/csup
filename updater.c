@@ -129,6 +129,9 @@ updater(void *arg)
 		if (line == NULL)
 			goto bad;
 	}
+	line = stream_getln(rd, NULL);
+	if (line == NULL || strcmp(line, ".") != 0)
+		goto bad;
 	return (NULL);
 bad:
 	fprintf(stderr, "Updater: error\n");

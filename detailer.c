@@ -103,6 +103,18 @@ detailer(void *arg)
 		goto bad;
 	stream_printf(wr, ".\n");
 	stream_flush(wr);
+
+	/* Now send fixups if needed. */
+	STAILQ_FOREACH(cur, &config->colls, co_next) {
+		if (cur->co_options & CO_SKIP)
+			continue;
+		stream_printf(wr, "COLL %s %s\n", cur->co_name,
+		    cur->co_release);
+		stream_printf(wr, ".\n");
+		stream_flush(wr);
+	}
+	stream_printf(wr, ".\n");
+	stream_flush(wr);
 	return (NULL);
 bad:
 	fprintf(stderr, "Detailer: Protocol error\n");

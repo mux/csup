@@ -78,6 +78,7 @@ struct config {
 	char *host;
 	in_port_t port;
 	int socket;
+	int id0, id1;
 	struct stream *server;
 	struct stream *chan0;
 	struct stream *chan1;

@@ -185,12 +185,14 @@ static void		chan_lock(struct chan *);
 static void		chan_unlock(struct chan *);
 static int		chan_insert(struct chan *);
 static int		chan_connect(int);
+static void		chan_free(struct chan *);
 
 static struct buf	*buf_new(size_t);
 static size_t		buf_count(struct buf *);
 static size_t		buf_avail(struct buf *);
 static void		buf_get(struct buf *, void *, size_t);
 static void		buf_put(struct buf *, const void *, size_t);
+static void		buf_free(struct buf *);
 
 static void		sender_wakeup(void);
 static void		*sender_loop(void *);
@@ -283,21 +285,40 @@ sock_readwait(int s, void *buf, size_t size)
 	return (0);
 }
 
-/*
- * Initialize the multiplexer, create a new channel, connect it
- * and return its ID.  This is only called once.
- */
+/* Initialize the multiplexer on the given socket. */
 int
-chan_open(int s)
+mux_init(int s)
 {
-	struct chan *chan;
-	int error, id;
+	int error;
 
 	nchans = 0;
 	memset(chans, 0, sizeof(chans));
 	error = mux_initproto(s);
-	if (error)
-		return (-1);
+	return (error);
+}
+
+void
+mux_fini(void)
+{
+	struct chan *chan;
+	int i;
+
+	for (i = 0; i < nchans; i++) {
+		chan = chans[i];
+		if (chan != NULL)
+			chan_free(chan);
+	}
+}
+
+/*
+ * Create a new channel, connect it and return its ID.
+ */
+int
+chan_open(void)
+{
+	struct chan *chan;
+	int error, id;
+
 	chan = chan_new();
 	id = chan_insert(chan);
 	assert(id == 0);
@@ -327,9 +348,20 @@ chan_close(int id)
 		chan_unlock(chan);
 		return (-1);
 	}
-	sender_wakeup();
 	chan_unlock(chan);
+	sender_wakeup();
 	return (0);
+}
+
+void
+chan_wait(int id)
+{
+	struct chan *chan;
+
+	chan = chan_get(id);
+	while (chan->state != CS_CLOSED)
+		pthread_cond_wait(&chan->rdready, &chan->lock);
+	chan_unlock(chan);
 }
 
 /* Returns the ID of an available channel in the listening state. */
@@ -512,6 +544,19 @@ chan_new(void)
 	pthread_cond_init(&chan->rdready, NULL);
 	pthread_cond_init(&chan->wrready, NULL);
 	return (chan);
+}
+
+/* Free any resources associated with a channel. */
+static void
+chan_free(struct chan *chan)
+{
+
+	pthread_cond_destroy(&chan->rdready);
+	pthread_cond_destroy(&chan->wrready);
+	pthread_mutex_destroy(&chan->lock);
+	buf_free(chan->recvbuf);
+	buf_free(chan->sendbuf);
+	free(chan);
 }
 
 /* Insert the new channel in the channel list and return its ID. */
@@ -760,6 +805,8 @@ receiver_loop(void *arg)
 		case MUX_CONNECT:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
 			    MUX_CONNECTHDRSZ - sizeof(mh.type));
+			if (error)
+				goto bad;
 			chan = chan_get(mh.mh_connect.id);
 			if (chan->state == CS_LISTENING) {
 				chan->state = CS_ESTABLISHED;
@@ -775,6 +822,8 @@ receiver_loop(void *arg)
 		case MUX_ACCEPT:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
 			    MUX_ACCEPTHDRSZ - sizeof(mh.type));
+			if (error)
+				goto bad;
 			chan = chan_get(mh.mh_accept.id);
 			if (chan->state == CS_CONNECTING) {
 				chan->sendmss = ntohs(mh.mh_accept.mss);
@@ -794,6 +843,8 @@ receiver_loop(void *arg)
 		case MUX_WINDOW:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
 			    MUX_WINDOWHDRSZ - sizeof(mh.type));
+			if (error)
+				goto bad;
 			chan = chan_get(mh.mh_window.id);
 			if (chan->state == CS_ESTABLISHED ||
 			    chan->state == CS_RDCLOSED)
@@ -804,6 +855,8 @@ receiver_loop(void *arg)
 		case MUX_DATA:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
 			    MUX_DATAHDRSZ - sizeof(mh.type));
+			if (error)
+				goto bad;
 			chan = chan_get(mh.mh_data.id);
 			len = ntohs(mh.mh_data.len);
 			buf = chan->recvbuf;
@@ -835,6 +888,8 @@ receiver_loop(void *arg)
 		case MUX_CLOSE:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
 			    MUX_CLOSEHDRSZ - sizeof(mh.type));
+			if (error)
+				goto bad;
 			chan = chan_get(mh.mh_close.id);
 			if (chan->state == CS_ESTABLISHED)
 				chan->state = CS_RDCLOSED;
@@ -878,6 +933,14 @@ buf_new(size_t size)
 	buf->in = 0;
 	buf->out = 0;
 	return (buf);
+}
+
+static void
+buf_free(struct buf *buf)
+{
+
+	free(buf->data);
+	free(buf);
 }
 
 /* Number of bytes stored in the buffer. */

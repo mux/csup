@@ -26,8 +26,12 @@
  * $Id$
  */
 
-int	chan_open(int);
+int	mux_init(int);
+void	mux_fini(void);
+
+int	chan_open(void);
 int	chan_close(int);
+void	chan_wait(int);
 int	chan_listen(void);
 int	chan_accept(int);
 ssize_t	chan_read(int, void *, size_t);
