@@ -49,10 +49,11 @@ void *
 detailer(void *arg)
 {
 	char buf[LINE_MAX];
+	char md5[MD5_DIGEST_LEN + 1];
 	struct stat sb;
 	struct config *config;
 	struct collection *cur;
-	char *tok, *line, *md5;
+	char *tok, *line;
 	size_t in, off;
 	int rdchan, wrchan, error;
 
@@ -81,12 +82,10 @@ detailer(void *arg)
 			tok = strsep(&line, " ");
 			tok[strlen(tok) - 2] = '\0';
 			error = stat(tok, &sb);
-			if (!error) {
-				md5 = MD5File(tok, NULL);
+			if (!error && MD5File(tok, md5) != NULL)
 				chan_printf(wrchan, "S %s,v %s %s %s\n", tok,
 				    cur->tag, cur->date, md5);
-				free(md5);
-			} else
+			else
 				chan_printf(wrchan, "C %s,v %s %s\n", tok,
 				    cur->tag, cur->date);
 		}
