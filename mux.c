@@ -654,9 +654,9 @@ again:
 		}
 		/*
 		 * Since we're the only thread sending bytes from the
-		 * buffer, it's safe to unlock here during I/O.  It
-		 * avoids keeping the channel lock for too long, since
-		 * write() might block.
+		 * buffer and modifying buf->out, it's safe to unlock
+		 * here during I/O.  It avoids keeping the channel lock
+		 * too long, since write() might block.
 		 */
 		pthread_mutex_unlock(&chan->lock);
 		sock_writev(s, iov, iovcnt);
@@ -800,6 +800,10 @@ receiver_loop(void *arg)
 				pthread_mutex_unlock(&chan->lock);
 				abort();
 			}
+			/*
+			 * Similarly to the sender code, it's safe to
+			 * unlock the channel here.
+			 */
 			pthread_mutex_unlock(&chan->lock);
 			size = min(buf->size - buf->in, len);
 			error = sock_readwait(s, buf->data + buf->in, size);
