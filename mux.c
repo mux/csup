@@ -602,7 +602,12 @@ again:
 	}
 	if (size > 0) {
 		assert(mh.type == MUX_DATA);
-		iov[0].iov_base = &mh;
+		/*
+		 * Older FreeBSD versions (and maybe other OSes) have the
+		 * iov_base field defined as char *.  Cast to char * to
+		 * silence a warning in this case.
+		 */
+		iov[0].iov_base = (char *)&mh;
 		iov[0].iov_len = hdrsize;
 		/* We access the buffer directly to avoid some copying. */
 		buf = chan->sendbuf;
