@@ -192,8 +192,7 @@ updater_checkout(struct stream *rd, char *line)
 	char md5[MD5_DIGEST_LEN + 1];
 	char *cp, *cmd, *file, *cksum;
 	FILE *to;
-	off_t size;
-	int error;
+	int error, first;
 
 	file = strsep(&line, " ");
 	if (file == NULL || updater_checkfile(file) != 0)
@@ -217,24 +216,23 @@ updater_checkout(struct stream *rd, char *line)
 		return (-1);
 	}
 	line = stream_getln(rd);
+	first = 1;
 	while (line != NULL && strcmp(line, ".") != 0 &&
 	    strcmp(line, ".+") != 0) {
 		if (strncmp(line, "..", 2) == 0)
 			line++;
-		fprintf(to, "%s\n", line);
+		if (!first)
+			fprintf(to, "\n");
+		fprintf(to, "%s", line);
 		line = stream_getln(rd);
+		first = 0;
 	}
-	fflush(to);
 	if (line == NULL) {
 		fclose(to);
 		return (-1);
 	}
-	if (strcmp(line, ".+") == 0) {
-		/* Supress the ending newline. */
-		fseek(to, -1, SEEK_CUR);
-		size = ftello(to);
-		ftruncate(fileno(to), size);
-	}
+	if (strcmp(line, ".+") != 0)
+		fprintf(to, "\n");
 	fsync(fileno(to));
 	fclose(to);
 	/* Get the checksum line. */
