@@ -209,8 +209,8 @@ static int nchans;
 /* Sender thread data. */
 static pthread_t sender;
 static pthread_cond_t sender_newwork = PTHREAD_COND_INITIALIZER;
-static pthread_cond_t sender_ready = PTHREAD_COND_INITIALIZER;
-static int first;
+static pthread_cond_t sender_started = PTHREAD_COND_INITIALIZER;
+static int sender_ready;
 static struct sender_data {
 	int s;
 	int error;
@@ -613,18 +613,20 @@ mux_initproto(int s)
 		return (-1);
 	sender_data.s = s;
 	sender_data.error = 0;
-	/*
-	 * Make sure the sender thread has run and is waiting for new work
-	 * before going on.  Otherwise, it might lose the race and a
-	 * request, which will cause a deadlock.
-	 */
+	sender_ready = 0;
 	pthread_mutex_lock(&mux_lock);
 	error = pthread_create(&sender, NULL, sender_loop, &sender_data);
 	if (error) {
 		pthread_mutex_unlock(&mux_lock);
 		return (-1);
 	}
-	pthread_cond_wait(&sender_ready, &mux_lock);
+	/*
+	 * Make sure the sender thread has run and is waiting for new work
+	 * before going on.  Otherwise, it might lose the race and a
+	 * request, which will cause a deadlock.
+	 */
+	while (!sender_ready)
+		pthread_cond_wait(&sender_started, &mux_lock);
 	pthread_mutex_unlock(&mux_lock);
 	receiver_data.s = s;
 	receiver_data.error = 0;
@@ -657,7 +659,6 @@ sender_loop(void *arg)
 
 	sd = arg;
 	s = sd->s;
-	first = 1;
 again:
 	id = sender_waitforwork(&what);
 	chan = chan_get(id);
@@ -763,9 +764,9 @@ sender_waitforwork(int *what)
 	int id;
 
 	pthread_mutex_lock(&mux_lock);
-	if (first) {
-		pthread_cond_signal(&sender_ready);
-		first = 0;
+	if (!sender_ready) {
+		pthread_cond_signal(&sender_started);
+		sender_ready = 1;
 	}
 	while ((id = sender_scan(what)) == -1)
 		pthread_cond_wait(&sender_newwork, &mux_lock);
