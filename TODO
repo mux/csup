@@ -1,0 +1,28 @@
+- Parse, use and update status file.
+- Implement zlib compression.
+- Implement the diff updating method and possibly the rsync one.
+- See how we are supposed to handle pathnames containing spaces.  There
+  are chances CVSup is replacing them with "\_", just like it does for
+  some error messages.  Currently, the code can't cope with that.
+- Always use absolute pathnames and don't use chdir().  Depending on the
+  threading library, we may not have a current working directory for each
+  thread and it's wrong to rely on it.
+- We can't handle lines bigger than 4kB at the moment.  This could be a
+  problem if people have files with very big lines, which is more likely
+  to happen if we are sent binary files.
+- Add missing support for supfile keywords and add sanity checks for
+  some of them.  Also, we're not supposed to choke on unknown keywords
+  to stay in line with CVSup, which just ignores them so as to maintain
+  compatibility with sup.
+- Add support for refuse files.
+- Add support for authentication.
+- Add support for shell commands sent by the server.
+- Add missing support for various CVSup options : -A, -k, -l, -1 and -r,
+  -s (requires status file support), -z and -Z (requires zlib compression
+  support), -d, -i, -a (requires authentication support), -e and -E
+  (requires shell commands support) and the destDir parameter.
+- Cleanup error handling.
+- Handle some signals gracefully, like CVSup does.
+- Properly close the channels at the end of a session.
+- Switch from libmd to openssl.
+- Add support for CVS mode (maybe?).
