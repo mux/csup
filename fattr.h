@@ -46,20 +46,20 @@ typedef uint32_t fflags_t;
 #define	FT_CDEV		3			/* Character device. */
 #define	FT_BDEV		4			/* Block device. */
 #define	FT_SYMLINK	5			/* Symbolic link. */
-#define FT_MAX		FT_SYMLINK		/* Maximum file type number. */
+#define	FT_MAX		FT_SYMLINK		/* Maximum file type number. */
 #define	FT_NUMBER	(FT_MAX + 1)		/* Number of file types. */
 
 /*
  * File attributes.
  */
 #define	FA_FILETYPE	0x0001		/* True for all supported file types. */
-#define	FA_MODTIME	0x0002
-#define	FA_SIZE		0x0004
+#define	FA_MODTIME	0x0002		/* Last file modification time. */
+#define	FA_SIZE		0x0004		/* Size of the file. */
 #define	FA_LINKTARGET	0x0008		/* Target of a symbolic link. */
 #define	FA_RDEV		0x0010		/* Device for a device node. */
-#define	FA_OWNER	0x0020
-#define	FA_GROUP	0x0040
-#define	FA_MODE		0x0080
+#define	FA_OWNER	0x0020		/* Owner of the file. */
+#define	FA_GROUP	0x0040		/* Group of the file. */
+#define	FA_MODE		0x0080		/* File permissions. */
 #define	FA_FLAGS	0x0100		/* 4.4BSD flags, a la chflags(2). */
 #define	FA_LINKCOUNT	0x0200		/* Hard link count. */
 #define	FA_DEV		0x0400		/* Device holding the inode. */
