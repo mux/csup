@@ -69,5 +69,7 @@ use-rel-suffix		{ yylval.i = PT_USE_REL_SUFFIX; return BOOLEAN; }
 void
 yyerror(const char *s)
 {
-	errx(1, "Parse error line %d: %s\n%s", lineno, s, yytext);
+
+	fprintf(stderr, "Parse error line %d: %s: %s\n", lineno, s, yytext);
+	exit(1);
 }
