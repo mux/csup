@@ -121,7 +121,7 @@ static void		*receiver_loop(void *);
 static pthread_mutex_t mux_lock;
 static struct chan *chans[MUX_MAXCHAN];
 static int nchans;
-static pthread_cond_t newwork;
+static pthread_cond_t sender_newwork;
 static pthread_t sender;
 static pthread_t receiver;
 
@@ -167,7 +167,7 @@ mux_open(int s)
 	nchans = 0;
 	memset(chans, 0, sizeof(chans));
 	pthread_mutex_init(&mux_lock, NULL);
-	pthread_cond_init(&newwork, NULL);
+	pthread_cond_init(&sender_newwork, NULL);
 	id = mux_initproto(s);
 	return (id);
 }
@@ -340,7 +340,7 @@ sender_waitforwork(int *what)
 	pthread_mutex_lock(&mux_lock);
 	while ((id = sender_scan(what)) == -1) {
 		printf("Sender: sleeping for work\n");
-		pthread_cond_wait(&newwork, &mux_lock);
+		pthread_cond_wait(&sender_newwork, &mux_lock);
 	}
 	pthread_mutex_unlock(&mux_lock);
 	printf("Sender: waking up\n");
@@ -540,7 +540,7 @@ chan_read(int id, void *buf, size_t size)
 	chan->flags |= CF_WINDOW;
 	pthread_mutex_unlock(&chan->lock);
 	/* We need to wake up the sender so that it sends a window update. */
-	pthread_cond_signal(&newwork);
+	pthread_cond_signal(&sender_newwork);
 	return (n);
 }
 
@@ -563,7 +563,7 @@ chan_write(int id, const void *buf, size_t size)
 		pos += n;
 	}
 	pthread_mutex_unlock(&chan->lock);
-	pthread_cond_signal(&newwork);
+	pthread_cond_signal(&sender_newwork);
 }
 
 /*
@@ -637,7 +637,7 @@ chan_connect(int id)
 	chan = chan_get(id);
 	chan->state = CS_CONNECTING;
 	chan->flags &= CF_CONNECT;
-	pthread_cond_signal(&newwork);
+	pthread_cond_signal(&sender_newwork);
 	while (chan->state == CS_CONNECTING)
 		pthread_cond_wait(&chan->wrready, &chan->lock);
 	ok = (chan->state != CS_ESTABLISHED);
