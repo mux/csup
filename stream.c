@@ -492,9 +492,12 @@ stream_flush(struct stream *stream)
 static int
 stream_flush_int(struct stream *stream, stream_flush_t how)
 {
+	struct buf *buf;
 	int error;
 
-	error = (*stream->filter->flushfn)(stream, stream->wrbuf, how);
+	buf = stream->wrbuf;
+	error = (*stream->filter->flushfn)(stream, buf, how);
+	assert(buf_count(buf) == 0);
 	return (error);
 }
 
@@ -921,7 +924,7 @@ md5filter_init(struct stream *stream, void *data)
 
 	mf = malloc(sizeof(struct md5filter));
 	if (mf == NULL)
-		errx(1, "malloc");
+		err(1, "malloc");
 	MD5_Init(&mf->ctx);
 	mf->md5 = data;
 	stream->fdata = mf;
