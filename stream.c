@@ -207,9 +207,10 @@ stream_getln(struct stream *stream, size_t *len)
 			    buf->in - done);
 		}
 	}
-	*c = '\0';
 	s = buf->buf + buf->off;
 	size = c - s + 1;
+	if (*c != '\n')
+		size--;
 	assert(size <= buf->in);
 	buf->in -= size;
 	if (buf->in == 0)
@@ -218,6 +219,7 @@ stream_getln(struct stream *stream, size_t *len)
 		buf->off += size;
 	if (len != NULL)
 		*len = size - 1;
+	*c = '\0';
 	return (s);
 }
 
