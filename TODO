@@ -1,8 +1,6 @@
 $Id$
 
 - Fix the diff updating algorithm.
-  - Use a lineno_t type instead of intmax_t so that we can typedef it
-    to long if C99 isn't supported.
   - Make the stream API good enough to write files and use it in the diff
     updating code instead of mixing the stream and stdio APIs.
 - Parse, use and update status file.
