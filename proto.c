@@ -92,6 +92,8 @@ cvsup_connect(struct config *config)
 		}
 	}
 	freeaddrinfo(res);
+	if (s == -1)
+		return (NULL);
 	f = fdopen(s, "r+");
 	if (f == NULL)
 		err(1, "fdopen");
