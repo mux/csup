@@ -124,9 +124,11 @@ updater(void *arg)
 				error = updater_delete(coll, line);
 			else if (strcmp(cmd, "C") == 0)
 				error = updater_checkout(coll, rd, line);
+			else if (strcmp(cmd, "D") == 0)
+				error = updater_delete(coll, line);
 			else {
-				lprintf(-1, "Updater: Uknown command \"%s\"\n",
-				    cmd);
+				lprintf(-1, "Updater: Unknown command: "
+				    "\"%s\"\n", cmd);
 				goto bad;
 			}
 			if (error)
