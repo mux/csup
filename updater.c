@@ -457,7 +457,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 			line++;
 		}
 		if (!first)
-			stream_printf(to, "\n");
+			stream_write(to, "\n", 1);
 		stream_write(to, line, size);
 		line = stream_getln(rd, &size);
 		first = 0;
@@ -467,7 +467,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		goto bad;
 	}
 	if (memcmp(line, ".", size) == 0)
-		stream_printf(to, "\n");
+		stream_write(to, "\n", 1);
 	stream_close(to);
 	/* Get the checksum line. */
 	line = stream_getln(rd, NULL);
