@@ -367,9 +367,8 @@ chan_write(int id, const void *buf, size_t size)
 	cp = buf;
 	chan = chan_get(id);
 	while (pos < size) {
-		while ((avail = buf_avail(chan->sendbuf)) == 0) {
+		while ((avail = buf_avail(chan->sendbuf)) == 0)
 			pthread_cond_wait(&chan->wrready, &chan->lock);
-		}
 		n = min(avail, size - pos);
 		buf_put(chan->sendbuf, cp + pos, n);
 		pos += n;
@@ -869,6 +868,6 @@ buf_get(struct buf *buf, void *data, size_t size)
 		memcpy(cp, buf->data + buf->out, size);
 	}
 	buf->out += size;
-	if (size >= buf->size)
+	if (buf->out >= buf->size)
 		buf->out -= buf->size;
 }
