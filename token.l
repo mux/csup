@@ -45,17 +45,17 @@ int lineno = 1;
 [ \t]+			;
 #.*$			;
 \*default		{ return DEFAULT; }
-base			{ yylval.i = BASE; return BASE; }
-date			{ yylval.i = DATE; return DATE; }
-host			{ yylval.i = HOST; return HOST; }
-prefix			{ yylval.i = PREFIX; return PREFIX; }
-release			{ yylval.i = RELEASE; return RELEASE; }
-tag			{ yylval.i = TAG; return TAG; }
-umask			{ yylval.i = UMASK; return UMASK; }
+base			{ yylval.i = PT_BASE; return NAME; }
+date			{ yylval.i = PT_DATE; return NAME; }
+host			{ yylval.i = PT_HOST; return NAME; }
+prefix			{ yylval.i = PT_PREFIX; return NAME; }
+release			{ yylval.i = PT_RELEASE; return NAME; }
+tag			{ yylval.i = PT_TAG; return NAME; }
+umask			{ yylval.i = PT_UMASK; return NAME; }
 =			{ return EQUAL; }
-compress		{ yylval.i = COMPRESS; return COMPRESS; }
-delete			{ yylval.i = DELETE; return DELETE; }
-use-rel-suffix		{ yylval.i = USE_REL_SUFFIX; return USE_REL_SUFFIX; }
+compress		{ yylval.i = PT_COMPRESS; return BOOLEAN; }
+delete			{ yylval.i = PT_DELETE; return BOOLEAN; }
+use-rel-suffix		{ yylval.i = PT_USE_REL_SUFFIX; return BOOLEAN; }
 [a-zA-Z0-9./_-]+	{
 			  yylval.str = strdup(yytext);
 			  if (yylval.str == NULL)

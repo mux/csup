@@ -231,27 +231,27 @@ coll_setopt(int opt, char *value)
 	
 	coll = cur_coll;
 	switch (opt) {
-	case BASE:
+	case PT_BASE:
 		free(coll->co_base);
 		coll->co_base = value;
 		break;
-	case DATE:
+	case PT_DATE:
 		free(coll->co_date);
 		coll->co_date = value;
 		break;
-	case PREFIX:
+	case PT_PREFIX:
 		free(coll->co_prefix);
 		coll->co_prefix = value;
 		break;
-	case RELEASE:
+	case PT_RELEASE:
 		free(coll->co_release);
 		coll->co_release = value;
 		break;
-	case TAG:
+	case PT_TAG:
 		free(coll->co_tag);
 		coll->co_tag = value;
 		break;
-	case UMASK:
+	case PT_UMASK:
 		errno = 0;
 		coll->co_umask = strtol(value, NULL, 8);
 		free(value);
@@ -261,13 +261,13 @@ coll_setopt(int opt, char *value)
 			exit(1);
 		}
 		break;
-	case USE_REL_SUFFIX:
+	case PT_USE_REL_SUFFIX:
 		coll->co_options |= CO_USERELSUFFIX;
 		break;
-	case DELETE:
+	case PT_DELETE:
 		coll->co_options |= CO_DELETE;
 		break;
-	case COMPRESS:
+	case PT_COMPRESS:
 #ifdef notyet
 		/* XXX - implement zlib compression */
 		coll->co_options |= CO_COMPRESS;

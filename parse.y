@@ -41,13 +41,10 @@
 }
 
 %token DEFAULT
-%token <i> BASE DATE HOST PREFIX RELEASE TAG UMASK
-%token <i> COMPRESS DELETE USE_REL_SUFFIX
+%token <i> NAME
+%token <i> BOOLEAN
 %token EQUAL
 %token <str> STRING
-
-%type <i> boolean
-%type <i> name
 
 %%
 
@@ -82,35 +79,19 @@ options
 	;
 
 option
-	: boolean
+	: BOOLEAN
 		{ coll_setopt($1, NULL); }
 	| value
 	;
 
-boolean
-	: COMPRESS
-	| DELETE
-	| USE_REL_SUFFIX
-	;
-
 value
-	: name EQUAL STRING
+	: NAME EQUAL STRING
 		{
-		  if ($1 == HOST)
+		  if ($1 == PT_HOST)
 		  	config_sethost($3);
 		  else
 		  	coll_setopt($1, $3);
 		}
-	;
-
-name
-	: BASE
-	| DATE
-	| HOST
-	| PREFIX
-	| RELEASE
-	| TAG
-	| UMASK
 	;
 
 %%

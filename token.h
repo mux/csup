@@ -29,3 +29,15 @@
 void	yyerror(const char *);
 int	yylex(void);
 int	yyparse(void);
+
+/* Parsing tokens. */
+#define PT_BASE 		0
+#define PT_DATE 		1
+#define PT_HOST 		2
+#define PT_PREFIX 		3
+#define PT_RELEASE		4
+#define PT_TAG			5
+#define PT_UMASK		6
+#define PT_COMPRESS		7
+#define PT_DELETE		8
+#define PT_USE_REL_SUFFIX	9
