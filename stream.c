@@ -51,7 +51,7 @@
  * For now, streams are always block-buffered.
  */
 
-#define	STREAM_BUFSIZ	4096
+#define	STREAM_BUFSIZ	1024
 
 typedef ssize_t	(*readfn_t)(int, void *, size_t);
 typedef ssize_t	(*writefn_t)(int, const void *, size_t);
@@ -200,7 +200,7 @@ char *
 stream_getln(struct stream *stream, size_t *len)
 {
 	struct buf *buf;
-	char *c, *s;
+	char *c, *s, *tmp;
 	ssize_t n;
 	size_t done, size;
 
@@ -213,8 +213,11 @@ stream_getln(struct stream *stream, size_t *len)
 	c = memchr(buf->buf + buf->off, '\n', buf->in);
 	for (done = buf->in; c == NULL; done += n) {
 		if (buf->in == buf->size) {
-			printf("%s: Implement buffer resizing\n", __func__);
-			return (NULL);
+			buf->size *= 2;
+			tmp = realloc(buf->buf, buf->size);
+			if (tmp == NULL)
+				err(1, "realloc");
+			buf->buf = tmp;
 		}
 		if (buf->off + buf->in == buf->size) {
 			memmove(buf->buf, buf->buf + buf->off, buf->in);
@@ -252,12 +255,17 @@ ssize_t
 stream_write(struct stream *stream, const void *src, size_t nbytes)
 {
 	struct buf *buf;
+	char *tmp;
 	int error;
 
 	buf = stream->wrbuf;
 	if (nbytes > buf->size) {
-		printf("%s: Implement buffer resizing\n", __func__);
-		return (-1);
+		while (nbytes > buf->size)
+			buf->size *= 2;
+		tmp = realloc(buf->buf, buf->size);
+		if (tmp == NULL)
+			err(1, "realloc");
+		buf->buf = tmp;
 	}
 	if (nbytes > buf->size - buf->off - buf->in) {
 		error = stream_flush(stream);
@@ -274,6 +282,7 @@ int
 stream_printf(struct stream *stream, const char *fmt, ...)
 {
 	struct buf *buf;
+	char *tmp;
 	va_list ap;
 	int error, ret;
 
@@ -287,8 +296,12 @@ again:
 		return (ret);
 	if ((unsigned)ret >= buf->size - buf->off - buf->in) {
 		if ((unsigned)ret >= buf->size) {
-			printf("%s: Implement buffer resizing\n", __func__);
-			return (-1);
+			while ((unsigned)ret >= buf->size)
+				buf->size *= 2;
+			tmp = realloc(buf->buf, buf->size);
+			if (tmp == NULL)
+				err(1, "realloc");
+			buf->buf = tmp;
 		}
 		error = stream_flush(stream);
 		if (error)
