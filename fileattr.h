@@ -82,23 +82,7 @@ struct fattr_support {
 	int attrs[FT_MAX + 1];
 };
 
-struct fattr {
-	char		*name;
-	int		mask;
-	int		type;
-	time_t		modtime;
-	off_t		size;
-	char		*linktarget;
-	dev_t		rdev;
-	uid_t		owner;
-	gid_t		group;
-	mode_t		mode;
-	fflags_t	flags;
-	nlink_t		linkcount;
-	dev_t		dev;
-	ino_t		inode;
-	STAILQ_ENTRY(file) next;
-};
+struct fattr;
 
 struct fattr		*fattr_fromstat(struct stat *);
 struct fattr_support	*fattr_support(void);

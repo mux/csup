@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $id$
+ * $Id$
  */
 
 #include <sys/types.h>
@@ -35,6 +35,26 @@
 
 #include "fileattr.h"
 #include "osdep.h"
+
+struct fattr {
+	char		*name;
+	int		mask;
+	int		type;
+	time_t		modtime;
+	off_t		size;
+	char		*linktarget;
+	dev_t		rdev;
+	uid_t		owner;
+	gid_t		group;
+	mode_t		mode;
+	fflags_t	flags;
+	nlink_t		linkcount;
+	dev_t		dev;
+	ino_t		inode;
+	STAILQ_ENTRY(file) next;
+};
+
+static struct fattr	*fattr_new(void);
 
 struct fattr_support *
 fattr_support(void)
@@ -48,9 +68,7 @@ fattr_fromstat(struct stat *sb)
 {
 	struct fattr *fa;
 
-	fa = malloc(sizeof(struct fattr));
-	if (fa == NULL)
-		err(1, "malloc");
+	fa = fattr_new();
 	switch (sb->st_mode & S_IFMT) {
 	case S_IFREG:
 		fa->type = FT_FILE;
@@ -94,4 +112,15 @@ fattr_fromstat(struct stat *sb)
 	if (fa->mask & FA_INODE)
 		fa->inode = sb->st_ino;
 	return (fa);
+}
+
+static struct fattr *
+fattr_new(void)
+{
+	struct fattr *new;
+
+	new = malloc(sizeof(struct fattr));
+	if (new == NULL)
+		err(1, "malloc");
+	return (new);
 }
