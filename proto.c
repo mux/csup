@@ -35,6 +35,7 @@ __FBSDID("$FreeBSD$");
 #include <err.h>
 #include <errno.h>
 #include <netdb.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,6 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <unistd.h>
 
 #include "config.h"
+#include "lister.h"
 #include "main.h"
 #include "mux.h"
 #include "proto.h"
@@ -292,7 +294,7 @@ bad:
 }
 
 static int
-cvsup_mux(FILE *f)
+cvsup_mux(FILE *f, struct config *config)
 {
 	int chan0, chan1;
 	int error;
@@ -317,7 +319,8 @@ cvsup_mux(FILE *f)
 		fprintf(stderr, "Accept failed for chan %d\n", chan1);
 		return (-1);
 	}
-	sleep(60 * 60);
+	config->chan0 = chan0;
+	config->chan1 = chan1;
 	return (0);
 }
 
@@ -329,7 +332,9 @@ cvsup_mux(FILE *f)
 int
 cvsup_init(FILE *f, struct config *config)
 {
+	char buf[4096];
 	char *cur, *line;
+	pthread_t lister_thread;
 	int error;
 
 	line = cvsup_getline(f);
@@ -358,6 +363,15 @@ cvsup_init(FILE *f, struct config *config)
 	error = cvsup_xchgcoll(f, config);
 	if (error)
 		return (error);
-	error = cvsup_mux(f);
+	error = cvsup_mux(f, config);
+	pthread_create(&lister_thread, NULL, lister, config);
+	lprintf(2, "Running\n");
+	/*
+	 * XXX - Just read bytes received on chan0 and discard them,
+	 * so that we send window updates and can test the code.
+	 */
+	for (;;) {
+		chan_read(config->chan0, buf, sizeof(buf));
+	}
 	return (error);
 }
