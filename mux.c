@@ -43,9 +43,8 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 #include <unistd.h>
 
+#include "main.h"
 #include "mux.h"
-
-#define	min(a, b)		((a) > (b) ? (b) : (a))
 
 /*
  * Packet types.
