@@ -60,10 +60,10 @@ detailer(void *arg)
 	rdchan = config->chan0;
 	wrchan = config->chan1;
 	in = off = 0;
-	chdir("/usr");
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
+		chdir(cur->base);
 		line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
 		tok = strsep(&line, " ");
 		assert(strcmp(tok, "COLL") == 0);
