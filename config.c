@@ -43,6 +43,8 @@ __FBSDID("$FreeBSD$");
 #include "parse.h"
 #include "y.tab.h"
 
+static struct collection *coll_alloc(void);
+
 extern FILE *yyin;
 
 /* Global variables used in the yacc parser. */
@@ -70,16 +72,10 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	STAILQ_INIT(&config->collections);
 	config->supported = fileattr_support();
 
-	defaults = malloc(sizeof(struct collection));
-	if (defaults == NULL)
-		err(1, "malloc");
+	defaults = coll_alloc();
 	mask = umask(0);
 	umask(mask);
-	defaults->base = NULL;
 	defaults->umask = mask;
-	defaults->prefix = NULL;
-	defaults->release = NULL;
-	defaults->tag = NULL;
 	defaults->options = CO_SETMODE | CO_EXACTRCS | CO_CHECKRCS;
 
 	cur_coll = coll_new();
@@ -142,14 +138,13 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	return (config);
 }
 
+/* Create a new collection, inheriting options from the default collection. */
 struct collection *
 coll_new(void)
 {
 	struct collection *new;
 
-	new = calloc(1, sizeof(struct collection));
-	if (new == NULL)
-		err(1, "malloc");
+	new = coll_alloc();
 	new->options = defaults->options;
 	new->umask = defaults->umask;
 	if (defaults->base != NULL) {
@@ -183,10 +178,6 @@ coll_add(struct collection *coll, char *name)
 	STAILQ_INSERT_TAIL(&config->collections, coll, next);
 }
 
-/*
- * XXX - relies on a C99 compliant free() function,
- * ie: free(NULL) is allowed.
- */
 void
 coll_free(struct collection *coll)
 {
@@ -255,10 +246,23 @@ options_set(struct collection *coll, int opt, char *value)
 	}
 }
 
+/* Set "coll" as being the default collection. */
 void
 coll_setdef(struct collection *coll)
 {
 
 	coll_free(defaults);
 	defaults = coll;
+}
+
+/* Allocate a zero'ed collection structure. */
+static struct collection *
+coll_alloc(void)
+{
+	struct collection *new;
+
+	new = calloc(1, sizeof(struct collection));
+	if (new == NULL)
+		err(1, "malloc");
+	return (new);
 }
