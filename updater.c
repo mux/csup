@@ -124,8 +124,11 @@ updater(void *arg)
 				error = updater_delete(coll, line);
 			else if (strcmp(cmd, "C") == 0)
 				error = updater_checkout(coll, rd, line);
-			else
+			else {
+				lprintf(-1, "Updater: Uknown command \"%s\"\n",
+				    cmd);
 				goto bad;
+			}
 			if (error)
 				goto bad;
 		}
@@ -449,6 +452,8 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 	line = stream_getln(rd, &size);
 	first = 1;
 	while (line != NULL) {
+		if (line[size - 1] == '\n')
+			size--;
 	       	if (size > 0 && (memcmp(line, ".", size) == 0 ||
 		    memcmp(line, ".+", size) == 0))
 			break;

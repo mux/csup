@@ -92,7 +92,10 @@ static ssize_t		 stream_refill_buf(struct stream *, struct buf *);
 static int		 stream_flush_buf(struct stream *, struct buf *);
 
 /* Used by the zlib filter to keep state. */
+#define	ZFILTER_EOF	1
+
 struct zfilter {
+	int flags;
 	struct buf *rdbuf;
 	struct buf *wrbuf;
 	z_stream *rdstate;
@@ -100,7 +103,7 @@ struct zfilter {
 };
 
 static int		 zfilter_init(struct stream *);
-static int		 zfilter_inflate(struct stream *, int);
+static ssize_t		 zfilter_inflate(struct stream *);
 static int		 zfilter_deflate(struct stream *, int);
 static void		 zfilter_finish(struct stream *);
 
@@ -296,7 +299,7 @@ char *
 stream_getln(struct stream *stream, size_t *len)
 {
 	struct buf *buf;
-	char *c, *s;
+	char *cp, *line;
 	ssize_t n;
 	size_t done, size;
 
@@ -306,34 +309,32 @@ stream_getln(struct stream *stream, size_t *len)
 		if (n <= 0)
 			return (NULL);
 	}
-	c = memchr(buf->buf + buf->off, '\n', buf_count(buf));
-	for (done = buf_count(buf); c == NULL; done += n) {
+	cp = memchr(buf->buf + buf->off, '\n', buf_count(buf));
+	for (done = buf_count(buf); cp == NULL; done += n) {
 		n = stream_refill(stream);
 		if (n < 0)
 			return (NULL);
-		if (n == 0) {
-			/*
-			 * This is OK since we keep one spare byte, and
-			 * this is the last line in the stream.
-			 */
-			c = buf->buf + buf->off + buf->in;
-			*c = '\0';
-		} else {
-			c = memchr(buf->buf + buf->off + done, '\n',
+		if (n == 0)
+			/* Last line of the stream. */
+			cp = buf->buf + buf->off + buf->in - 1;
+		else
+			cp = memchr(buf->buf + buf->off + done, '\n',
 			    buf_count(buf) - done);
-		}
 	}
-	s = buf->buf + buf->off;
-	size = c - s;
-	if (*c == '\n')
-		buf_less(buf, size + 1);
-	else
-		buf_less(buf, size);
-	if (len != NULL)
+	line = buf->buf + buf->off;
+	assert(cp >= line);
+	size = cp - line + 1;
+	buf_less(buf, size);
+	if (len != NULL) {
 		*len = size;
-	else
-		*c = '\0';	/* Always terminate when len == NULL. */
-	return (s);
+	} else {
+		/* Terminate the string when len == NULL. */
+		if (line[size - 1] == '\n')
+			line[size - 1] = '\0';
+		else
+			line[size] = '\0';
+	}
+	return (line);
 }
 
 /* Write some bytes to a stream. */
@@ -513,7 +514,6 @@ stream_refill_buf(struct stream *stream, struct buf *buf)
 {
 	ssize_t n;
 
-	buf_makeroom(buf);
 	n = (*stream->readfn)(stream->id, buf->buf + buf->off + buf->in,
 	    buf_avail(buf));
 	if (n < 0)
@@ -530,24 +530,21 @@ stream_refill_buf(struct stream *stream, struct buf *buf)
 static ssize_t
 stream_refill(struct stream *stream)
 {
-	struct zfilter *zf;
 	struct buf *buf;
-	size_t count;
+	size_t oldcount;
 	ssize_t n;
-	int rv;
 
 	buf = stream->rdbuf;
+	buf_makeroom(buf);
+	oldcount = buf_count(buf);
 	if (stream->filter == SF_ZLIB) {
-		count = buf_count(buf);
-		zf = stream->fdata;
-		rv = zfilter_inflate(stream, Z_SYNC_FLUSH);
-		if (rv != Z_OK && rv != Z_STREAM_END)
-			return (-1);
-		n = buf_count(buf) - count;
-		assert(n > 0);
-		return (n);
+		n = zfilter_inflate(stream);
+	} else {
+		assert(stream->filter == SF_NONE);
+		n = stream_refill_buf(stream, buf);
 	}
-	n = stream_refill_buf(stream, buf);
+	assert((n > 0 && n == (signed)(buf_count(buf) - oldcount)) ||
+	    (n <= 0 && buf_count(buf) == oldcount));
 	return (n);
 }
 
@@ -631,14 +628,7 @@ zfilter_finish(struct stream *stream)
 	if (zf->rdbuf != NULL) {
 		state = zf->rdstate;
 		zbuf = zf->rdbuf;
-		/* Be sure to eat all the compressed bytes. */
-		if (buf_count(zbuf) > 0) {
-			do {
-				rv = zfilter_inflate(stream, Z_FINISH);
-			} while (rv == Z_OK);
-			if (rv != Z_STREAM_END)
-				errx(1, "inflate: %s (%d)", state->msg, rv);
-		}
+		assert(zf->flags & ZFILTER_EOF);
 		inflateEnd(state);
 		free(state);
 		buf_free(stream->rdbuf);
@@ -695,13 +685,13 @@ zfilter_deflate(struct stream *stream, int flags)
 	return (rv);
 }
 
-static int
-zfilter_inflate(struct stream *stream, int flags)
+static ssize_t
+zfilter_inflate(struct stream *stream)
 {
 	struct zfilter *zf;
 	struct buf *buf, *zbuf;
 	z_stream *state;
-	size_t lastin, lastout;
+	size_t lastin, lastout, new;
 	ssize_t n;
 	int rv;
 
@@ -710,32 +700,35 @@ zfilter_inflate(struct stream *stream, int flags)
 	buf = stream->rdbuf;
 	zbuf = zf->rdbuf;
 
-	buf_makeroom(buf);
+	assert(buf_avail(buf) > 0);
 	if (buf_count(zbuf) == 0) {
 		n = stream_refill_buf(stream, zbuf);
-		if (n == -1)
-			return (Z_ERRNO);
-		if (n == 0)
-			return (Z_OK);
+		if (n <= 0)
+			return (n);
 	}
 again:
-	state->next_in = zbuf->buf + zbuf->off;
 	assert(buf_count(zbuf) > 0);
+	state->next_in = zbuf->buf + zbuf->off;
 	state->avail_in = buf_count(zbuf);
 	state->next_out = buf->buf + buf->off + buf->in;
 	state->avail_out = buf_avail(buf);
 	lastin = state->avail_in;
 	lastout = state->avail_out;
-	rv = inflate(state, flags);
+	rv = inflate(state, Z_SYNC_FLUSH);
 	buf_less(zbuf, lastin - state->avail_in);
-	if (lastout - state->avail_out == 0 && rv != Z_STREAM_END) {
+	new = lastout - state->avail_out;
+	if (new == 0 && rv != Z_STREAM_END) {
 		n = stream_refill_buf(stream, zbuf);
 		if (n == -1)
-			return (Z_ERRNO);
+			return (-1);
 		if (n == 0)
-			return (Z_OK);
+			return (0);
 		goto again;
 	}
-	buf_more(buf, lastout - state->avail_out);
-	return (rv);
+	if (rv != Z_STREAM_END && rv != Z_OK)
+		errx(1, "inflate: %s", state->msg);
+	if (rv == Z_STREAM_END)
+		zf->flags |= ZFILTER_EOF;
+	buf_more(buf, new);
+	return (new);
 }
