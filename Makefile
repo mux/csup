@@ -1,4 +1,4 @@
-# $FreeBSD$
+# $Id$
 
 PROG=	csup
 SRCS=	config.c config.h \
