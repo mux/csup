@@ -628,11 +628,13 @@ zfilter_finish(struct stream *stream)
 		state = zf->rdstate;
 		zbuf = zf->rdbuf;
 		/* Be sure to eat all the compressed bytes. */
-		do {
-			rv = zfilter_inflate(stream, Z_FINISH);
-		} while (rv == Z_OK);
-		if (rv != Z_STREAM_END)
-			errx(1, "inflate: %s", state->msg);
+		if (buf_count(zbuf) > 0) {
+			do {
+				rv = zfilter_inflate(stream, Z_FINISH);
+			} while (rv == Z_OK);
+			if (rv != Z_STREAM_END)
+				errx(1, "inflate: %s (%d)", state->msg, rv);
+		}
 		inflateEnd(state);
 		free(state);
 		buf_free(stream->rdbuf);
