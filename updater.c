@@ -267,18 +267,13 @@ updater_diff_apply(struct collection *coll, char *path, struct stream *rd,
 	return (0);
 }
 
-/*
- * XXX - This is a mess, I should finish the stream API and make it work
- * sufficiently fine so that we can use it here instead of stdio.
- */
 int
 updater_dodiff(struct collection *coll, char *path, struct stream *rd,
     struct diff *diff)
 {
-	FILE *to;
-	struct stream *orig;
+	struct stream *orig, *to;
 	char *cp, *tmp;
-	int fd, error;
+	int error;
 
 	cp = strrchr(path, '/');
 	assert(cp != NULL);
@@ -290,32 +285,26 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 	 * XXX - the mode parameter should be what's the server sends us
 	 * merged with the default mode for files (0666).
 	 */
-	fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0666);
-	if (fd == -1) {
-		warn("open");
-		free(tmp);
-		return (-1);
-	}
-	to = fdopen(fd, "w");
+	to = stream_open_file(tmp, O_WRONLY | O_CREAT | O_EXCL, 0666);
 	if (to == NULL) {
-		warn("fdopen");
-		close(fd);
+		warn("stream_open_file(\"%s\")", tmp);
 		free(tmp);
 		return (-1);
 	}
 
 	orig = stream_open_file(path, O_RDONLY);
 	if (orig == NULL) {
-		warn("stream_open_file");
-		fclose(to);
+		warn("stream_open_file(\"%s\")", path);
+		stream_close(to);
 		free(tmp);
 		return (-1);
 	}
 	diff->d_orig = orig;
+	diff->d_to = to;
 	diff->d_diff = rd;
-	error = diff_apply(diff, coll->keyword, to);
-	fclose(to);
+	error = diff_apply(diff, coll->keyword);
 	stream_close(orig);
+	stream_close(to);
 	if (error) {
 		printf("%s: diff_apply failed\n", __func__);
 		free(tmp);

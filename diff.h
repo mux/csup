@@ -26,8 +26,6 @@
  * $Id$
  */
 
-#include <stdio.h>	/* XXX */
-
 struct stream;
 struct keyword;
 
@@ -44,6 +42,7 @@ struct diff {
 	char *d_state;				/* State of the branch */
 	struct stream *d_diff;			/* The delta */
 	struct stream *d_orig;			/* Original file */
+	struct stream *d_to;			/* Target file */
 };
 
-int		 diff_apply(struct diff *, struct keyword *, FILE *);
+int		 diff_apply(struct diff *, struct keyword *);
