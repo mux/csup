@@ -31,8 +31,6 @@
 
 #include <fcntl.h>
 
-#include "file.h"
-
 /*
  * Collection options.
  */
@@ -81,7 +79,8 @@ struct config {
 	char *host;
 	uint16_t port;
 	STAILQ_HEAD(, collection) collections;
-	int ftypes[FT_NUMBER];
+	int *ftypes;
+	int ftnumber;
 	int chan0;
 	int chan1;
 };

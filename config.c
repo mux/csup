@@ -39,6 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 
 #include "config.h"
+#include "file.h"
 #include "parse.h"
 #include "y.tab.h"
 
@@ -66,24 +67,8 @@ config_init(const char *file, char *host, char *base, in_port_t port)
 		err(1, "malloc");
 	config->host = NULL;
 	STAILQ_INIT(&config->collections);
-	/* 
-	 * Initialize the supported file types, that is define which
-	 * attributes we support for each file type.  This is OS
-	 * specific, and should be put elsewhere if we ever want this
-	 * code to be portable on other platforms.  However, these
-	 * settings should be correct for every UNIX system out there.
-	 */
-	config->ftypes[FT_UNKNOWN] = 0;
-	config->ftypes[FT_FILE] = FA_FILETYPE | FA_MODTIME | FA_SIZE |
-	    FA_OWNER | FA_GROUP | FA_MODE | FA_FLAGS | FA_LINKCOUNT |
-	    FA_INODE | FA_DEV;
-	config->ftypes[FT_DIRECTORY] = FA_FILETYPE | FA_OWNER | FA_GROUP
-	    | FA_MODE | FA_FLAGS;
-	config->ftypes[FT_CDEV] = FA_FILETYPE | FA_RDEV | FA_OWNER | FA_GROUP |
-	    FA_MODE | FA_FLAGS | FA_LINKCOUNT | FA_DEV | FA_INODE;
-	config->ftypes[FT_BDEV] = FA_FILETYPE | FA_RDEV | FA_OWNER | FA_GROUP |
-	    FA_MODE | FA_FLAGS | FA_LINKCOUNT | FA_DEV | FA_INODE;
-	config->ftypes[FT_SYMLINK] = FA_FILETYPE | FA_LINKTARGET;
+	config->ftypes = ftypes_supported;
+	config->ftnumber = sizeof(ftypes_supported) / sizeof(int);
 
 	defaults = malloc(sizeof(struct collection));
 	if (defaults == NULL)

@@ -195,8 +195,8 @@ cvsup_fileattr(FILE *f, struct config *config)
 	int i, n, attr;
 
 	lprintf(2, "Negotiating file attribute support\n");
-	fprintf(f, "ATTR %d\n", FT_NUMBER);
-	for (i = 0; i < FT_NUMBER; i++)
+	fprintf(f, "ATTR %d\n", config->ftnumber);
+	for (i = 0; i < config->ftnumber; i++)
 		fprintf(f, "%x\n", config->ftypes[i]);
 	fprintf(f, ".\n");
 	line = cvsup_getline(f);
@@ -205,7 +205,7 @@ cvsup_fileattr(FILE *f, struct config *config)
 		goto bad;
 	errno = 0;
 	n = strtol(line, NULL, 10);
-	if (errno || n != FT_NUMBER)
+	if (errno || n != config->ftnumber)
 		goto bad;
 	for (i = 0; i < n; i++) {
 		line = cvsup_getline(f);
