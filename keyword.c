@@ -294,18 +294,55 @@ tag_free(struct tag *tag)
 static char *
 tag_expand(struct tag *tag, struct diff *diff)
 {
-	char cvsdate[20]; /* "XXXX/XX/XX XX:XX:XX" */
+	/*
+	 * CVS formats dates as "XXXX/XX/XX XX:XX:XX".  32 bytes
+	 * is big enough until year 10,000,000,000,000,000 :-).
+	 */
+	char cvsdate[32];
 	struct tm tm;
-	char *val;
+	char *filename, *val;
 
 	if (strptime(diff->d_revdate, "%Y.%m.%d.%H.%M.%S", &tm) == NULL)
 		err(1, "strptime");
 	if (strftime(cvsdate, sizeof(cvsdate), "%Y/%m/%d %H:%M:%S", &tm) == 0)
 		err(1, "strftime");
+	filename = strrchr(diff->d_rcsfile, '/');
+	if (filename == NULL)
+		filename = diff->d_rcsfile;
+	else
+		filename++;
+
 	switch (tag->key) {
+	case RCSKEY_AUTHOR:
+		asprintf(&val, "%s", diff->d_author);
+		break;
 	case RCSKEY_CVSHEADER:
 		asprintf(&val, "%s %s %s %s %s", diff->d_rcsfile,
 		    diff->d_revnum, cvsdate, diff->d_author, diff->d_state);
+		break;
+	case RCSKEY_DATE:
+		asprintf(&val, "%s", cvsdate);
+		break;
+	case RCSKEY_HEADER:
+		asprintf(&val, "%s/%s %s %s %s %s", diff->d_cvsroot,
+		    diff->d_rcsfile, diff->d_revnum, cvsdate, diff->d_author,
+		    diff->d_state);
+		break;
+	case RCSKEY_ID:
+		asprintf(&val, "%s %s %s %s %s", filename, diff->d_revnum,
+		    cvsdate, diff->d_author, diff->d_state);
+		break;
+	case RCSKEY_RCSFILE:
+		asprintf(&val, "%s", filename);
+		break;
+	case RCSKEY_REVISION:
+		asprintf(&val, "%s", diff->d_revnum);
+		break;
+	case RCSKEY_SOURCE:
+		asprintf(&val, "%s/%s", diff->d_cvsroot, diff->d_rcsfile);
+		break;
+	case RCSKEY_STATE:
+		asprintf(&val, "%s", diff->d_state);
 		break;
 	default:
 		printf("%s: Implement tag %d expansion.\n", __func__, tag->key);
