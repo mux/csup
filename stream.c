@@ -684,6 +684,7 @@ stream_filter_start(struct stream *stream, stream_filter_t id, void *data)
 		return (0);
 	stream_filter_fini(stream);
 	stream->filter = stream_filter_lookup(id);
+	stream->fdata = NULL;
 	error = stream_filter_init(stream, data);
 	return (error);
 }
