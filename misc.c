@@ -39,16 +39,20 @@
 int
 lprintf(int level, const char *fmt, ...)
 {
+	FILE *to;
 	va_list ap;
 	int ret;
 
-	if (level <= verbose) {
-		va_start(ap, fmt);
-		ret = vprintf(fmt, ap);
-		va_end(ap);
-		return (ret);
-	}
-	return (0);
+	if (level > verbose)
+		return (0);
+	if (level == -1)
+		to = stderr;
+	else
+		to = stdout;
+	va_start(ap, fmt);
+	ret = vfprintf(to, fmt, ap);
+	va_end(ap);
+	return (ret);
 }
 
 /*
