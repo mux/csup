@@ -187,14 +187,18 @@ diff_copyln(struct editcmd *ec, lineno_t to)
 	return (0);
 }
 
-/* Write a new line to the file, expanding RCS keywords. */
+/* Write a new line to the file, expanding RCS keywords appropriately. */
 static void
 diff_writeln(struct editcmd *ec, char *line)
 {
 	char *newline;
 
-	newline = keyword_expand(ec->keyword, ec->diff, line);
-	stream_printf(ec->diff->d_to, "%s\n", newline);
-	if (newline != line)
-		free(newline);
+	if (ec->diff->d_expand != EXPAND_OLD &&
+	    ec->diff->d_expand != EXPAND_BINARY) {
+		newline = keyword_expand(ec->keyword, ec->diff, line);
+		stream_printf(ec->diff->d_to, "%s\n", newline);
+		if (newline != line)
+			free(newline);
+	} else
+		stream_printf(ec->diff->d_to, "%s\n", line);
 }

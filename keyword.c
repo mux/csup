@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <sys/queue.h>
 
+#include <assert.h>
 #include <err.h>
 #include <errno.h>
 #include <stdio.h>
@@ -230,6 +231,7 @@ keyword_expand(struct keyword *keyword, struct diff *diff, char *line)
 	char *dollar, *keystart, *valstart, *vallim;
 	char *linestart, *newline, *newval, *cp, *tmp;
 
+	assert(diff->d_expand != EXPAND_OLD && diff->d_expand != EXPAND_BINARY);
 	newline = NULL;
 	linestart = cp = line;
 again:
@@ -263,22 +265,32 @@ again:
 				tmp = newline;
 			else
 				tmp = NULL;
-			newval = tag_expand(tag, diff);
 			*dollar = '\0';
 			*valstart = '\0';
 			*vallim = '\0';
-			if (newval == NULL) {
-				asprintf(&newline, "%s$%s:  $%s", linestart,
+			newval = NULL;
+			if (diff->d_expand == EXPAND_KEY) {
+				asprintf(&newline, "%s$%s$%s", linestart,
 				    keystart, vallim + 1);
+			} else if (diff->d_expand == EXPAND_VALUE) {
+				newval = tag_expand(tag, diff);
+				asprintf(&newline, "%s%s%s", linestart,
+				    newval == NULL ? "" : newval, vallim + 1);
 			} else {
+				assert(diff->d_expand == EXPAND_DEFAULT ||
+				    diff->d_expand == EXPAND_KEYVALUE ||
+				    diff->d_expand == EXPAND_KEYVALUELOCKER);
+				newval = tag_expand(tag, diff);
 				asprintf(&newline, "%s$%s: %s $%s", linestart,
-				    keystart, newval, vallim + 1);
-				free(newval);
+				    keystart, newval == NULL ? "" : newval,
+				    vallim + 1);
 			}
+			if (newval != NULL)
+				free(newval);
+			if (tmp != NULL)
+				free(tmp);
 			if (newline == NULL)
 				err(1, "asprintf");
-			if (tmp)
-				free(tmp);
 			/*
 			 * Continue looking for tags in the rest of the line.
 			 * We can't use vallim + 1 because it points in the

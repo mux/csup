@@ -62,6 +62,7 @@ struct update {
 	struct stream *to;
 	struct stream *stream;
 	struct fattr *rcsattr;
+	int expand;
 };
 
 static char	*updater_getpath(struct coll *, char *);
@@ -167,7 +168,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	char md5[MD5_DIGEST_SIZE];
 	struct update up;
 	struct fattr *rcsattr, *fa;
-	char *author, *tag, *rcsfile, *revnum, *revdate, *path;
+	char *author, *expand, *tag, *rcsfile, *revnum, *revdate, *path;
 	char *attr, *cp, *cksum, *line2, *line3, *tok, *topath;
 	int error;
 
@@ -188,7 +189,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	strsep(&cp, " "); /* XXX - orig revnum */
 	strsep(&cp, " "); /* XXX - from attic */
 	strsep(&cp, " "); /* XXX - loglines */
-	strsep(&cp, " "); /* XXX - expand */
+	expand = strsep(&cp, " ");
 	attr = strsep(&cp, " ");
 	cksum = strsep(&cp, " ");
 	if (cksum == NULL || cp != NULL)
@@ -196,6 +197,25 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	path = updater_getpath(coll, rcsfile);
 	if (path == NULL) {
 		fprintf(stderr, "Updater: bad filename %s\n", rcsfile);
+		goto bad;
+	}
+	if (strcmp(expand, ".") == 0)
+		up.expand = EXPAND_DEFAULT;
+	else if (strcmp(expand, "kv") == 0)
+		up.expand = EXPAND_KEYVALUE;
+	else if (strcmp(expand, "kvl") == 0)
+		up.expand = EXPAND_KEYVALUELOCKER;
+	else if (strcmp(expand, "k") == 0)
+		up.expand = EXPAND_KEY;
+	else if (strcmp(expand, "o") == 0)
+		up.expand = EXPAND_OLD;
+	else if (strcmp(expand, "b") == 0)
+		up.expand = EXPAND_BINARY;
+	else if (strcmp(expand, "v") == 0)
+		up.expand = EXPAND_VALUE;
+	else {
+		fprintf(stderr, "Updater: invalid expansion mode \"%s\"\n",
+		    expand);
 		goto bad;
 	}
 	rcsattr = fattr_decode(attr);
@@ -357,6 +377,7 @@ updater_diff_apply(struct update *up)
 	diff.d_revdate = up->revdate;
 	diff.d_state = up->state;
 	diff.d_tag = up->tag;
+	diff.d_expand = up->expand;
 	error = diff_apply(&diff, up->coll->co_keyword);
 	if (error) {
 		fprintf(stderr, "Updater: bad diff from server\n");

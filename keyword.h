@@ -26,6 +26,15 @@
  * $Id$
  */
 
+/* CVS expansion modes. */
+#define	EXPAND_DEFAULT		0
+#define	EXPAND_KEYVALUE		1
+#define	EXPAND_KEYVALUELOCKER	2
+#define	EXPAND_KEY		3
+#define	EXPAND_OLD		4
+#define	EXPAND_BINARY		5
+#define	EXPAND_VALUE		6
+
 struct diff;
 struct keyword;
 

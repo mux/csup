@@ -43,6 +43,7 @@ struct diff {
 	struct stream *d_diff;			/* The delta */
 	struct stream *d_orig;			/* Original file */
 	struct stream *d_to;			/* Target file */
+	int d_expand;				/* CVS expansion mode */
 };
 
 int		 diff_apply(struct diff *, struct keyword *);
