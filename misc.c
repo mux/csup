@@ -54,12 +54,10 @@ lprintf(int level, const char *fmt, ...)
 
 /*
  * Compute the MD5 checksum of a file.  The md parameter must
- * point to a buffer containing at least MD5_DIGEST_LEN + 1
- * bytes.  Warning, MD5_DIGEST_LEN is not the same as
- * MD5_DIGEST_LENGTH.  The former is defined to 32 in misc.h 
- * and represents the size of the digest when stored as a
- * string containing the digest in hexadecimal notation.
- * The latter is an OpenSSL define and its value is 16.
+ * point to a buffer containing at least MD5_DIGEST_SIZE bytes.
+ *
+ * Do not confuse OpenSSL's MD5_DIGEST_LENGTH with our own
+ * MD5_DIGEST_SIZE macro.
  */
 int
 MD5file(char *path, char *md)

@@ -48,7 +48,7 @@ __FBSDID("$FreeBSD$");
 void *
 detailer(void *arg)
 {
-	char md5[MD5_DIGEST_LEN + 1];
+	char md5[MD5_DIGEST_SIZE];
 	struct stat sb;
 	struct config *config;
 	struct collection *cur;

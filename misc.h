@@ -26,7 +26,7 @@
  * $FreeBSD$
  */
 
-#define	MD5_DIGEST_LEN		32
+#define	MD5_DIGEST_SIZE		33
 
 #define	min(a, b)		((a) > (b) ? (b) : (a))
 

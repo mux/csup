@@ -145,8 +145,8 @@ updater_delete(struct collection *coll, char *line)
 static int
 updater_diff(struct collection *coll, struct stream *rd, char *line)
 {
-	char md5[MD5_DIGEST_LEN + 1];
-	char cksum[MD5_DIGEST_LEN + 1];
+	char md5[MD5_DIGEST_SIZE];
+	char cksum[MD5_DIGEST_SIZE];
 	struct diff diff;
 	char *author, *tok, *path, *rcsfile, *revnum, *revdate;
 	int error;
@@ -330,7 +330,7 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 static int
 updater_checkout(struct collection *coll, struct stream *rd, char *line)
 {
-	char md5[MD5_DIGEST_LEN + 1];
+	char md5[MD5_DIGEST_SIZE];
 	char *cksum, *cmd, *file, *rcsfile;
 	FILE *to;
 	size_t size;
