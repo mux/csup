@@ -110,6 +110,8 @@ keyword_free(struct keyword *keyword)
 {
 	struct tag *tag;
 
+	if (keyword == NULL)
+		return;
 	while (!STAILQ_EMPTY(&keyword->keywords)) {
 		tag = STAILQ_FIRST(&keyword->keywords);
 		STAILQ_REMOVE_HEAD(&keyword->keywords, next);

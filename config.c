@@ -38,6 +38,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "keyword.h"
 #include "fileattr.h"
 #include "parse.h"
 #include "y.tab.h"
@@ -221,6 +222,7 @@ coll_free(struct coll *coll)
 	free(coll->co_tag);
 	free(coll->co_cvsroot);
 	free(coll->co_name);
+	keyword_free(coll->co_keyword);
 	free(coll);
 }
 
