@@ -26,6 +26,9 @@
  * $Id$
  */
 
+#include <sys/queue.h>
+#include <sys/types.h>
+
 #include <stddef.h>
 
 #include "config.h"

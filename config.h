@@ -26,10 +26,6 @@
  * $Id$
  */
 
-/* XXX */
-#include <sys/queue.h>
-#include <sys/types.h>
-
 /*
  * Collection options.
  */
