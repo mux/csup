@@ -282,14 +282,17 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 
 	cp = strrchr(path, '/');
 	assert(cp != NULL);
-	*cp = '\0';
-	asprintf(&tmp, "%s/%s", path, "#cvs.csup-XXXXX");
+	asprintf(&tmp, "%.*s/#cvs.csup-%ld", (int)(cp - path), path,
+	    (long)getpid());
 	if (tmp == NULL)
 		err(1, "asprintf");
-	*cp = '/';
-	fd = mkstemp(tmp);
+	/*
+	 * XXX - the mode parameter should be what's the server sends us
+	 * merged with the default mode for files (0666).
+	 */
+	fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL, 0666);
 	if (fd == -1) {
-		warn("mkstemp");
+		warn("open");
 		free(tmp);
 		return (-1);
 	}
