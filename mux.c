@@ -180,6 +180,7 @@ static size_t		buf_avail(struct buf *);
 static void		buf_get(struct buf *, void *, size_t);
 static void		buf_put(struct buf *, const void *, size_t);
 
+static void		sender_wakeup(void);
 static void		*sender_loop(void *);
 static int		sender_waitforwork(int *);
 static int		sender_scan(int *);
@@ -350,7 +351,7 @@ chan_read(int id, void *buf, size_t size)
 	chan->flags |= CF_WINDOW;
 	pthread_mutex_unlock(&chan->lock);
 	/* We need to wake up the sender so that it sends a window update. */
-	pthread_cond_signal(&sender_newwork);
+	sender_wakeup();
 	return (n);
 }
 
@@ -374,7 +375,7 @@ chan_write(int id, const void *buf, size_t size)
 		pos += n;
 	}
 	pthread_mutex_unlock(&chan->lock);
-	pthread_cond_signal(&sender_newwork);
+	sender_wakeup();
 }
 
 int
@@ -407,7 +408,9 @@ chan_connect(int id)
 	chan = chan_get(id);
 	chan->state = CS_CONNECTING;
 	chan->flags |= CF_CONNECT;
-	pthread_cond_signal(&sender_newwork);
+	pthread_mutex_unlock(&chan->lock);
+	sender_wakeup();
+	chan = chan_get(id);
 	while (chan->state == CS_CONNECTING)
 		pthread_cond_wait(&chan->wrready, &chan->lock);
 	ok = (chan->state != CS_ESTABLISHED);
@@ -515,6 +518,15 @@ mux_initproto(int s)
 	return (0);
 }
 
+static void
+sender_wakeup(void)
+{
+
+	pthread_mutex_lock(&mux_lock);
+	pthread_cond_signal(&sender_newwork);
+	pthread_mutex_unlock(&mux_lock);
+}
+
 static void *
 sender_loop(void *arg)
 {
@@ -607,8 +619,8 @@ again:
 		buf->out += size;
 		if (buf->out >= buf->size)
 			buf->out -= buf->size;
-		pthread_mutex_unlock(&chan->lock);
 		pthread_cond_broadcast(&chan->wrready);
+		pthread_mutex_unlock(&chan->lock);
 	} else {
 		pthread_mutex_unlock(&chan->lock);
 		sock_write(s, &mh, hdrsize);
@@ -698,7 +710,7 @@ receiver_loop(void *arg)
 			} else
 				chan->flags |= CF_RESET;
 			pthread_mutex_unlock(&chan->lock);
-			pthread_cond_signal(&sender_newwork);
+			sender_wakeup();
 			break;
 		case MUX_ACCEPT:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
@@ -708,12 +720,12 @@ receiver_loop(void *arg)
 				chan->sendmss = ntohs(mh.mh_accept.mss);
 				chan->sendwin = ntohl(mh.mh_accept.window);
 				chan->state = CS_ESTABLISHED;
-				pthread_mutex_unlock(&chan->lock);
 				pthread_cond_broadcast(&chan->wrready);
+				pthread_mutex_unlock(&chan->lock);
 			} else {
 				chan->flags |= CF_RESET;
 				pthread_mutex_unlock(&chan->lock);
-				pthread_cond_signal(&sender_newwork);
+				sender_wakeup();
 			}
 			break;
 		case MUX_RESET:
@@ -726,7 +738,7 @@ receiver_loop(void *arg)
 			    chan->state == CS_RDCLOSED)
 				chan->sendwin = ntohl(mh.mh_window.window);
 			pthread_mutex_unlock(&chan->lock);
-			pthread_cond_signal(&sender_newwork);
+			sender_wakeup();
 			break;
 		case MUX_DATA:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
@@ -754,8 +766,8 @@ receiver_loop(void *arg)
 			buf->in += len;
 			if (buf->in >= buf->size)
 				buf->in -= buf->size;
-			pthread_mutex_unlock(&chan->lock);
 			pthread_cond_broadcast(&chan->rdready);
+			pthread_mutex_unlock(&chan->lock);
 			break;
 		case MUX_CLOSE:
 			break;
