@@ -1,6 +1,6 @@
 # $FreeBSD$
 
-PROG=	cvsup
+PROG=	csup
 SRCS=	main.h main.c proto.h proto.c token.l parse.y y.tab.h parse.h \
 	config.h config.c mux.h mux.c
 #CFLAGS+=-DNDEBUG -g
