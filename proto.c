@@ -267,13 +267,13 @@ cvsup_xchgcoll(struct config *config)
 
 	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
-	STAILQ_FOREACH(cur, &config->colls, next)
-		stream_printf(s, "COLL %s %s %o %d\n.\n", cur->name,
-		    cur->release, cur->umask, cur->options);
+	STAILQ_FOREACH(cur, &config->colls, co_next)
+		stream_printf(s, "COLL %s %s %o %d\n.\n", cur->co_name,
+		    cur->co_release, cur->co_umask, cur->co_options);
 	stream_printf(s, ".\n");
 	stream_flush(s);
-	STAILQ_FOREACH(cur, &config->colls, next) {
-		if (cur->options & CO_SKIP)
+	STAILQ_FOREACH(cur, &config->colls, co_next) {
+		if (cur->co_options & CO_SKIP)
 			continue;
 		line = stream_getln(s, NULL);
 		if (line == NULL)
@@ -286,17 +286,17 @@ cvsup_xchgcoll(struct config *config)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0)
 			goto bad;
-		if (strcmp(coll, cur->name) != 0)
+		if (strcmp(coll, cur->co_name) != 0)
 			goto bad;
-		if (strcmp(release, cur->release) != 0)
+		if (strcmp(release, cur->co_release) != 0)
 			goto bad;
 		errno = 0;
 		opts = strtol(options, NULL, 10);
 		if (errno)
 			goto bad;
-		cur->options = (cur->options | (opts & CO_SERVMAYSET)) &
+		cur->co_options = (cur->co_options | (opts & CO_SERVMAYSET)) &
 		    ~(~opts & CO_SERVMAYCLEAR);
-		cur->keyword = keyword_new();
+		cur->co_keyword = keyword_new();
 		while ((line = stream_getln(s, NULL)) != NULL) {
 		 	if (strcmp(line, ".") == 0)
 				break;
@@ -307,15 +307,15 @@ cvsup_xchgcoll(struct config *config)
 				printf("Server message: %s\n",
 				    cvsup_unescape(line));
 			} else if (strcmp(cmd, "PRFX") == 0) {
-				cur->cvsroot = strdup(line);
-				if (cur->cvsroot == NULL)
+				cur->co_cvsroot = strdup(line);
+				if (cur->co_cvsroot == NULL)
 					err(1, "strdup");
 			} else if (strcmp(cmd, "KEYALIAS") == 0) {
 				ident = strsep(&line, " ");
 				rcskey = strsep(&line, " ");
 				if (rcskey == NULL || line != NULL)
 					goto bad;
-				error = keyword_alias(cur->keyword, ident,
+				error = keyword_alias(cur->co_keyword, ident,
 				    rcskey);
 				if (error)
 					goto bad;
@@ -323,14 +323,14 @@ cvsup_xchgcoll(struct config *config)
 				ident = strsep(&line, " ");
 				if (ident == NULL || line != NULL)
 					goto bad;
-				error = keyword_enable(cur->keyword, ident);
+				error = keyword_enable(cur->co_keyword, ident);
 				if (error)
 					goto bad;
 			} else if (strcmp(cmd, "KEYOFF") == 0) {
 				ident = strsep(&line, " ");
 				if (ident == NULL || line != NULL)
 					goto bad;
-				error = keyword_disable(cur->keyword, ident);
+				error = keyword_disable(cur->co_keyword, ident);
 				if (error)
 					goto bad;
 			} 

@@ -45,10 +45,11 @@ lister(void *arg)
 
 	config = arg;
 	wr = config->chan0;
-	STAILQ_FOREACH(cur, &config->colls, next) {
-		if (cur->options & CO_SKIP)
+	STAILQ_FOREACH(cur, &config->colls, co_next) {
+		if (cur->co_options & CO_SKIP)
 			continue;
-		stream_printf(wr, "COLL %s %s\n", cur->name, cur->release);
+		stream_printf(wr, "COLL %s %s\n", cur->co_name,
+		    cur->co_release);
 		stream_printf(wr, ".\n");
 		stream_flush(wr);
 	}

@@ -72,21 +72,22 @@ updater(void *arg)
 	config = arg;
 	rd = config->chan1;
 	error = 0;
-	STAILQ_FOREACH(cur, &config->colls, next) {
-		if (cur->options & CO_SKIP)
+	STAILQ_FOREACH(cur, &config->colls, co_next) {
+		if (cur->co_options & CO_SKIP)
 			continue;
-		umask(cur->umask);
+		umask(cur->co_umask);
 		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
 		if (release == NULL || line != NULL)
 			goto bad;
-		if (strcmp(cmd, "COLL") != 0 || strcmp(coll, cur->name) != 0 ||
-		    strcmp(release, cur->release) != 0)
+		if (strcmp(cmd, "COLL") != 0 ||
+		    strcmp(coll, cur->co_name) != 0 ||
+		    strcmp(release, cur->co_release) != 0)
 			goto bad;
-		lprintf(1, "Updating collection %s/%s\n", cur->name,
-		    cur->release);
+		lprintf(1, "Updating collection %s/%s\n", cur->co_name,
+		    cur->co_release);
 			
 		while ((line = stream_getln(rd, NULL)) != NULL) {
 			if (strcmp(line, ".") == 0)
@@ -130,13 +131,13 @@ updater_delete(struct coll *coll, char *line)
 		printf("Updater: bad filename %s\n", rcsfile);
 		return (-1);
 	}
-	lprintf(1, " Delete %s\n", file + strlen(coll->base) + 1);
+	lprintf(1, " Delete %s\n", file + strlen(coll->co_base) + 1);
 	error = unlink(file);
 	if (error) {
 		free(file);
 		return (error);
 	}
-	updater_prunedirs(coll->base, file);
+	updater_prunedirs(coll->co_base, file);
 	free(file);
 	return (0);
 }
@@ -187,7 +188,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 		goto bad;
 	}
 
-	lprintf(1, " Edit %s\n", path + strlen(coll->base) + 1);
+	lprintf(1, " Edit %s\n", path + strlen(coll->co_base) + 1);
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
@@ -204,7 +205,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 		author = strsep(&cp, " ");
 		if (author == NULL || cp != NULL)
 			goto bad;
-		diff.d_cvsroot = coll->cvsroot;
+		diff.d_cvsroot = coll->co_cvsroot;
 		diff.d_revnum = revnum;
 		diff.d_revdate = revdate;
 		diff.d_author = author;
@@ -312,7 +313,7 @@ updater_dodiff(struct coll *coll, char *path, struct stream *rd,
 	diff->d_orig = orig;
 	diff->d_to = to;
 	diff->d_diff = rd;
-	error = diff_apply(diff, coll->keyword);
+	error = diff_apply(diff, coll->co_keyword);
 	stream_close(orig);
 	stream_close(to);
 	if (error) {
@@ -346,7 +347,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		return (-1);
 	}
 
-	lprintf(1, " Checkout %s\n", file + strlen(coll->base) + 1);
+	lprintf(1, " Checkout %s\n", file + strlen(coll->co_base) + 1);
 	error = updater_makedirs(file);
 	if (error) {
 		free(file);
@@ -424,7 +425,7 @@ updater_getpath(struct coll *coll, char *rcsfile)
 	cp = strstr(rcsfile, ",v");
 	if (cp == NULL || *(cp + 2) != '\0')
 		return (NULL);
-	asprintf(&path, "%s/%.*s", coll->base, (int)(cp - rcsfile), rcsfile);
+	asprintf(&path, "%s/%.*s", coll->co_base, (int)(cp - rcsfile), rcsfile);
 	if (path == NULL)
 		err(1, "asprintf");
 	return (path);

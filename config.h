@@ -59,17 +59,17 @@
 #define	CO_SERVMAYCLEAR		CO_CHECKRCS
 
 struct coll {
-	char *name;
-	char *base;
-	char *date;
-	char *prefix;
-	char *release;
-	char *tag;
-	char *cvsroot;
-	int options;
-	mode_t umask;
-	struct keyword *keyword;
-	STAILQ_ENTRY(coll) next;
+	char *co_name;
+	char *co_base;
+	char *co_date;
+	char *co_prefix;
+	char *co_release;
+	char *co_tag;
+	char *co_cvsroot;
+	int co_options;
+	mode_t co_umask;
+	struct keyword *co_keyword;
+	STAILQ_ENTRY(coll) co_next;
 };
 
 struct config {

@@ -77,17 +77,17 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	defaults = coll_alloc();
 	mask = umask(0);
 	umask(mask);
-	defaults->umask = mask;
+	defaults->co_umask = mask;
 	if (base != NULL)
-		defaults->base = strdup(base);
+		defaults->co_base = strdup(base);
 	else
-		defaults->base = strdup("/usr/local/etc/cvsup");
-	if (defaults->base == NULL)
+		defaults->co_base = strdup("/usr/local/etc/cvsup");
+	if (defaults->co_base == NULL)
 		err(1, "strdup");
-	defaults->prefix = strdup(defaults->base);
-	if (defaults->prefix == NULL)
+	defaults->co_prefix = strdup(defaults->co_base);
+	if (defaults->co_prefix == NULL)
 		err(1, "strdup");
-	defaults->options = CO_SETMODE | CO_EXACTRCS | CO_CHECKRCS;
+	defaults->co_options = CO_SETMODE | CO_EXACTRCS | CO_CHECKRCS;
 
 	/* Extract a list of collections from the configuration file. */
 	cur_coll = coll_new();
@@ -103,25 +103,25 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		goto bad;
 
 	/* Fixup the list of collections. */
-	STAILQ_FOREACH(cur, &config->colls, next) {
-		if (cur->release == NULL) {
+	STAILQ_FOREACH(cur, &config->colls, co_next) {
+		if (cur->co_release == NULL) {
 			fprintf(stderr, "Release not specified for collection "
-			    "\"%s\"\n", cur->name);
+			    "\"%s\"\n", cur->co_name);
 			exit(1);
 		}
-		if (cur->tag == NULL && cur->date == NULL) {
+		if (cur->co_tag == NULL && cur->co_date == NULL) {
 			fprintf(stderr, "Client only supports checkout mode\n");
 			exit(1);
 		}
-		cur->options |= CO_CHECKOUTMODE;
-		if (cur->tag == NULL) {
-			cur->tag = strdup(".");
-			if (cur->tag == NULL)
+		cur->co_options |= CO_CHECKOUTMODE;
+		if (cur->co_tag == NULL) {
+			cur->co_tag = strdup(".");
+			if (cur->co_tag == NULL)
 				err(1, "strdup");
 		}
-		if (cur->date == NULL) {
-			cur->date = strdup(".");
-			if (cur->date == NULL)
+		if (cur->co_date == NULL) {
+			cur->co_date = strdup(".");
+			if (cur->co_date == NULL)
 				err(1, "strdup");
 		}
 	}
@@ -168,26 +168,26 @@ coll_new(void)
 	struct coll *new;
 
 	new = coll_alloc();
-	new->options = defaults->options;
-	new->umask = defaults->umask;
-	if (defaults->base != NULL) {
-		new->base = strdup(defaults->base);
-		if (new->base == NULL)
+	new->co_options = defaults->co_options;
+	new->co_umask = defaults->co_umask;
+	if (defaults->co_base != NULL) {
+		new->co_base = strdup(defaults->co_base);
+		if (new->co_base == NULL)
 			err(1, "strdup");
 	}
-	if (defaults->prefix != NULL) {
-		new->prefix = strdup(defaults->prefix);
-		if (new->prefix == NULL)
+	if (defaults->co_prefix != NULL) {
+		new->co_prefix = strdup(defaults->co_prefix);
+		if (new->co_prefix == NULL)
 			err(1, "strdup");
 	}
-	if (defaults->release != NULL) {
-		new->release = strdup(defaults->release);
-		if (new->release == NULL)
+	if (defaults->co_release != NULL) {
+		new->co_release = strdup(defaults->co_release);
+		if (new->co_release == NULL)
 			err(1, "strdup");
 	}
-	if (defaults->tag != NULL) {
-		new->tag = strdup(defaults->tag);
-		if (new->tag == NULL)
+	if (defaults->co_tag != NULL) {
+		new->co_tag = strdup(defaults->co_tag);
+		if (new->co_tag == NULL)
 			err(1, "strdup");
 	}
 	return (new);
@@ -197,8 +197,8 @@ void
 coll_add(char *name)
 {
 
-	cur_coll->name = name;
-	STAILQ_INSERT_TAIL(&config->colls, cur_coll, next);
+	cur_coll->co_name = name;
+	STAILQ_INSERT_TAIL(&config->colls, cur_coll, co_next);
 	cur_coll = coll_new();
 }
 
@@ -206,12 +206,12 @@ void
 coll_free(struct coll *coll)
 {
 
-	free(coll->base);
-	free(coll->prefix);
-	free(coll->release);
-	free(coll->tag);
-	free(coll->cvsroot);
-	free(coll->name);
+	free(coll->co_base);
+	free(coll->co_prefix);
+	free(coll->co_release);
+	free(coll->co_tag);
+	free(coll->co_cvsroot);
+	free(coll->co_name);
 	free(coll);
 }
 
@@ -223,38 +223,39 @@ coll_setopt(int opt, char *value)
 	coll = cur_coll;
 	switch (opt) {
 	case BASE:
-		free(coll->base);
-		coll->base = value;
+		free(coll->co_base);
+		coll->co_base = value;
 		break;
 	case DATE:
-		free(coll->date);
-		coll->date = value;
+		free(coll->co_date);
+		coll->co_date = value;
 		break;
 	case PREFIX:
-		free(coll->prefix);
-		coll->prefix = value;
+		free(coll->co_prefix);
+		coll->co_prefix = value;
 		break;
 	case RELEASE:
-		free(coll->release);
-		coll->release = value;
+		free(coll->co_release);
+		coll->co_release = value;
 		break;
 	case TAG:
-		free(coll->tag);
-		coll->tag = value;
+		free(coll->co_tag);
+		coll->co_tag = value;
 		break;
 	case UMASK:
-		coll->umask = strtol(value, NULL, 8);
+		/* XXX check if strtol() fails and free() value. */
+		coll->co_umask = strtol(value, NULL, 8);
 		break;
 	case USE_REL_SUFFIX:
-		coll->options |= CO_USERELSUFFIX;
+		coll->co_options |= CO_USERELSUFFIX;
 		break;
 	case DELETE:
-		coll->options |= CO_DELETE;
+		coll->co_options |= CO_DELETE;
 		break;
 	case COMPRESS:
 #ifdef notyet
 		/* XXX - implement zlib compression */
-		coll->options |= CO_COMPRESS;
+		coll->co_options |= CO_COMPRESS;
 #endif
 		break;
 	}

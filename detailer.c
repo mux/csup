@@ -59,37 +59,37 @@ detailer(void *arg)
 	config = arg;
 	rd = config->chan0;
 	wr = config->chan1;
-	STAILQ_FOREACH(cur, &config->colls, next) {
-		if (cur->options & CO_SKIP)
+	STAILQ_FOREACH(cur, &config->colls, co_next) {
+		if (cur->co_options & CO_SKIP)
 			continue;
-		chdir(cur->base);
+		chdir(cur->co_base);
 		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
-		if (cmd == NULL || coll == NULL || release == NULL ||
-		    strcmp(cmd, "COLL") != 0 || strcmp(coll, cur->name) != 0 ||
-		    strcmp(release, cur->release) != 0)
+		if (release == NULL || strcmp(cmd, "COLL") != 0 ||
+		    strcmp(coll, cur->co_name) != 0 ||
+		    strcmp(release, cur->co_release) != 0)
 			goto bad;
-		stream_printf(wr, "COLL %s %s\n", cur->name, cur->release);
+		stream_printf(wr, "COLL %s %s\n", cur->co_name,
+		    cur->co_release);
 		line = stream_getln(rd, NULL);
 		if (line == NULL)
 			goto bad;
 		while (strcmp(line, ".") != 0) {
 			cmd = strsep(&line, " ");
 			file = strsep(&line, " ");
-			if (cmd == NULL || file == NULL ||
-			    strcmp(cmd, "U") != 0)
+			if (file == NULL || strcmp(cmd, "U") != 0)
 				goto bad;
 			/* XXX */
 			file[strlen(file) - 2] = '\0';
 			error = stat(file, &sb);
 			if (!error && MD5file(file, md5) == 0)
 				stream_printf(wr, "S %s,v %s %s %s\n", file,
-				    cur->tag, cur->date, md5);
+				    cur->co_tag, cur->co_date, md5);
 			else
 				stream_printf(wr, "C %s,v %s %s\n", file,
-				    cur->tag, cur->date);
+				    cur->co_tag, cur->co_date);
 			stream_flush(wr);
 			line = stream_getln(rd, NULL);
 			if (line == NULL)
