@@ -50,35 +50,39 @@
 #define	MUX_STARTUPPKTSZ	3
 #define	MUX_CONNECTPKTSZ	8
 #define	MUX_ACCEPTPKTSZ		8
+#define	MUX_RESETPKTSZ		2
 #define	MUX_WINDOWPKTSZ		6
 #define	MUX_CLOSEPKTSZ		2
 
 struct mux_header {
-	uint8_t mh_type;
+	uint8_t type;
 	union {
 		struct {
-			uint16_t mh_version;	/* XXX - unaligned */
+			uint16_t version;
 		} mh_startup;
 		struct {
-			uint8_t mh_id;
-			uint16_t mh_mss;
-			uint32_t mh_window;
+			uint8_t id;
+			uint16_t mss;
+			uint32_t window;
 		} mh_connect;
 		struct {
-			uint8_t mh_id;
-			uint16_t mh_mss;
-			uint32_t mh_window;
+			uint8_t id;
+			uint16_t mss;
+			uint32_t window;
 		} mh_accept;
 		struct {
-			uint8_t mh_id;
-			uint16_t mh_len;
+			uint8_t id;
+		} mh_reset;
+		struct {
+			uint8_t id;
+			uint16_t len;
 		} mh_data;
 		struct {
-			uint8_t mh_id;
-			uint32_t mh_window;	/* XXX - unaligned */
+			uint8_t id;
+			uint32_t window;	/* XXX - unaligned */
 		} mh_window;
 		struct {
-			uint8_t mh_id;
+			uint8_t id;
 		} mh_close;
 	} mh_u;
 } __packed;
@@ -86,9 +90,10 @@ struct mux_header {
 #define	mh_startup	mh_u.mh_startup
 #define	mh_connect	mh_u.mh_connect
 #define	mh_accept	mh_u.mh_accept
+#define	mh_reset	mh_u.mh_reset
 #define	mh_data		mh_u.mh_data
 #define	mh_window	mh_u.mh_window
 #define	mh_close	mh_u.mh_close
 
-uint8_t	mux_open(int);
-uint8_t	mux_listen(void);
+int	mux_open(int);
+int	mux_listen(void);
