@@ -29,6 +29,7 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/types.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -42,10 +43,13 @@ __FBSDID("$FreeBSD$");
 #include "stream.h"
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
-typedef long lineno_t;
 #define	strtoimax	strtol
+
+typedef long lineno_t;
 #else
 #include <inttypes.h>
+#include <stdint.h>
+
 typedef intmax_t lineno_t;
 #endif
 
@@ -69,6 +73,8 @@ struct editcmd {
 static int	diff_geteditcmd(struct editcmd *, char *);
 static int	diff_copyln(struct editcmd *, lineno_t);
 static void	diff_writeln(struct editcmd *, char *);
+/* XXX Should be elsewhere. */
+static int	diff_shrink(FILE *);
 
 int
 diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
@@ -76,22 +82,25 @@ diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
 	struct editcmd ec;
 	lineno_t i;
 	char *line;
-	int error;
+	int empty, error, noeol;
 
 	memset(&ec, 0, sizeof(ec));
+	empty = 0;
+	noeol = 0;
 	ec.diff = diff;
 	ec.keyword = keyword;
 	ec.to = to;
 	line = stream_getln(diff->d_diff, NULL);
-	/* XXX - Handle .+ termination properly. */
 	while (line != NULL && strcmp(line, ".") != 0 &&
 	    strcmp(line, ".+") != 0) {
 		/*
 		 * The server sends an empty line and then terminates
-		 * with .+ for forced (and thus empty) commits.  We
-		 * just ignore empty lines for now.
+		 * with .+ for forced (and thus empty) commits.
 		 */
 		if (*line == '\0') {
+			if (empty)
+				return (-1);
+			empty = 1;
 			line = stream_getln(diff->d_diff, NULL);
 			continue;
 		}
@@ -139,12 +148,24 @@ diff_apply(struct diff *diff, struct keyword *keyword, FILE *to)
 		printf("%s: line == NULL\n", __func__);
 		return (-1);
 	}
+	/* If we got ".+", there's no ending newline. */
+	if (strcmp(line, ".+") == 0 && !empty)
+		noeol = 1;
 	ec.where = 0;
 	while ((line = stream_getln(diff->d_orig, NULL)) != NULL)
 		diff_writeln(&ec, line);
+	fflush(to);
+	if (noeol) {
+		error = diff_shrink(to);
+		if (error) {
+			printf("%s: diff_shrink() failed\n", __func__);
+			return (-1);
+		}
+	}
 	return (0);
 }
 
+/* Get an editing command from the diff. */
 static int
 diff_geteditcmd(struct editcmd *ec, char *line)
 {
@@ -185,6 +206,7 @@ diff_geteditcmd(struct editcmd *ec, char *line)
 	return (0);
 }
 
+/* Copy lines from the original version of the file up to line "to". */
 static int
 diff_copyln(struct editcmd *ec, lineno_t to)
 {
@@ -200,6 +222,7 @@ diff_copyln(struct editcmd *ec, lineno_t to)
 	return (0);
 }
 
+/* Write a new line to the file, expanding RCS keywords. */
 static void
 diff_writeln(struct editcmd *ec, char *line)
 {
@@ -209,4 +232,24 @@ diff_writeln(struct editcmd *ec, char *line)
 	fprintf(ec->to, "%s\n", newline);
 	if (newline != line)
 		free(newline);
+}
+
+/*
+ * Shrink the file by one byte to get rid of the ending newline.
+ * This will only work if the buffer is properly flushed before.
+ */
+static int
+diff_shrink(FILE *f)
+{
+	struct stat sb;
+	off_t newsize;
+	int error, fd;
+
+	fd = fileno(f);
+	error = fstat(fd, &sb);
+	if (error)
+		return (-1);
+	newsize = sb.st_size - 1;
+	error = ftruncate(fd, newsize);
+	return (error);
 }
