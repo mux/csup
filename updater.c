@@ -73,6 +73,8 @@ static int	 updater_delete(struct coll *, char *);
 static int	 updater_diff(struct coll *, struct stream *, char *);
 static int	 updater_diff_batch(struct update *);
 static int	 updater_diff_apply(struct update *);
+static int	 updater_install(struct coll *, struct fattr *, const char *,
+		     const char *);
 
 void *
 updater(void *arg)
@@ -161,7 +163,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
 	struct update up;
-	struct fattr *rcsattr, *fa, *tmp;
+	struct fattr *rcsattr, *fa;
 	char *author, *tag, *rcsfile, *revnum, *revdate, *path;
 	char *attr, *cp, *cksum, *line2, *line3, *tok, *topath;
 	int error;
@@ -258,11 +260,8 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	if (line == NULL)
 		goto bad;
 	fa = fattr_dup(rcsattr);
-	tmp = fattr_forcheckout(rcsattr, coll->co_umask);
-	fattr_override(fa, tmp, FA_MASK);
-	fattr_free(tmp);
 	fattr_maskout(fa, FA_MODTIME);
-	fattr_install(fa, topath, path);
+	updater_install(coll, fa, topath, path);
 	fattr_free(fa);
 	/* XXX - Compute MD5 while writing the file. */
 	if (MD5file(path, md5) == -1) {
@@ -367,31 +366,49 @@ static int
 updater_checkout(struct coll *coll, struct stream *rd, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
-	char *cksum, *cmd, *file, *rcsfile;
+	struct fattr *fa;
 	struct stream *to;
+	char *attr, *cksum, *cmd, *file, *rcsfile;
 	size_t size;
 	int error, first;
 
+	/*
+	 * It seems I don't need all these meta-data here since I get
+	 * sent a file with its RCS keywords correctly expanded already.
+	 * However, I need to double check that.
+	 */
 	rcsfile = strsep(&line, " ");
+	strsep(&line, " ");	/* XXX - tag */
+	strsep(&line, " ");	/* XXX - date */
+	strsep(&line, " ");	/* XXX - revnum */
+	strsep(&line, " ");	/* XXX - revdate */
+	attr = strsep(&line, " ");
+	if (attr == NULL || line != NULL)
+		return (-1);
+
+	fa = fattr_decode(attr);
+	if (fa == NULL) {
+		printf("Updater: bad attribute %s\n", attr);
+		return (-1);
+	}
+
 	file = updater_getpath(coll, rcsfile);
 	if (file == NULL) {
 		printf("Updater: bad filename \"%s\"\n", rcsfile);
-		return (-1);
+		goto bad;
 	}
 
 	lprintf(1, " Checkout %s\n", file + strlen(coll->co_base) + 1);
 	error = updater_makedirs(file);
 	if (error) {
-		free(file);
 		printf("Updater: updater_makedirs() failed\n");
-		return (-1);
+		goto bad;
 	}
-	/* XXX Use correct permissions. */
+
 	to = stream_open_file(file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (to == NULL) {
 		warn("stream_open_file(\"%s\")", file);
-		free(file);
-		return (-1);
+		goto bad;
 	}
 	line = stream_getln(rd, &size);
 	first = 1;
@@ -411,8 +428,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 	}
 	if (line == NULL) {
 		stream_close(to);
-		free(file);
-		return (-1);
+		goto bad;
 	}
 	if (memcmp(line, ".", size) == 0)
 		stream_printf(to, "\n");
@@ -423,16 +439,20 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 	cksum = strsep(&line, " ");
 	if (cksum == NULL || line != NULL ||
 	    strcmp(cmd, "5") != 0) {
-		free(file);
-		return (-1);
+		goto bad;
 	}
 	if (MD5file(file, md5) == -1 || strcmp(cksum, md5) != 0) {
 		printf("%s: bad md5 checksum\n", __func__);
-		free(file);
-		return (-1);
+		goto bad;
 	}
+	updater_install(coll, fa, NULL, file);
+	fattr_free(fa);
 	free(file);
 	return (0);
+bad:
+	fattr_free(fa);
+	free(file);
+	return (-1);
 }
 
 /*
@@ -524,4 +544,17 @@ updater_maketmp(char *file)
 	if (tmp == NULL)
 		err(1, "asprintf");
 	return (tmp);
+}
+
+static int
+updater_install(struct coll *coll, struct fattr *fa, const char *from,
+    const char *to)
+{
+	struct fattr *tmp;
+
+	tmp = fattr_forcheckout(fa, coll->co_umask);
+	fattr_override(fa, tmp, FA_MASK);
+	fattr_free(tmp);
+	fattr_install(fa, from, to);
+	return (0);
 }
