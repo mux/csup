@@ -13,6 +13,7 @@ SRCS=	config.c config.h \
 	parse.h parse.y \
 	proto.c proto.h \
 	stream.c stream.h \
+	threads.c threads.h \
 	token.l \
 	updater.c updater.h \
 	y.tab.h 

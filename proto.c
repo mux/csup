@@ -38,7 +38,6 @@
 #include <err.h>
 #include <errno.h>
 #include <netdb.h>
-#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +54,7 @@
 #include "mux.h"
 #include "proto.h"
 #include "stream.h"
+#include "threads.h"
 #include "updater.h"
 
 #define	PROTO_MAJ	17
@@ -434,10 +434,8 @@ cvsup_mux(struct config *config)
 int
 cvsup_init(struct config *config)
 {
-	pthread_t lister_thread;
-	pthread_t detailer_thread;
-	pthread_t updater_thread;
-	int error;
+	struct threads *workers;
+	int error, i;
 
 	/*
 	 * We pass NULL for the close() function because we'll reuse
@@ -460,19 +458,15 @@ cvsup_init(struct config *config)
 	if (error)
 		return (error);
 	error = cvsup_mux(config);
-	pthread_create(&lister_thread, NULL, lister, config);
-	pthread_create(&detailer_thread, NULL, detailer, config);
-	pthread_create(&updater_thread, NULL, updater, config);
+	workers = threads_new();
+	threads_create(workers, lister, config);
+	threads_create(workers, detailer, config);
+	threads_create(workers, updater, config);
 	lprintf(2, "Running\n");
-	error = pthread_join(lister_thread, NULL);
-	if (error)
-		err(1, "pthread_join");
-	error = pthread_join(detailer_thread, NULL);
-	if (error)
-		err(1, "pthread_join");
-	error = pthread_join(updater_thread, NULL);
-	if (error)
-		err(1, "pthread_join");
+	/* Wait for all the worker threads to finish. */
+	for (i = 0; i < 3; i++)
+		threads_wait(workers);
+	threads_free(workers);
 	lprintf(2, "Shutting down connection to server\n");
 	chan_close(config->id0);
 	chan_close(config->id1);
