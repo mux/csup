@@ -82,6 +82,8 @@ struct config {
 	uint16_t port;
 	STAILQ_HEAD(, collection) collections;
 	int ftypes[FT_NUMBER];
+	int chan0;
+	int chan1;
 };
 
 struct config	*config_init(const char *, char *, char *, in_port_t);
