@@ -28,7 +28,7 @@
 
 struct stream;
 
-struct stream	*stream_reopen(int, ssize_t (*)(int, void *, size_t),
+struct stream	*stream_fdopen(int, ssize_t (*)(int, void *, size_t),
 		    ssize_t (*)(int, const void *, size_t), int (*)(int));
 struct stream	*stream_open_file(char *, mode_t);
 ssize_t		 stream_read(struct stream *, void *, size_t);

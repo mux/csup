@@ -354,7 +354,7 @@ cvsup_mux(struct config *config)
 		fprintf(stderr, "chan_listen() failed\n");
 		return (-1);
 	}
-	config->chan0 = stream_reopen(id0, chan_read, chan_write, NULL);
+	config->chan0 = stream_fdopen(id0, chan_read, chan_write, NULL);
 	if (config->chan0 == NULL)
 		return (-1);
 	stream_printf(config->chan0, "CHAN %d\n", id1);
@@ -365,7 +365,7 @@ cvsup_mux(struct config *config)
 		fprintf(stderr, "Accept failed for chan %d\n", id1);
 		return (-1);
 	}
-	config->chan1 = stream_reopen(id1, chan_read, chan_write, NULL);
+	config->chan1 = stream_fdopen(id1, chan_read, chan_write, NULL);
 	if (config->chan1 == NULL) {
 		stream_close(config->chan0);
 		return (-1);
@@ -393,7 +393,7 @@ cvsup_init(struct config *config)
 	 * We pass NULL for the close() function because we'll reuse
 	 * the socket after the stream is closed.
 	 */
-	config->server = stream_reopen(config->socket, read, write, NULL);
+	config->server = stream_fdopen(config->socket, read, write, NULL);
 	if (config->server == NULL)
 		return (-1);
 	s = config->server;

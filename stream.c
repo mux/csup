@@ -96,7 +96,7 @@ buf_delete(struct buf *buf)
 }
 
 struct stream *
-stream_reopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
+stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 {
 	struct stream *stream;
 
@@ -128,7 +128,7 @@ stream_open_file(char *path, mode_t mode)
 	fd = open(path, mode);
 	if (fd == -1)
 		return (NULL);
-	stream = stream_reopen(fd, read, write, close);
+	stream = stream_fdopen(fd, read, write, close);
 	if (stream == NULL)
 		close(fd);
 	return (stream);
