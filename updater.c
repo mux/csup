@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,11 +33,9 @@ __FBSDID("$FreeBSD$");
 
 #include <assert.h>
 #include <err.h>
-#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <libgen.h>
-#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,19 +43,24 @@ __FBSDID("$FreeBSD$");
 #include <unistd.h>
 
 #include "config.h"
+#include "diff.h"
+#include "keyword.h"
 #include "updater.h"
 #include "misc.h"
 #include "mux.h"
 #include "stream.h"
 
-static int	updater_checkfile(char *);
-static int	updater_makedirs(char *);
-static void	updater_prunedirs(char *, char *);
-static int	updater_checkout(struct stream *, char *);
-static int	updater_delete(struct collection *, char *);
-static int	updater_diff(struct collection *, struct stream *, char *);
-static int	updater_diff_apply(struct collection *, char *,
-    		    struct stream *);
+static char	*updater_getpath(struct collection *, char *);
+static int	 updater_makedirs(char *);
+static void	 updater_prunedirs(char *, char *);
+static int	 updater_checkout(struct collection *, struct stream *, char *);
+static int	 updater_delete(struct collection *, char *);
+static int	 updater_diff(struct collection *, struct stream *, char *);
+static int	 updater_diff_apply(struct collection *, char *,
+		     struct stream *, struct diff *);
+static int	 updater_dodiff(struct collection *, char *, struct stream *,
+		     struct diff *);
+static void	 diff_free(struct diff *diff);
 
 void *
 updater(void *arg)
@@ -74,9 +77,8 @@ updater(void *arg)
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
-		chdir(cur->base);
 		umask(cur->umask);
-		line = stream_getln(rd);
+		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
@@ -89,22 +91,22 @@ updater(void *arg)
 		lprintf(1, "Updating collection %s/%s\n", cur->name,
 		    cur->release);
 		for (;;) {
-			line = stream_getln(rd);
+			line = stream_getln(rd, NULL);
 			if (strcmp(line, ".") == 0)
 				break;
 			cmd = strsep(&line, " ");
 			if (cmd == NULL)
 				goto bad;
 			if (strcmp(cmd, "T") == 0)
-				;
+				/* XXX */;
 			else if (strcmp(cmd, "c") == 0)
-				;
+				/* XXX */;
 			else if (strcmp(cmd, "U") == 0)
 				error = updater_diff(cur, rd, line);
 			else if (strcmp(cmd, "u") == 0)
 				error = updater_delete(cur, line);
 			else if (strcmp(cmd, "C") == 0)
-				error = updater_checkout(rd, line);
+				error = updater_checkout(cur, rd, line);
 			else
 				goto bad;
 			if (error)
@@ -118,271 +120,310 @@ bad:
 }
 
 static int
-updater_delete(struct collection *collec, char *line)
+updater_delete(struct collection *coll, char *line)
 {
-	char *cp, *file;
+	char *file, *rcsfile;
 	int error;
 
-	file = strsep(&line, " ");
-	if (file == NULL || updater_checkfile(file) != 0)
+	rcsfile = strsep(&line, " ");
+	file = updater_getpath(coll, rcsfile);
+	if (file == NULL) {
+		printf("Updater: bad filename %s\n", rcsfile);
 		return (-1);
-	cp = strstr(file, ",v");
-	if (cp == NULL || cp[2] != '\0')
-		return (-1);
-	*cp = '\0';
-	lprintf(1, " Delete %s\n", file);
+	}
+	lprintf(1, " Delete %s\n", file + strlen(coll->base) + 1);
 	error = unlink(file);
-	if (error)
+	if (error) {
+		free(file);
 		return (error);
-	updater_prunedirs(collec->base, file);
+	}
+	updater_prunedirs(coll->base, file);
+	free(file);
 	return (0);
 }
 
 static int
-updater_diff(struct collection *cur, struct stream *rd, char *line)
+updater_diff(struct collection *coll, struct stream *rd, char *line)
 {
-	char pathbuf[PATH_MAX];
-	char *cp, *tok, *file, *revnum, *revdate, *author;
+	char md5[MD5_DIGEST_LEN + 1];
+	char cksum[MD5_DIGEST_LEN + 1];
+	struct diff diff;
+	char *author, *tok, *path, *rcsfile, *revnum, *revdate;
 	int error;
 
-	file = strsep(&line, " ");
-	if (file == NULL || updater_checkfile(file) != 0)
+	memset(&diff, 0, sizeof(struct diff));
+
+	rcsfile = strsep(&line, " ");
+	strsep(&line, " "); /* XXX - tag */
+	strsep(&line, " "); /* XXX - date */
+	strsep(&line, " "); /* XXX - orig revnum */
+	strsep(&line, " "); /* XXX - from attic */
+	strsep(&line, " "); /* XXX - loglines */
+	strsep(&line, " "); /* XXX - expand */
+	strsep(&line, " "); /* XXX - attr */
+	tok = strsep(&line, " ");
+	if (rcsfile == NULL || tok == NULL || line != NULL)
 		return (-1);
-	cp = strstr(file, ",v");
-	if (cp == NULL || cp[2] != '\0')
+	diff.d_rcsfile = strdup(rcsfile);
+	if (diff.d_rcsfile == NULL)
 		return (-1);
-	/*
-	 * We need to copy the filename because we'll need it later and
-	 * the pointer is only valid until the next stream_getln() call.
-	 */
-	strlcpy(pathbuf, file, min(sizeof(pathbuf), (unsigned)(cp - file + 1)));
-	file = pathbuf;
-	lprintf(1, " Edit %s\n", file);
+	strlcpy(cksum, tok, sizeof(cksum));
+
+	path = updater_getpath(coll, rcsfile);
+	if (path == NULL) {
+		printf("%s: bad filename %s\n", __func__, rcsfile);
+		return (-1);
+	}
+
+	lprintf(1, " Edit %s\n", path + strlen(coll->base) + 1);
 	for (;;) {
-		line = stream_getln(rd);
+		line = stream_getln(rd, NULL);
 		if (strcmp(line, ".") == 0)
 			break;
 		tok = strsep(&line, " ");
-		if (strcmp(tok, "D") == 0) {
-			revnum = strsep(&line, " ");
-			strsep(&line, " ");
-			revdate = strsep(&line, " ");
-			author = strsep(&line, " ");
-			if (revnum == NULL || revdate == NULL ||
-			    author == NULL || line != NULL)
+		if (strcmp(tok, "D") != 0)
+			goto bad;
+		revnum = strsep(&line, " ");
+		strsep(&line, " "); /* XXX - diffbase */
+		revdate = strsep(&line, " ");
+		author = strsep(&line, " ");
+		if (revnum == NULL || revdate == NULL || author == NULL ||
+		    line != NULL)
+			goto bad;
+		diff.d_cvsroot = strdup(coll->cvsroot);
+		diff.d_revnum = strdup(revnum);
+		diff.d_revdate = strdup(revdate);
+		diff.d_author = strdup(author);
+		if (diff.d_cvsroot == NULL || diff.d_revnum == NULL ||
+		    diff.d_revdate == NULL || diff.d_author == NULL)
+			goto bad;
+		lprintf(2, "  Add diff %s %s %s\n", revnum, revdate, author);
+		error = updater_diff_apply(coll, path, rd, &diff);
+		if (error) {
+			printf("%s: updater_diff_apply failed\n", __func__);
+			goto bad;
+		}
+	}
+	diff_free(&diff);
+	if (MD5file(path, md5) == -1 || strcmp(cksum, md5) != 0)
+		printf("%s: bad md5 checksum\n", __func__);
+	free(path);
+	return (0);
+bad:
+	diff_free(&diff);
+	free(path);
+	return (-1);
+}
+
+static void
+diff_free(struct diff *diff)
+{
+
+	free(diff->d_rcsfile);
+	free(diff->d_cvsroot);
+	free(diff->d_revnum);
+	free(diff->d_revdate);
+	free(diff->d_author);
+	free(diff->d_state);
+}
+
+static int
+updater_diff_apply(struct collection *coll, char *path, struct stream *rd,
+    struct diff *diff)
+{
+	char *tok, *line;
+	int error;
+
+	for (;;) {
+		line = stream_getln(rd, NULL);
+		if (line == NULL)
+			return (-1);
+		if (strcmp(line, ".") == 0)
+			break;
+		tok = strsep(&line, " ");
+		if (tok == NULL)
+			return (-1);
+		if (strcmp(tok, "L") == 0) {
+			line = stream_getln(rd, NULL);
+			/* We're just eating the log for now. */
+			while (line != NULL && strcmp(line, ".") != 0 &&
+			    strcmp(line, ".+") != 0)
+				line = stream_getln(rd, NULL);
+			if (line == NULL)
 				return (-1);
-			lprintf(2, "  Add delta %s %s %s\n", revnum, revdate,
-			    author);
-			for (;;) {
-				line = stream_getln(rd);
-				if (line == NULL)
-					return (-1);
-				if (strcmp(line, ".") == 0)
-					break;
-				tok = strsep(&line, " ");
-				if (strcmp(tok, "T") == 0) {
-					error = updater_diff_apply(cur, file,
-					    rd);
-					if (error)
-						return (-1);
-				} else if (strcmp(tok, "L") == 0) {
-					line = stream_getln(rd);
-					while (line != NULL &&
-					    strcmp(line, ".") != 0 &&
-					    strcmp(line, ".+") != 0)
-						line = stream_getln(rd);
-					if (line == NULL)
-						return (-1);
-				}
+		} else if (strcmp(tok, "S") == 0) {
+			tok = strsep(&line, " ");
+			if (tok == NULL || line != NULL)
+				return (-1);
+			diff->d_state = strdup(tok);
+			if (diff->d_state == NULL)
+				err(1, "strdup");
+		} else if (strcmp(tok, "T") == 0) {
+			error = updater_dodiff(coll, path, rd, diff);
+			if (error) {
+				printf("%s: updater_dodiff failed\n", __func__);
+				return (-1);
 			}
 		}
 	}
 	return (0);
 }
 
-static int
-updater_diff_apply(struct collection *cur, char *file, struct stream *rd)
+/*
+ * XXX - This is a mess, I should finish the stream API and make it work
+ * sufficiently fine so that we can use it here instead of stdio.
+ */
+int
+updater_dodiff(struct collection *coll, char *path, struct stream *rd,
+    struct diff *diff)
 {
-	char tmp[PATH_MAX];
-	intmax_t at, count, i, n;
 	FILE *to;
 	struct stream *orig;
-	char *end, *line;
+	char *tmp;
 	int fd, error;
-	char cmd, last;
 
-	/* XXX */
-	snprintf(tmp, sizeof(tmp), "%s/%s/%s", cur->base, dirname(file),
-	    "#cvs.csup-XXXXX");
-	/*
-	 * XXX - CVSup creates the temporary file in the same directory
-	 * as the updated file and it's of the form "#cvs.cvsup-XXXXX.X".
-	 * We should change this to behave the same.
-	 */
-	fd = mkstemp(tmp);
-	if (fd == -1)
+	asprintf(&tmp, "%s/%s", dirname(path), "#cvs.csup-XXXXX");
+	if (tmp == NULL) {
+		warn("asprintf");
 		return (-1);
+	}
+	fd = mkstemp(tmp);
+	if (fd == -1) {
+		warn("mkstemp");
+		free(tmp);
+		return (-1);
+	}
 	to = fdopen(fd, "w");
 	if (to == NULL) {
+		warn("fdopen");
 		close(fd);
+		free(tmp);
 		return (-1);
 	}
 
-	fd = open(file, O_RDONLY);
-	if (fd == -1) {
-		fclose(to);
-		return (-1);
-	}
-	orig = stream_open(fd, read, write, close);
+	orig = stream_open_file(path, O_RDONLY);
 	if (orig == NULL) {
-		close(fd);
+		warn("stream_open_file");
 		fclose(to);
+		free(tmp);
 		return (-1);
 	}
-
-	last = 'a';
-	n = 0;
-	line = stream_getln(rd);
-	/* XXX - Handle .+ termination properly. */
-	while (line != NULL && strcmp(line, ".") != 0 &&
-	    strcmp(line, ".+") != 0) {
-		cmd = line[0];
-		if (cmd != 'a' && cmd != 'd')
-			goto bad;
-		errno = 0;
-		at = strtoimax(line + 1, &end, 10);
-		if (errno || at < 0 || *end != ' ') {
-			printf("kaboom (3)\n");
-			goto bad;
-		}
-		line = end + 1;
-		errno = 0;
-		count = strtoimax(line, &end, 10);
-		if (errno || count <= 0 || *end != '\0') {
-			printf("kaboom (3)\n");
-			goto bad;
-		}
-		if (cmd == 'a' && last == 'a')
-			at += 1;
-		while (n < at - 1) {
-			line = stream_getln(orig);
-			n++;
-			fprintf(to, "%s\n", line);
-		}
-		if (cmd == 'a') {
-			for (i = 0; i < count; i++) {
-				line = stream_getln(rd);
-				if (line == NULL) {
-					printf("kaboom\n");
-					goto bad;
-				}
-				if (line[0] == '.')
-					line++;
-				fprintf(to, "%s\n", line);
-			}
-		} else if (cmd == 'd') {
-			while (count-- > 0) {
-				line = stream_getln(orig);
-				n++;
-			}
-		}
-		line = stream_getln(rd);
-		last = cmd;
-	}
-	if (line == NULL)
-		goto bad;
-	while ((line = stream_getln(orig)) != NULL)
-		fprintf(to, "%s\n", line);
+	diff->d_orig = orig;
+	diff->d_diff = rd;
+	error = diff_apply(diff, coll->keyword, to);
 	fclose(to);
 	stream_close(orig);
-	error = rename(tmp, file);
+	if (error) {
+		printf("%s: diff_apply failed\n", __func__);
+		free(tmp);
+		return (-1);
+	}
+	error = rename(tmp, path);
+	free(tmp);
 	if (error) {
 		warn("rename");
 		return (-1);
 	}
 	return (0);
-bad:
-	fclose(to);
-	stream_close(orig);
-	return (-1);
 }
 
 static int
-updater_checkout(struct stream *rd, char *line)
+updater_checkout(struct collection *coll, struct stream *rd, char *line)
 {
-	char pathbuf[PATH_MAX];
 	char md5[MD5_DIGEST_LEN + 1];
-	char *cp, *cmd, *file, *cksum;
+	char *cksum, *cmd, *file, *rcsfile;
 	FILE *to;
+	size_t size;
 	int error, first;
 
-	file = strsep(&line, " ");
-	if (file == NULL || updater_checkfile(file) != 0)
+	rcsfile = strsep(&line, " ");
+	file = updater_getpath(coll, rcsfile);
+	if (file == NULL) {
+		printf("Updater: bad filename %s\n", rcsfile);
 		return (-1);
-	cp = strstr(file, ",v");
-	if (cp == NULL || cp[2] != '\0')
-		return (-1);
-	/*
-	 * We need to copy the filename because we'll need it later and
-	 * the pointer is only valid until the next stream_getln() call.
-	 */
-	strlcpy(pathbuf, file, min(sizeof(pathbuf), (unsigned)(cp - file + 1)));
-	file = pathbuf;
-	lprintf(1, " Checkout %s\n", file);
+	}
+
+	lprintf(1, " Checkout %s\n", file + strlen(coll->base) + 1);
 	error = updater_makedirs(file);
-	if (error)
+	if (error) {
+		free(file);
+		printf("Updater: updater_makedirs() failed\n");
 		return (-1);
+	}
 	to = fopen(file, "w");
 	if (to == NULL) {
 		warn("fopen");
+		free(file);
 		return (-1);
 	}
-	line = stream_getln(rd);
+	line = stream_getln(rd, &size);
 	first = 1;
-	while (line != NULL && strcmp(line, ".") != 0 &&
-	    strcmp(line, ".+") != 0) {
-		if (strncmp(line, "..", 2) == 0)
+	while (line != NULL) {
+	       	if (size > 0 && (memcmp(line, ".", size) == 0 ||
+		    memcmp(line, ".+", size) == 0))
+			break;
+		if (size >= 2 && memcmp(line, "..", 2) == 0) {
+			size--;
 			line++;
+		}
 		if (!first)
 			fprintf(to, "\n");
-		fprintf(to, "%s", line);
-		line = stream_getln(rd);
+		fwrite(line, size, 1, to);
+		line = stream_getln(rd, &size);
 		first = 0;
 	}
 	if (line == NULL) {
 		fclose(to);
+		free(file);
 		return (-1);
 	}
-	if (strcmp(line, ".+") != 0)
+	if (memcmp(line, ".", size) == 0)
 		fprintf(to, "\n");
 	fsync(fileno(to));
 	fclose(to);
 	/* Get the checksum line. */
-	line = stream_getln(rd);
+	line = stream_getln(rd, NULL);
 	cmd = strsep(&line, " ");
 	cksum = strsep(&line, " ");
 	if (cmd == NULL || cksum == NULL || line != NULL ||
-	    strcmp(cmd, "5") != 0)
+	    strcmp(cmd, "5") != 0) {
+		free(file);
 		return (-1);
-	if (MD5file(file, md5) == -1 || strcmp(cksum, md5) != 0)
+	}
+	if (MD5file(file, md5) == -1 || strcmp(cksum, md5) != 0) {
+		printf("%s: bad md5 checksum\n", __func__);
+		free(file);
 		return (-1);
+	}
+	free(file);
 	return (0);
 }
 
-static int
-updater_checkfile(char *path)
+/*
+ * Extract an absolute pathname from the RCS filename and
+ * make sure the server isn't trying to make us change
+ * unrelated files for security reasons.
+ */
+static char *
+updater_getpath(struct collection *coll, char *rcsfile)
 {
-	char *cp;
+	char *cp, *path;
 
-	if (*path == '/')
-		return (-1);
-	while ((cp = strstr(path, "..")) != NULL) {
-		if (cp == path || cp[2] == '\0' ||
+	if (*rcsfile == '/')
+		return (NULL);
+	cp = rcsfile;
+	while ((cp = strstr(cp, "..")) != NULL) {
+		if (cp == rcsfile || cp[2] == '\0' ||
 		    (cp[-1] == '/' && cp[2] == '/'))
-			return (-1);
-		path = cp + 2;
+			return (NULL);
+		cp += 2;
 	}
-	return (0);
+	cp = strstr(rcsfile, ",v");
+	if (cp == NULL || cp[2] != '\0')
+		return (NULL);
+	*cp = '\0';
+	asprintf(&path, "%s/%s", coll->base, rcsfile);
+	return (path);
 }
 
 static int

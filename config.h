@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,6 +26,7 @@
  * $FreeBSD$
  */
 
+/* XXX */
 #include <sys/queue.h>
 #include <sys/types.h>
 
@@ -69,8 +70,10 @@ struct collection {
 	char *prefix;
 	char *release;
 	char *tag;
+	char *cvsroot;
 	int options;
 	mode_t umask;
+	struct keyword *keyword;
 	STAILQ_ENTRY(collection) next;
 };
 
@@ -86,8 +89,8 @@ struct config {
 };
 
 struct config	*config_init(const char *, char *, char *, char *, in_port_t);
-struct collection *collec_new(void);
-void		collec_add(struct collection *, char *);
-void		collec_free(struct collection *);
-void		collec_setdef(struct collection *);
+struct collection *coll_new(void);
+void		coll_add(struct collection *, char *);
+void		coll_free(struct collection *);
+void		coll_setdef(struct collection *);
 void		options_set(struct collection *, int, char *);

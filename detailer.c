@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -63,7 +63,7 @@ detailer(void *arg)
 		if (cur->options & CO_SKIP)
 			continue;
 		chdir(cur->base);
-		line = stream_getln(rd);
+		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
 		coll = strsep(&line, " ");
 		release = strsep(&line, " ");
@@ -72,7 +72,7 @@ detailer(void *arg)
 		    strcmp(release, cur->release) != 0)
 			goto bad;
 		stream_printf(wr, "COLL %s %s\n", cur->name, cur->release);
-		line = stream_getln(rd);
+		line = stream_getln(rd, NULL);
 		if (line == NULL)
 			goto bad;
 		while (strcmp(line, ".") != 0) {
@@ -91,14 +91,14 @@ detailer(void *arg)
 				stream_printf(wr, "C %s,v %s %s\n", file,
 				    cur->tag, cur->date);
 			stream_flush(wr);
-			line = stream_getln(rd);
+			line = stream_getln(rd, NULL);
 			if (line == NULL)
 				goto bad;
 		}
 		stream_printf(wr, ".\n");
 		stream_flush(wr);
 	}
-	line = stream_getln(rd);
+	line = stream_getln(rd, NULL);
 	if (line == NULL || strcmp(line, ".") != 0)
 		goto bad;
 	stream_printf(wr, ".\n");

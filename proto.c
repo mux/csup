@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,9 @@ __FBSDID("$FreeBSD$");
 
 #include "config.h"
 #include "detailer.h"
+#include "diff.h"
 #include "fileattr.h"
+#include "keyword.h"
 #include "lister.h"
 #include "misc.h"
 #include "mux.h"
@@ -113,7 +115,7 @@ cvsup_negproto(struct config *config)
 	s = config->server;
 	stream_printf(s, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
 	stream_flush(s);
-	line = stream_getln(s);
+	line = stream_getln(s, NULL);
 	cmd = strsep(&line, " "); 
 	if (strcmp(cmd, "!") == 0) {
 		printf("Protocol negotiation failed: %s\n", line);
@@ -155,7 +157,7 @@ cvsup_login(struct config *config)
 	host[sizeof(host) - 1] = '\0';
 	stream_printf(s, "USER %s %s\n", getlogin(), host);
 	stream_flush(s);
-	line = stream_getln(s);
+	line = stream_getln(s, NULL);
 	cmd = strsep(&line, " ");
 	realm = strsep(&line, " ");
 	challenge = strsep(&line, " ");
@@ -168,7 +170,7 @@ cvsup_login(struct config *config)
 	}
 	stream_printf(s, "AUTHMD5 . . .\n");
 	stream_flush(s);
-	line = stream_getln(s);
+	line = stream_getln(s, NULL);
 	cmd = strsep(&line, " "); 
 	if (strcmp(cmd, "OK") == 0)
 		return (0);
@@ -200,7 +202,7 @@ cvsup_fileattr(struct config *config)
 		stream_printf(s, "%x\n", config->supported->attrs[i]);
 	stream_printf(s, ".\n");
 	stream_flush(s);
-	line = stream_getln(s);
+	line = stream_getln(s, NULL);
 	cmd = strsep(&line, " ");
 	if (line == NULL || strcmp(cmd, "ATTR") != 0)
 		goto bad;
@@ -209,13 +211,13 @@ cvsup_fileattr(struct config *config)
 	if (errno || n != config->supported->number)
 		goto bad;
 	for (i = 0; i < n; i++) {
-		line = stream_getln(s);
+		line = stream_getln(s, NULL);
 		errno = 0;
 		attr = strtol(line, NULL, 16);
 		if (errno || attr != config->supported->attrs[i])
 			goto bad;
 	}
-	line = stream_getln(s);
+	line = stream_getln(s, NULL);
 	if (strcmp(line, ".") != 0)
 		goto bad;
 	return (0);
@@ -250,8 +252,8 @@ cvsup_xchgcoll(struct config *config)
 {
 	struct collection *cur;
 	struct stream *s;
-	char *line, *cmd, *coll, *release, *options, *tok;
-	int opts;
+	char *line, *cmd, *coll, *options, *release, *ident, *rcskey;
+	int error, opts;
 
 	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
@@ -263,7 +265,7 @@ cvsup_xchgcoll(struct config *config)
 	STAILQ_FOREACH(cur, &config->collections, next) {
 		if (cur->options & CO_SKIP)
 			continue;
-		line = stream_getln(s);
+		line = stream_getln(s, NULL);
 		cmd = strsep(&line, " ");
 		if (strcmp(cmd, "COLL") != 0)
 			goto bad;
@@ -283,15 +285,47 @@ cvsup_xchgcoll(struct config *config)
 			goto bad;
 		cur->options = (cur->options | (opts & CO_SERVMAYSET)) &
 		    ~(~opts & CO_SERVMAYCLEAR);
-		/* Eat the rest for now. */
-		do {
-			line = stream_getln(s);
-			tok = line;
-			cmd = strsep(&tok, " ");
-			if (tok != NULL && strcmp(cmd, "!") == 0)
+		cur->keyword = keyword_new();
+		if (cur->keyword == NULL)
+			err(1, "malloc");
+		for (;;) {
+			line = stream_getln(s, NULL);
+		 	if (strcmp(line, ".") == 0)
+				break;
+			cmd = strsep(&line, " ");
+			if (cmd != NULL && strcmp(cmd, "!") == 0) {
 				printf("Server message: %s\n",
-				    cvsup_unescape(tok));
-		} while (strcmp(line, ".") != 0);
+				    cvsup_unescape(line));
+			} else if (strcmp(cmd, "PRFX") == 0) {
+				cur->cvsroot = strdup(line);
+				if (cur->cvsroot == NULL)
+					goto bad;
+			} else if (strcmp(cmd, "KEYALIAS") == 0) {
+				ident = strsep(&line, " ");
+				rcskey = strsep(&line, " ");
+				if (ident == NULL || rcskey == NULL ||
+				    line != NULL)
+					goto bad;
+				error = keyword_alias(cur->keyword, ident,
+				    rcskey);
+				if (error)
+					goto bad;
+			} else if (strcmp(cmd, "KEYON") == 0) {
+				ident = strsep(&line, " ");
+				if (ident == NULL || line != NULL)
+					goto bad;
+				error = keyword_enable(cur->keyword, ident);
+				if (error)
+					goto bad;
+			} else if (strcmp(cmd, "KEYOFF") == 0) {
+				ident = strsep(&line, " ");
+				if (ident == NULL || line != NULL)
+					goto bad;
+				error = keyword_disable(cur->keyword, ident);
+				if (error)
+					goto bad;
+			} 
+		}
 	}
 	return (0);
 bad:
@@ -320,7 +354,7 @@ cvsup_mux(struct config *config)
 		fprintf(stderr, "chan_listen() failed\n");
 		return (-1);
 	}
-	config->chan0 = stream_open(id0, chan_read, chan_write, NULL);
+	config->chan0 = stream_reopen(id0, chan_read, chan_write, NULL);
 	if (config->chan0 == NULL)
 		return (-1);
 	stream_printf(config->chan0, "CHAN %d\n", id1);
@@ -331,7 +365,7 @@ cvsup_mux(struct config *config)
 		fprintf(stderr, "Accept failed for chan %d\n", id1);
 		return (-1);
 	}
-	config->chan1 = stream_open(id1, chan_read, chan_write, NULL);
+	config->chan1 = stream_reopen(id1, chan_read, chan_write, NULL);
 	if (config->chan1 == NULL) {
 		stream_close(config->chan0);
 		return (-1);
@@ -359,11 +393,11 @@ cvsup_init(struct config *config)
 	 * We pass NULL for the close() function because we'll reuse
 	 * the socket after the stream is closed.
 	 */
-	config->server = stream_open(config->socket, read, write, NULL);
+	config->server = stream_reopen(config->socket, read, write, NULL);
 	if (config->server == NULL)
 		return (-1);
 	s = config->server;
-	line = stream_getln(s);
+	line = stream_getln(s, NULL);
 	cur = strsep(&line, " "); 
 	if (strcmp(cur, "OK") == 0) {
 		cur = strsep(&line, " "); 

@@ -31,7 +31,7 @@ __FBSDID("$FreeBSD$");
 #include "config.h"
 #include "parse.h"
 
-extern struct collection *cur_collec;
+extern struct collection *cur_coll;
 
 %}
 
@@ -69,16 +69,16 @@ config
 default_line
 	: DEFAULT options
 		{
-			collec_setdef(cur_collec);
-			cur_collec = collec_new();
+			coll_setdef(cur_coll);
+			cur_coll = coll_new();
 		}
 	;
 
 collection
 	: STRING options
 		{
-			collec_add(cur_collec, $1);
-			cur_collec = collec_new();
+			coll_add(cur_coll, $1);
+			cur_coll = coll_new();
 		}
 	;
 
@@ -89,7 +89,7 @@ options
 
 option
 	: boolean
-		{ options_set(cur_collec, $1, NULL); }
+		{ options_set(cur_coll, $1, NULL); }
 	| value
 	;
 
@@ -101,7 +101,7 @@ boolean
 
 value
 	: name EQUAL STRING
-		{ options_set(cur_collec, $1, $3); }
+		{ options_set(cur_coll, $1, $3); }
 	;
 
 name

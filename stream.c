@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,10 +31,12 @@ __FBSDID("$FreeBSD$");
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "misc.h"
 #include "stream.h"
@@ -74,7 +76,7 @@ buf_new(size_t size)
 	buf = malloc(sizeof(struct buf));
 	if (buf == NULL)
 		return (NULL);
-	buf->buf = malloc(size);
+	buf->buf = malloc(size + 1);	/* Keep room for a final '\0'. */
 	if (buf->buf == NULL) {
 		free(buf);
 		return (NULL);
@@ -94,7 +96,7 @@ buf_delete(struct buf *buf)
 }
 
 struct stream *
-stream_open(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
+stream_reopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 {
 	struct stream *stream;
 
@@ -114,6 +116,21 @@ stream_open(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 	stream->readfn = readfn;
 	stream->writefn = writefn;
 	stream->closefn = closefn;
+	return (stream);
+}
+
+struct stream *
+stream_open_file(char *path, mode_t mode)
+{
+	struct stream *stream;
+	int fd;
+
+	fd = open(path, mode);
+	if (fd == -1)
+		return (NULL);
+	stream = stream_reopen(fd, read, write, close);
+	if (stream == NULL)
+		close(fd);
 	return (stream);
 }
 
@@ -141,8 +158,22 @@ stream_read(struct stream *stream, void *buf, size_t size)
 	return (n);
 }
 
+/*
+ * Read a line from the stream and return a pointer to it.
+ *
+ * If len is non-NULL, the length of the string will be put into it.
+ * The pointer is only valid until the next stream API call.  The
+ * line can be modified by the caller, provided he doesn't write
+ * before or after it.
+ *
+ * This is somewhat similar to the BSD fgetln() function, except
+ * that it terminates the string by overwriting the '\n' character
+ * with a NUL character.  Furthermore, len can be NULL here - but
+ * be warned that one can't handle binary lines without knowing
+ * the size since those can contain other NUL characters.
+ */
 char *
-stream_getln(struct stream *stream)
+stream_getln(struct stream *stream, size_t *len)
 {
 	struct buf *buf;
 	char *c, *s;
@@ -157,8 +188,10 @@ stream_getln(struct stream *stream)
 	}
 	c = memchr(buf->buf + buf->off, '\n', buf->in);
 	for (done = buf->in; c == NULL; done += n) {
-		if (buf->in == buf->size)
+		if (buf->in == buf->size) {
+			printf("%s: Implement buffer resizing\n", __func__);
 			return (NULL);
+		}
 		if (buf->off + buf->in == buf->size) {
 			memmove(buf->buf, buf->buf + buf->off, buf->in);
 			buf->off = 0;
@@ -167,14 +200,8 @@ stream_getln(struct stream *stream)
 		if (n < 0)
 			return (NULL);
 		if (n == 0) {
-			/*
-			 * XXX - The stream doesn't end with a newline.
-			 * In this particular case the last character of
-			 * the line is lost but it doesn't matter here
-			 * because the server is supposed to always
-			 * terminate its lines with newline characters.
-			 */
-			c = buf->buf + buf->off + buf->in - 1;
+			/* This is OK since we keep one spare byte. */
+			c = buf->buf + buf->off + buf->in;
 		} else {
 			c = memchr(buf->buf + buf->off + done, '\n',
 			    buf->in - done);
@@ -189,6 +216,8 @@ stream_getln(struct stream *stream)
 		buf->off = 0;
 	else
 		buf->off += size;
+	if (len != NULL)
+		*len = size - 1;
 	return (s);
 }
 

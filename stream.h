@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,10 +28,11 @@
 
 struct stream;
 
-struct stream	*stream_open(int, ssize_t (*)(int, void *, size_t),
+struct stream	*stream_reopen(int, ssize_t (*)(int, void *, size_t),
 		    ssize_t (*)(int, const void *, size_t), int (*)(int));
-ssize_t		stream_read(struct stream *, void *, size_t);
-char		*stream_getln(struct stream *);
-int		stream_printf(struct stream *, const char *, ...);
-int		stream_flush(struct stream *);
-int		stream_close(struct stream *);
+struct stream	*stream_open_file(char *, mode_t);
+ssize_t		 stream_read(struct stream *, void *, size_t);
+char		*stream_getln(struct stream *, size_t *);
+int		 stream_printf(struct stream *, const char *, ...);
+int		 stream_flush(struct stream *);
+int		 stream_close(struct stream *);

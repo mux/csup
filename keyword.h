@@ -26,4 +26,12 @@
  * $FreeBSD$
  */
 
-extern int verbose;
+struct diff;
+struct keyword;
+
+struct keyword	*keyword_new(void);
+int		 keyword_alias(struct keyword *, char *, char *);
+int		 keyword_enable(struct keyword *, char *);
+int		 keyword_disable(struct keyword *, char *);
+char		*keyword_expand(struct keyword *, struct diff *, char *);
+void		 keyword_free(struct keyword *);

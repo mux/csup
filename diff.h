@@ -26,4 +26,23 @@
  * $FreeBSD$
  */
 
-extern int verbose;
+#include <stdio.h>	/* XXX */
+
+struct stream;
+struct keyword;
+
+/* Description of an RCS delta. */
+struct diff {
+	char *d_rcsfile;			/* RCS filename */
+	char *d_cvsroot;			/* CVS root prefix */
+	char *d_revnum;				/* Revision number */
+	char *d_revdate;			/* Revision date */
+	char *d_author;				/* Author of the delta */
+	char *d_log;				/* Commit log message */
+	//intmax_t d_loglines;			/* Number of "Log" lines */
+	char *d_state;				/* State of the branch */
+	struct stream *d_diff;			/* The delta */
+	struct stream *d_orig;			/* Original file */
+};
+
+int		 diff_apply(struct diff *, struct keyword *, FILE *);

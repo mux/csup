@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,7 @@ __FBSDID("$FreeBSD$");
 extern FILE *yyin;
 
 /* Global variables used in the yacc parser. */
-struct collection *cur_collec;
+struct collection *cur_coll;
 
 static struct collection *defaults;
 static struct config *config;
@@ -82,7 +82,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	defaults->tag = NULL;
 	defaults->options = CO_SETMODE | CO_EXACTRCS | CO_CHECKRCS;
 
-	cur_collec = collec_new();
+	cur_coll = coll_new();
 	yyin = fopen(file, "r");
 	if (yyin == NULL) {
 		fprintf(stderr, "Cannot open \"%s\": %s\n", file,
@@ -135,15 +135,15 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		}
 	}
 	config->port = port;
-	collec_free(cur_collec);
-	collec_free(defaults);
+	coll_free(cur_coll);
+	coll_free(defaults);
 	if (error)
 		return (NULL);
 	return (config);
 }
 
 struct collection *
-collec_new(void)
+coll_new(void)
 {
 	struct collection *new;
 
@@ -176,11 +176,11 @@ collec_new(void)
 }
 
 void
-collec_add(struct collection *collec, char *name)
+coll_add(struct collection *coll, char *name)
 {
 
-	collec->name = name;
-	STAILQ_INSERT_TAIL(&config->collections, collec, next);
+	coll->name = name;
+	STAILQ_INSERT_TAIL(&config->collections, coll, next);
 }
 
 /*
@@ -188,18 +188,19 @@ collec_add(struct collection *collec, char *name)
  * ie: free(NULL) is allowed.
  */
 void
-collec_free(struct collection *collec)
+coll_free(struct collection *coll)
 {
 
-	free(collec->base);
-	free(collec->prefix);
-	free(collec->release);
-	free(collec->tag);
-	free(collec);
+	free(coll->base);
+	free(coll->prefix);
+	free(coll->release);
+	free(coll->tag);
+	free(coll->cvsroot);
+	free(coll);
 }
 
 void
-options_set(struct collection *collec, int opt, char *value)
+options_set(struct collection *coll, int opt, char *value)
 {
 
 	switch (opt) {
@@ -212,52 +213,52 @@ options_set(struct collection *collec, int opt, char *value)
 		config->host = value;
 		break;
 	case BASE:
-		if (collec->base != NULL)
-			free(collec->base);
-		collec->base = value;
+		if (coll->base != NULL)
+			free(coll->base);
+		coll->base = value;
 		break;
 	case DATE:
-		if (collec->date != NULL)
-			free(collec->date);
-		collec->date = value;
+		if (coll->date != NULL)
+			free(coll->date);
+		coll->date = value;
 		break;
 	case PREFIX:
-		if (collec->prefix != NULL)
-			free(collec->base);
-		collec->prefix = value;
+		if (coll->prefix != NULL)
+			free(coll->base);
+		coll->prefix = value;
 		break;
 	case RELEASE:
-		if (collec->release != NULL)
-			free(collec->release);
-		collec->release = value;
+		if (coll->release != NULL)
+			free(coll->release);
+		coll->release = value;
 		break;
 	case TAG:
-		if (collec->tag != NULL)
-			free(collec->tag);
-		collec->tag = value;
+		if (coll->tag != NULL)
+			free(coll->tag);
+		coll->tag = value;
 		break;
 	case UMASK:
-		collec->umask = strtol(value, NULL, 8);
+		coll->umask = strtol(value, NULL, 8);
 		break;
 	case USE_REL_SUFFIX:
-		collec->options |= CO_USERELSUFFIX;
+		coll->options |= CO_USERELSUFFIX;
 		break;
 	case DELETE:
-		collec->options |= CO_DELETE;
+		coll->options |= CO_DELETE;
 		break;
 	case COMPRESS:
 #ifdef notyet
 		/* XXX - implement zlib compression */
-		collec->options |= CO_COMPRESS;
+		coll->options |= CO_COMPRESS;
 #endif
 		break;
 	}
 }
 
 void
-collec_setdef(struct collection *collec)
+coll_setdef(struct collection *coll)
 {
 
-	collec_free(defaults);
-	defaults = collec;
+	coll_free(defaults);
+	defaults = coll;
 }
