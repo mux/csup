@@ -33,7 +33,6 @@ __FBSDID("$FreeBSD$");
 #include <assert.h>
 #include <md5.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
