@@ -74,20 +74,20 @@ struct fileattr_support {
 };
 
 struct fileattr {
-	char *name;
-	int mask;
-	int type;
-	time_t modtime;
-	off_t size;
-	char *linktarget;
-	dev_t rdev;
-	uid_t owner;
-	gid_t group;
-	mode_t mode;
-	fflags_t flags;
-	nlink_t linkcount;
-	dev_t dev;
-	ino_t inode;
+	char		*name;
+	int		mask;
+	int		type;
+	time_t		modtime;
+	off_t		size;
+	char		*linktarget;
+	dev_t		rdev;
+	uid_t		owner;
+	gid_t		group;
+	mode_t		mode;
+	fflags_t	flags;
+	nlink_t		linkcount;
+	dev_t		dev;
+	ino_t		inode;
 	STAILQ_ENTRY(file) next;
 };
 
