@@ -38,6 +38,8 @@ __FBSDID("$FreeBSD$");
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -622,6 +624,23 @@ chan_write(int id, const void *buf, size_t size)
 	}
 	pthread_mutex_unlock(&chan->lock);
 	pthread_cond_signal(&sender_newwork);
+}
+
+int
+chan_printf(int id, const char *fmt, ...)
+{
+	char *buf;
+	va_list ap;
+	int ret;
+
+	va_start(ap, fmt);
+	ret = vasprintf(&buf, fmt, ap);
+	va_end(ap);
+	if (ret == -1)
+		return (-1);
+	chan_write(id, buf, ret);
+	free(buf);
+	return (ret);
 }
 
 /*
