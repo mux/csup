@@ -663,7 +663,7 @@ again:
 		buf->out += size;
 		if (buf->out > buf->size)
 			buf->out -= buf->size + 1;
-		pthread_cond_broadcast(&chan->wrready);
+		pthread_cond_signal(&chan->wrready);
 		pthread_mutex_unlock(&chan->lock);
 	} else {
 		pthread_mutex_unlock(&chan->lock);
@@ -750,7 +750,7 @@ receiver_loop(void *arg)
 				chan->sendmss = ntohs(mh.mh_connect.mss);
 				chan->sendwin = ntohl(mh.mh_connect.window);
 				chan->flags |= CF_ACCEPT;
-				pthread_cond_broadcast(&chan->rdready);
+				pthread_cond_signal(&chan->rdready);
 			} else
 				chan->flags |= CF_RESET;
 			pthread_mutex_unlock(&chan->lock);
@@ -764,7 +764,7 @@ receiver_loop(void *arg)
 				chan->sendmss = ntohs(mh.mh_accept.mss);
 				chan->sendwin = ntohl(mh.mh_accept.window);
 				chan->state = CS_ESTABLISHED;
-				pthread_cond_broadcast(&chan->wrready);
+				pthread_cond_signal(&chan->wrready);
 				pthread_mutex_unlock(&chan->lock);
 			} else {
 				chan->flags |= CF_RESET;
@@ -813,7 +813,7 @@ receiver_loop(void *arg)
 			buf->in += len;
 			if (buf->in > buf->size)
 				buf->in -= buf->size + 1;
-			pthread_cond_broadcast(&chan->rdready);
+			pthread_cond_signal(&chan->rdready);
 			pthread_mutex_unlock(&chan->lock);
 			break;
 		case MUX_CLOSE:
@@ -827,7 +827,7 @@ receiver_loop(void *arg)
 			else 
 				/* XXX - Protocol error. */
 				abort();
-			pthread_cond_broadcast(&chan->rdready);
+			pthread_cond_signal(&chan->rdready);
 			pthread_mutex_unlock(&chan->lock);
 			break;
 		default:
@@ -894,6 +894,7 @@ buf_put(struct buf *buf, const void *data, size_t size)
 	const char *cp;
 	size_t len;
 
+	assert(size > 0);
 	assert(buf_avail(buf) >= size);
 	cp = data;
 	len = buf->size - buf->in;
@@ -916,6 +917,7 @@ buf_get(struct buf *buf, void *data, size_t size)
 	char *cp;
 	size_t len;
 
+	assert(size > 0);
 	assert(buf_count(buf) >= size);
 	cp = data;
 	len = buf->size - buf->out;
