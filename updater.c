@@ -107,7 +107,7 @@ updater(void *arg)
 		    coll->co_release);
 			
 		if (coll->co_options & CO_COMPRESS)
-			stream_filter(rd, SF_ZLIB);
+			stream_filter_start(rd, STREAM_FILTER_ZLIB, NULL);
 		while ((line = stream_getln(rd, NULL)) != NULL) {
 			if (strcmp(line, ".") == 0)
 				break;
@@ -135,7 +135,7 @@ updater(void *arg)
 		if (line == NULL)
 			goto bad;
 		if (coll->co_options & CO_COMPRESS)
-			stream_filter(rd, SF_NONE);
+			stream_filter_stop(rd);
 	}
 	line = stream_getln(rd, NULL);
 	if (line == NULL || strcmp(line, ".") != 0)

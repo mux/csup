@@ -101,8 +101,22 @@ struct stream {
 	stream_readfn_t readfn;
 	stream_writefn_t writefn;
 	stream_closefn_t closefn;
-	stream_filter_t filter;
+	struct stream_filter *filter;
 	void *fdata;
+};
+
+typedef int	(*stream_filter_initfn_t)(struct stream *, void *);
+typedef void	(*stream_filter_finifn_t)(struct stream *);
+typedef int	(*stream_filter_flushfn_t)(struct stream *, struct buf *,
+		    stream_flush_t);
+typedef ssize_t	(*stream_filter_fillfn_t)(struct stream *, struct buf *);
+
+struct stream_filter {
+	stream_filter_t id;
+	stream_filter_initfn_t initfn;
+	stream_filter_finifn_t finifn;
+	stream_filter_flushfn_t flushfn;
+	stream_filter_fillfn_t fillfn;
 };
 
 /* Low-level buffer API. */
@@ -123,6 +137,11 @@ static int		 stream_flush_int(struct stream *, stream_flush_t);
 static int		 stream_flush_default(struct stream *, struct buf *,
 			     stream_flush_t);
 
+/* Filters specific functions. */
+static struct stream_filter *stream_filter_lookup(stream_filter_t);
+static int		 stream_filter_init(struct stream *, void *);
+static void		 stream_filter_fini(struct stream *);
+
 /*
  * The zlib stream filter declarations.
  */
@@ -137,11 +156,30 @@ struct zfilter {
 	z_stream *wrstate;
 };
 
-static int		 zfilter_init(struct stream *);
+static int		 zfilter_init(struct stream *, void *);
 static ssize_t		 zfilter_fill(struct stream *, struct buf *);
 static int		 zfilter_flush(struct stream *, struct buf *,
 			     stream_flush_t);
-static void		 zfilter_finish(struct stream *);
+static void		 zfilter_fini(struct stream *);
+
+/* The available stream filters. */
+struct stream_filter stream_filters[] = {
+	{
+		STREAM_FILTER_NULL,
+		NULL,
+		NULL,
+		stream_flush_default,
+		stream_fill_default,
+	},
+	{
+	       	STREAM_FILTER_ZLIB,
+		zfilter_init,
+		zfilter_fini,
+		zfilter_flush,
+		zfilter_fill,
+	}
+};
+
 
 /* Create a new buffer. */
 static struct buf *
@@ -260,8 +298,7 @@ stream_fdopen(int id, stream_readfn_t readfn, stream_writefn_t writefn,
 	stream->readfn = readfn;
 	stream->writefn = writefn;
 	stream->closefn = closefn;
-	stream->filter = SF_NONE;
-	stream->fdata = NULL;
+	stream->filter = stream_filter_lookup(STREAM_FILTER_NULL);
 	return (stream);
 }
 
@@ -436,14 +473,9 @@ stream_flush(struct stream *stream)
 static int
 stream_flush_int(struct stream *stream, stream_flush_t how)
 {
-	struct buf *buf;
 	int error;
 
-	buf = stream->wrbuf;
-	if (stream->filter == SF_ZLIB)
-		error = zfilter_flush(stream, buf, how);
-	else
-		error = stream_flush_default(stream, buf, how);
+	error = (*stream->filter->flushfn)(stream, stream->wrbuf, how);
 	return (error);
 }
 
@@ -538,8 +570,7 @@ stream_close(struct stream *stream)
 	error = 0;
 	if (stream->wrbuf != NULL)
 		error = stream_flush_int(stream, STREAM_FLUSH_CLOSING);
-	if (stream->filter == SF_ZLIB)
-		zfilter_finish(stream);
+	stream_filter_fini(stream);
 	if (stream->closefn != NULL)
 		/*
 		 * We might overwrite a previous error from stream_flush(),
@@ -577,52 +608,97 @@ stream_fill_default(struct stream *stream, struct buf *buf)
 static ssize_t
 stream_fill(struct stream *stream)
 {
+	struct stream_filter *filter;
 	struct buf *buf;
 #ifndef NDEBUG
 	size_t oldcount;
 #endif
 	ssize_t n;
 
+	filter = stream->filter;
 	buf = stream->rdbuf;
 	buf_prewrite(buf);
 #ifndef NDEBUG
 	oldcount = buf_count(buf);
 #endif
-	if (stream->filter == SF_ZLIB) {
-		n = zfilter_fill(stream, buf);
-	} else {
-		assert(stream->filter == SF_NONE);
-		n = stream_fill_default(stream, buf);
-	}
+	n = (*filter->fillfn)(stream, buf);
 	assert((n > 0 && n == (signed)(buf_count(buf) - oldcount)) ||
 	    (n <= 0 && buf_count(buf) == oldcount));
 	return (n);
 }
 
 /*
- * Set a specific filter on a stream.  If SF_NONE is set, it disables
- * the filter.  There's only a SF_ZLIB filter for now, which allows to
- * read/write a zlib compressed stream.
+ * Lookup a stream filter.
+ *
+ * We are not supposed to get passed an invalid filter id, since
+ * filter ids are an enum type and we don't have invalid filter
+ * ids in the enum :-).  Thus, we are not checking for out of
+ * bounds access here.  If it happens, it's the caller's fault
+ * anyway.
  */
-int
-stream_filter(struct stream *stream, stream_filter_t filter)
+static struct stream_filter *
+stream_filter_lookup(stream_filter_t id)
 {
+	struct stream_filter *filter;
 
-	if (filter == stream->filter)
-		return (0);
-	/* Disable the old filter. */
-	if (stream->filter == SF_ZLIB)
-		zfilter_finish(stream);
-	stream->fdata = NULL;
-	/* Enable the new filter. */
-	if (filter == SF_ZLIB)
-		zfilter_init(stream);
-	stream->filter = filter;
-	return (0);
+	filter = stream_filters;
+	while (filter->id != id)
+		filter++;
+	return (filter);
 }
 
 static int
-zfilter_init(struct stream *stream)
+stream_filter_init(struct stream *stream, void *data)
+{
+	struct stream_filter *filter;
+	int error;
+
+	filter = stream->filter;
+	if (filter->initfn == NULL)
+		return (0);
+	error = (*filter->initfn)(stream, data);
+	return (error);
+}
+
+static void
+stream_filter_fini(struct stream *stream)
+{
+	struct stream_filter *filter;
+
+	filter = stream->filter;
+	if (filter->finifn != NULL)
+		(*filter->finifn)(stream);
+}
+
+/*
+ * Start a filter on a stream.
+ */
+int
+stream_filter_start(struct stream *stream, stream_filter_t id, void *data)
+{
+	struct stream_filter *filter;
+	int error;
+
+	filter = stream->filter;
+	if (id == filter->id)
+		return (0);
+	stream_filter_fini(stream);
+	stream->filter = stream_filter_lookup(id);
+	error = stream_filter_init(stream, data);
+	return (error);
+}
+
+
+/* Stop a filter, this is equivalent to setting the null filter. */
+void
+stream_filter_stop(struct stream *stream)
+{
+
+	stream_filter_start(stream, STREAM_FILTER_NULL, NULL);
+}
+
+static int
+zfilter_init(struct stream *stream, void __unused *data)
 {
 	struct zfilter *zf;
 	struct buf *buf;
@@ -668,7 +744,7 @@ zfilter_init(struct stream *stream)
 }
 
 static void
-zfilter_finish(struct stream *stream)
+zfilter_fini(struct stream *stream)
 {
 	struct zfilter *zf;
 	struct buf *zbuf;

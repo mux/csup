@@ -51,10 +51,10 @@ lister(void *arg)
 		stream_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
 		if (coll->co_options & CO_COMPRESS)
-			stream_filter(wr, SF_ZLIB);
+			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
 		stream_printf(wr, ".\n");
 		if (coll->co_options & CO_COMPRESS)
-			stream_filter(wr, SF_NONE);
+			stream_filter_stop(wr);
 		stream_flush(wr);
 	}
 	stream_printf(wr, ".\n");

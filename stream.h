@@ -28,8 +28,8 @@
 
 /* Stream filters. */
 typedef enum {
-	SF_NONE,
-	SF_ZLIB
+	STREAM_FILTER_NULL,
+	STREAM_FILTER_ZLIB
 } stream_filter_t;
 
 struct stream;
@@ -51,4 +51,5 @@ int		 stream_truncate(struct stream *, off_t);
 int		 stream_truncate_rel(struct stream *, off_t);
 int		 stream_rewind(struct stream *);
 int		 stream_close(struct stream *);
-int		 stream_filter(struct stream *, stream_filter_t);
+int		 stream_filter_start(struct stream *, stream_filter_t, void *);
+void		 stream_filter_stop(struct stream *);
