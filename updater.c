@@ -304,6 +304,7 @@ updater_dodiff(struct collection *coll, char *path, struct stream *rd,
 	diff->d_diff = rd;
 	error = diff_apply(diff, coll->keyword);
 	stream_close(orig);
+	stream_sync(to);
 	stream_close(to);
 	if (error) {
 		printf("%s: diff_apply failed\n", __func__);
@@ -324,7 +325,7 @@ updater_checkout(struct collection *coll, struct stream *rd, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
 	char *cksum, *cmd, *file, *rcsfile;
-	FILE *to;
+	struct stream *to;
 	size_t size;
 	int error, first;
 
@@ -342,9 +343,10 @@ updater_checkout(struct collection *coll, struct stream *rd, char *line)
 		printf("Updater: updater_makedirs() failed\n");
 		return (-1);
 	}
-	to = fopen(file, "w");
+	/* XXX Use correct permissions. */
+	to = stream_open_file(file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (to == NULL) {
-		warn("fopen");
+		warn("stream_open_file(\"%s\")", file);
 		free(file);
 		return (-1);
 	}
@@ -359,20 +361,20 @@ updater_checkout(struct collection *coll, struct stream *rd, char *line)
 			line++;
 		}
 		if (!first)
-			fprintf(to, "\n");
-		fwrite(line, size, 1, to);
+			stream_printf(to, "\n");
+		stream_write(to, line, size);
 		line = stream_getln(rd, &size);
 		first = 0;
 	}
 	if (line == NULL) {
-		fclose(to);
+		stream_close(to);
 		free(file);
 		return (-1);
 	}
 	if (memcmp(line, ".", size) == 0)
-		fprintf(to, "\n");
-	fsync(fileno(to));
-	fclose(to);
+		stream_printf(to, "\n");
+	stream_sync(to);
+	stream_close(to);
 	/* Get the checksum line. */
 	line = stream_getln(rd, NULL);
 	cmd = strsep(&line, " ");
