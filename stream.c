@@ -87,8 +87,8 @@ static void		 buf_less(struct buf *, size_t);
 static void		 buf_free(struct buf *);
 static void		 buf_grow(struct buf *, size_t);
 
-static ssize_t		 stream_refill(struct stream *);
-static ssize_t		 stream_refill_buf(struct stream *, struct buf *);
+static ssize_t		 stream_fill(struct stream *);
+static ssize_t		 stream_fill_buf(struct stream *, struct buf *);
 static int		 stream_flush_buf(struct stream *, struct buf *);
 
 /* Used by the zlib filter to keep state. */
@@ -267,7 +267,7 @@ stream_read(struct stream *stream, void *buf, size_t size)
 
 	rdbuf = stream->rdbuf;
 	if (buf_count(rdbuf) == 0) {
-		ret = stream_refill(stream);
+		ret = stream_fill(stream);
 		if (ret <= 0)
 			return (-1);
 	}
@@ -305,13 +305,13 @@ stream_getln(struct stream *stream, size_t *len)
 
 	buf = stream->rdbuf;
 	if (buf_count(buf) == 0) {
-		n = stream_refill(stream);
+		n = stream_fill(stream);
 		if (n <= 0)
 			return (NULL);
 	}
 	cp = memchr(buf->buf + buf->off, '\n', buf_count(buf));
 	for (done = buf_count(buf); cp == NULL; done += n) {
-		n = stream_refill(stream);
+		n = stream_fill(stream);
 		if (n < 0)
 			return (NULL);
 		if (n == 0)
@@ -509,7 +509,7 @@ stream_close(struct stream *stream)
 }
 
 static ssize_t
-stream_refill_buf(struct stream *stream, struct buf *buf)
+stream_fill_buf(struct stream *stream, struct buf *buf)
 {
 	ssize_t n;
 
@@ -524,10 +524,10 @@ stream_refill_buf(struct stream *stream, struct buf *buf)
 /*
  * Refill the read buffer.  This function is not permitted to return
  * without having made more bytes available, unless there was an error.
- * Moreover, stream_refill() returns the number of bytes added.
+ * Moreover, stream_fill() returns the number of bytes added.
  */
 static ssize_t
-stream_refill(struct stream *stream)
+stream_fill(struct stream *stream)
 {
 	struct buf *buf;
 	size_t oldcount;
@@ -540,7 +540,7 @@ stream_refill(struct stream *stream)
 		n = zfilter_inflate(stream);
 	} else {
 		assert(stream->filter == SF_NONE);
-		n = stream_refill_buf(stream, buf);
+		n = stream_fill_buf(stream, buf);
 	}
 	assert((n > 0 && n == (signed)(buf_count(buf) - oldcount)) ||
 	    (n <= 0 && buf_count(buf) == oldcount));
@@ -701,7 +701,7 @@ zfilter_inflate(struct stream *stream)
 
 	assert(buf_avail(buf) > 0);
 	if (buf_count(zbuf) == 0) {
-		n = stream_refill_buf(stream, zbuf);
+		n = stream_fill_buf(stream, zbuf);
 		if (n <= 0)
 			return (n);
 	}
@@ -717,7 +717,7 @@ again:
 	buf_less(zbuf, lastin - state->avail_in);
 	new = lastout - state->avail_out;
 	if (new == 0 && rv != Z_STREAM_END) {
-		n = stream_refill_buf(stream, zbuf);
+		n = stream_fill_buf(stream, zbuf);
 		if (n == -1)
 			return (-1);
 		if (n == 0)
