@@ -118,9 +118,9 @@ static void		 buf_grow(struct buf *, size_t);
 
 /* Internal stream functions. */
 static ssize_t		 stream_fill(struct stream *);
-static ssize_t		 stream_fill_buf(struct stream *, struct buf *);
+static ssize_t		 stream_fill_default(struct stream *, struct buf *);
 static int		 stream_flush_int(struct stream *, stream_flush_t);
-static int		 stream_flush_buf(struct stream *, struct buf *,
+static int		 stream_flush_default(struct stream *, struct buf *,
 			     stream_flush_t);
 
 /*
@@ -192,7 +192,7 @@ buf_grow(struct buf *buf, size_t need)
 
 /* Make more room in the buffer if needed. */
 static void
-buf_makeroom(struct buf *buf)
+buf_prewrite(struct buf *buf)
 {
 
 	if (buf_count(buf) == buf_size(buf))
@@ -443,13 +443,13 @@ stream_flush_int(struct stream *stream, stream_flush_t how)
 	if (stream->filter == SF_ZLIB)
 		error = zfilter_flush(stream, buf, how);
 	else
-		error = stream_flush_buf(stream, buf, how);
+		error = stream_flush_default(stream, buf, how);
 	return (error);
 }
 
 /* The default flush method. */
 static int
-stream_flush_buf(struct stream *stream, struct buf *buf,
+stream_flush_default(struct stream *stream, struct buf *buf,
     stream_flush_t __unused how)
 {
 	ssize_t n;
@@ -557,7 +557,7 @@ stream_close(struct stream *stream)
 
 /* The default fill method. */
 static ssize_t
-stream_fill_buf(struct stream *stream, struct buf *buf)
+stream_fill_default(struct stream *stream, struct buf *buf)
 {
 	ssize_t n;
 
@@ -578,17 +578,21 @@ static ssize_t
 stream_fill(struct stream *stream)
 {
 	struct buf *buf;
+#ifndef NDEBUG
 	size_t oldcount;
+#endif
 	ssize_t n;
 
 	buf = stream->rdbuf;
-	buf_makeroom(buf);
+	buf_prewrite(buf);
+#ifndef NDEBUG
 	oldcount = buf_count(buf);
+#endif
 	if (stream->filter == SF_ZLIB) {
 		n = zfilter_fill(stream, buf);
 	} else {
 		assert(stream->filter == SF_NONE);
-		n = stream_fill_buf(stream, buf);
+		n = stream_fill_default(stream, buf);
 	}
 	assert((n > 0 && n == (signed)(buf_count(buf) - oldcount)) ||
 	    (n <= 0 && buf_count(buf) == oldcount));
@@ -737,7 +741,7 @@ again:
 	 */
 	if ((buf_avail(zbuf) < 6 && flags == Z_SYNC_FLUSH) ||
 	    rv == Z_BUF_ERROR || buf_avail(buf) == 0) {
-		error = stream_flush_buf(stream, zbuf, how);
+		error = stream_flush_default(stream, zbuf, how);
 		if (error)
 			return (error);
 	}
@@ -761,7 +765,7 @@ again:
 		goto again;
 
 	assert(rv == Z_OK || (rv == Z_STREAM_END && flags == Z_FINISH));
-	error = stream_flush_buf(stream, zbuf, how);
+	error = stream_flush_default(stream, zbuf, how);
 	return (error);
 }
 
@@ -781,7 +785,7 @@ zfilter_fill(struct stream *stream, struct buf *buf)
 
 	assert(buf_avail(buf) > 0);
 	if (buf_count(zbuf) == 0) {
-		n = stream_fill_buf(stream, zbuf);
+		n = stream_fill_default(stream, zbuf);
 		if (n <= 0)
 			return (n);
 	}
@@ -797,7 +801,7 @@ again:
 	buf_less(zbuf, lastin - state->avail_in);
 	new = lastout - state->avail_out;
 	if (new == 0 && rv != Z_STREAM_END) {
-		n = stream_fill_buf(stream, zbuf);
+		n = stream_fill_default(stream, zbuf);
 		if (n == -1)
 			return (-1);
 		if (n == 0)
