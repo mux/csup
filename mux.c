@@ -640,7 +640,7 @@ again:
 		iov[0].iov_len = hdrsize;
 		/* We access the buffer directly to avoid some copying. */
 		buf = chan->sendbuf;
-		len = min(size, buf->size - buf->out);
+		len = min(size, buf->size + 1 - buf->out);
 		iov[1].iov_base = buf->data + buf->out;
 		iov[1].iov_len = len;
 		iovcnt = 2;
@@ -803,7 +803,7 @@ receiver_loop(void *arg)
 			 * unlock the channel here.
 			 */
 			pthread_mutex_unlock(&chan->lock);
-			size = min(buf->size - buf->in, len);
+			size = min(buf->size + 1 - buf->in, len);
 			error = sock_readwait(s, buf->data + buf->in, size);
 			if (len > size) {
 				/* Wrapping around. */
@@ -851,7 +851,7 @@ buf_new(size_t size)
 	buf = malloc(sizeof(struct buf));
 	if (buf == NULL)
 		return (NULL);
-	buf->data = malloc(size);
+	buf->data = malloc(size + 1);
 	buf->size = size;
 	if (buf->data == NULL) {
 		free(buf);
@@ -897,7 +897,7 @@ buf_put(struct buf *buf, const void *data, size_t size)
 	assert(size > 0);
 	assert(buf_avail(buf) >= size);
 	cp = data;
-	len = buf->size - buf->in;
+	len = buf->size + 1 - buf->in;
 	if (len < size) {
 		/* Wrapping around. */
 		memcpy(buf->data + buf->in, cp, len);
@@ -920,7 +920,7 @@ buf_get(struct buf *buf, void *data, size_t size)
 	assert(size > 0);
 	assert(buf_count(buf) >= size);
 	cp = data;
-	len = buf->size - buf->out;
+	len = buf->size + 1 - buf->out;
 	if (len < size) {
 		/* Wrapping around. */
 		memcpy(cp, buf->data + buf->out, len);
