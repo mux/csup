@@ -207,13 +207,16 @@ static struct chan *chans[MUX_MAXCHAN];
 static int nchans;
 
 /* Sender thread data. */
+static pthread_t sender;
 static pthread_cond_t sender_newwork = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t sender_ready = PTHREAD_COND_INITIALIZER;
-static pthread_t sender;
+static int first;
 static struct sender_data {
 	int s;
 	int error;
 } sender_data;
+
+/* Receiver thread data. */
 static pthread_t receiver;
 static struct receiver_data {
 	int s;
@@ -646,6 +649,7 @@ sender_loop(void *arg)
 
 	sd = arg;
 	s = sd->s;
+	first = 1;
 again:
 	id = sender_waitforwork(&what);
 	chan = chan_get(id);
@@ -746,7 +750,10 @@ sender_waitforwork(int *what)
 	int id;
 
 	pthread_mutex_lock(&mux_lock);
-	pthread_cond_signal(&sender_ready);
+	if (first) {
+		pthread_cond_signal(&sender_ready);
+		first = 0;
+	}
 	while ((id = sender_scan(what)) == -1)
 		pthread_cond_wait(&sender_newwork, &mux_lock);
 	pthread_mutex_unlock(&mux_lock);
