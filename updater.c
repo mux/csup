@@ -160,13 +160,13 @@ updater_delete(struct coll *coll, char *line)
 		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
 		return (-1);
 	}
-	lprintf(1, " Delete %s\n", file + strlen(coll->co_base) + 1);
+	lprintf(1, " Delete %s\n", file + strlen(coll->co_prefix) + 1);
 	error = unlink(file);
 	if (error) {
 		free(file);
 		return (error);
 	}
-	updater_prunedirs(coll->co_base, file);
+	updater_prunedirs(coll->co_prefix, file);
 	free(file);
 	return (0);
 }
@@ -238,7 +238,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	if (strcmp(tag, ".") != 0)
 		up.tag = tag;
 
-	lprintf(1, " Edit %s\n", path + strlen(coll->co_base) + 1);
+	lprintf(1, " Edit %s\n", path + strlen(coll->co_prefix) + 1);
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
@@ -432,7 +432,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		goto bad;
 	}
 
-	lprintf(1, " Checkout %s\n", file + strlen(coll->co_base) + 1);
+	lprintf(1, " Checkout %s\n", file + strlen(coll->co_prefix) + 1);
 	error = updater_makedirs(file);
 	if (error) {
 		lprintf(-1, "Updater: Can't create directory hierarchy: %s\n",
@@ -514,7 +514,8 @@ updater_getpath(struct coll *coll, char *rcsfile)
 	cp = strstr(rcsfile, ",v");
 	if (cp == NULL || *(cp + 2) != '\0')
 		return (NULL);
-	asprintf(&path, "%s/%.*s", coll->co_base, (int)(cp - rcsfile), rcsfile);
+	asprintf(&path, "%s/%.*s", coll->co_prefix, (int)(cp - rcsfile),
+	    rcsfile);
 	if (path == NULL)
 		err(1, "asprintf");
 	return (path);
