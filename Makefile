@@ -19,6 +19,7 @@ SRCS=	config.c config.h \
 	y.tab.h 
 CFLAGS+=-g -pthread # -DNDEBUG
 WARNS?=	6
+NOMAN=	yes
 NO_MAN=	yes
 DPADD=	${LIBCRYPTO} ${LIBZ}
 LDADD=	-lcrypto -lz
