@@ -46,7 +46,8 @@ typedef uint32_t fflags_t;
 #define	FT_CDEV		3			/* Character device. */
 #define	FT_BDEV		4			/* Block device. */
 #define	FT_SYMLINK	5			/* Symbolic link. */
-#define FT_MAX		FT_SYMLINK
+#define FT_MAX		FT_SYMLINK		/* Maximum file type number. */
+#define	FT_NUMBER	(FT_MAX + 1)		/* Number of file types. */
 
 /*
  * File attributes.
@@ -76,18 +77,12 @@ typedef uint32_t fflags_t;
 #define	FA_COIGNORE	(FA_MASK & ~(FA_FILETYPE|FA_MODTIME|FA_SIZE|FA_MODE))
 
 struct stat;
-
-struct fattr_support {
-	int number;
-	int attrs[FT_MAX + 1];
-};
-
 struct fattr;
 
 struct fattr		*fattr_fromstat(struct stat *);
-struct fattr		*fattr_parse(char *);
-#if 0
-void			 fattr_print(struct fattr *);
-#endif
+struct fattr		*fattr_decode(char *);
+struct fattr		*fattr_forcheckout(struct fattr *, mode_t);
+void			 fattr_merge(struct fattr *, struct fattr *);
+int			 fattr_cmp(struct fattr *, struct fattr *);
 void			 fattr_free(struct fattr *);
-struct fattr_support	*fattr_support(void);
+int			 fattr_supported(int);

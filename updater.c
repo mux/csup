@@ -42,7 +42,7 @@
 
 #include "config.h"
 #include "diff.h"
-#include "fileattr.h"
+#include "fattr.h"
 #include "keyword.h"
 #include "updater.h"
 #include "misc.h"
@@ -147,7 +147,9 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
 	struct diff diff;
-	struct fattr *fa;
+#if 0
+	struct fattr *fa, *rcsattr;
+#endif
 	char *author, *tag, *rcsfile, *revnum, *revdate;
 	char *attr, *cp, *cksum, *line2, *line3, *tok, *path;
 	int error;
@@ -168,13 +170,14 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	strsep(&cp, " "); /* XXX - loglines */
 	strsep(&cp, " "); /* XXX - expand */
 	attr = strsep(&cp, " ");
-	fa = fattr_parse(attr);
-	if (fa == NULL)
-		errx(1, "fattr_parse failed");
 #if 0
-	fattr_print(fa);
-#endif
+	rcsattr = fattr_decode(attr);
+	if (rcsattr == NULL)
+		errx(1, "fattr_decode failed");
+	fa = fattr_forcheckout(rcsattr, coll->co_umask);
 	fattr_free(fa);
+	fattr_free(rcsattr);
+#endif
 	cksum = strsep(&cp, " ");
 	if (cksum == NULL || cp != NULL)
 		goto bad;

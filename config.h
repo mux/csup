@@ -75,7 +75,6 @@ struct coll {
 struct config {
 	STAILQ_HEAD(, coll) colls;
 	const char *colldir;
-	struct fattr_support *supported;
 	char *host;
 	in_port_t port;
 	int socket;

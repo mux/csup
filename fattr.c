@@ -30,17 +30,15 @@
 #include <sys/queue.h>
 #include <sys/stat.h>
 
+#include <assert.h>
 #include <err.h>
 #include <errno.h>
 #include <pwd.h>
-#if 0
-#include <stdio.h>	/* XXX - Only used by debug function fattr_printf(). */
-#endif
 #include <stdlib.h>
 #include <string.h>
 
-#include "fileattr.h"
-#include "osdep.h"
+#include "fattr.h"
+#include "fattr_os.h"
 
 #define	FA_MASK		0x0fff
 
@@ -75,11 +73,11 @@ struct fattr {
 static struct fattr	*fattr_new(void);
 static char		*fattr_scanattr(struct fattr *, int, char *);
 
-struct fattr_support *
-fattr_support(void)
+int
+fattr_supported(int type)
 {
 
-	return (&fattr_supported);
+	return (fattr_support[type]);
 }
 
 struct fattr *
@@ -101,7 +99,7 @@ fattr_fromstat(struct stat *sb)
 	else
 		fa->type = FT_UNKNOWN;
 
-	fa->mask = FA_FILETYPE | fattr_supported.attrs[fa->type];
+	fa->mask = FA_FILETYPE | fattr_supported(fa->type);
 	if (fa->mask & FA_MODTIME)
 		fa->modtime = sb->st_mtime;
 	if (fa->mask & FA_SIZE)
@@ -126,7 +124,7 @@ fattr_fromstat(struct stat *sb)
 }
 
 struct fattr *
-fattr_parse(char *attr)
+fattr_decode(char *attr)
 {
 	struct fattr *fa;
 	char *next;
@@ -292,19 +290,110 @@ fattr_scanattr(struct fattr *fa, int type, char *attr)
 	return (attrend);
 }
 
-#if 0
+/* Return a file attribute structure built from the RCS file attributes. */
+struct fattr *
+fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
+{
+	struct fattr *fa;
+
+	fa = fattr_new();
+	fattr_merge(fa, rcsattr);
+	if (rcsattr->mask & FA_MODE) {
+		if ((rcsattr->mode & 0111) > 0)
+			fa->mode = 0777;
+		else
+			fa->mode = 0666;
+		fa->mode &= ~mask;
+		fa->mask |= FA_MODE;
+	}
+	fa->mask |= FA_FILETYPE;
+	fa->type = FT_FILE;
+	return (fa);
+}
+
 void
-fattr_print(struct fattr *fa)
+fattr_merge(struct fattr *fa, struct fattr *from)
 {
 
-	printf("Mask is %#x\n", fa->mask);
+	fa->mask |= from->mask;
 	if (fa->mask & FA_FILETYPE)
-		printf("Type is %d\n", fa->type);
+		fa->type = from->type;
 	if (fa->mask & FA_MODTIME)
-		printf("Modification time is %s\n", ctime(&fa->modtime));
+		fa->modtime = from->modtime;
 	if (fa->mask & FA_SIZE)
-		printf("Size is %lld\n", (long long)fa->size);
+		fa->size = from->size;
+	if (fa->mask & FA_LINKTARGET) {
+		free(fa->linktarget);
+		fa->linktarget = strdup(from->linktarget);
+		if (fa->linktarget == NULL)
+			err(1, "strdup");
+	}
+	if (fa->mask & FA_RDEV)
+		fa->rdev = from->rdev;
+	if (fa->mask & FA_OWNER)
+		fa->uid = from->uid;
+	if (fa->mask & FA_GROUP)
+		fa->gid = from->gid;
 	if (fa->mask & FA_MODE)
-		printf("Mode is %o\n", fa->mode);
+		fa->mode = from->mode;
+	if (fa->mask & FA_FLAGS)
+		fa->flags = from->flags;
+	if (fa->mask & FA_LINKCOUNT)
+		fa->linkcount = from->linkcount;
+	if (fa->mask & FA_DEV)
+		fa->dev = from->dev;
+	if (fa->mask & FA_INODE)
+		fa->inode = from->inode;
 }
-#endif
+
+/*
+ * Returns 0 if both attributes are equal, and -1 otherwise.
+ *
+ * This function only compares attributes that are valid in both
+ * files.  A file of unknown type ("FT_UNKNOWN") is unequal to
+ * anything, including itself.
+ */
+int
+fattr_cmp(struct fattr *fa1, struct fattr *fa2)
+{
+	int mask;
+
+	mask = fa1->mask & fa2->mask;
+	assert(mask & FA_FILETYPE);
+	if (fa1->type == FT_UNKNOWN || fa2->type == FT_UNKNOWN)
+		return (-1);
+	if (mask & FA_MODTIME)
+		if (fa1->modtime != fa2->modtime)
+			return (-1);
+	if (mask & FA_SIZE)
+		if (fa1->size != fa2->size)
+			return (-1);
+	if (mask & FA_LINKTARGET)
+		if (strcmp(fa1->linktarget, fa2->linktarget) != 0)
+			return (-1);
+	if (mask & FA_RDEV)
+		if (fa1->rdev != fa2->rdev)
+			return (-1);
+	if (mask & FA_OWNER)
+		if (fa1->uid != fa2->uid)
+			return (-1);
+	if (mask & FA_GROUP)
+		if (fa1->gid != fa2->gid)
+			return (-1);
+	if (mask & FA_MODE)
+		if (fa1->mode != fa2->mode)
+			return (-1);
+	if (mask & FA_FLAGS)
+		if (fa1->flags != fa2->flags)
+			return (-1);
+	if (mask & FA_LINKCOUNT)
+		if (fa1->linkcount != fa2->linkcount)
+			return (-1);
+	if (mask & FA_DEV)
+		if (fa1->dev != fa2->dev)
+			return (-1);
+	if (mask & FA_INODE)
+		if (fa1->inode != fa2->inode)
+			return (-1);
+	return (0);
+}

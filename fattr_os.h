@@ -33,16 +33,15 @@
  * that it's easier if we want to port that code to platforms with
  * different file types support.
  */
-struct fattr_support fattr_supported = {
-	FT_MAX + 1,
-	{ /* FT_UNKNOWN */ 0,
-	  /* FT_FILE */ FA_FILETYPE | FA_MODTIME | FA_SIZE | FA_OWNER |
-	      FA_GROUP | FA_MODE | FA_FLAGS | FA_LINKCOUNT | FA_INODE | FA_DEV,
-	  /* FT_DIRECTORY */ FA_FILETYPE | FA_OWNER | FA_GROUP | FA_MODE |
-	      FA_FLAGS,
-	  /* FT_CDEV */ FA_FILETYPE | FA_RDEV | FA_OWNER | FA_GROUP | FA_MODE |
-	      FA_FLAGS | FA_LINKCOUNT | FA_DEV | FA_INODE,
-	  /* FT_BDEV */ FA_FILETYPE | FA_RDEV | FA_OWNER | FA_GROUP | FA_MODE |
-	      FA_FLAGS | FA_LINKCOUNT | FA_DEV | FA_INODE,
-	  /* FT_SYMLINK */ FA_FILETYPE | FA_LINKTARGET }
+int fattr_support[FT_NUMBER] = {
+	/* FT_UNKNOWN */ 0,
+	/* FT_FILE */ FA_FILETYPE | FA_MODTIME | FA_SIZE | FA_OWNER |
+	    FA_GROUP | FA_MODE | FA_FLAGS | FA_LINKCOUNT | FA_INODE | FA_DEV,
+	/* FT_DIRECTORY */ FA_FILETYPE | FA_OWNER | FA_GROUP | FA_MODE |
+	    FA_FLAGS,
+	/* FT_CDEV */ FA_FILETYPE | FA_RDEV | FA_OWNER | FA_GROUP | FA_MODE |
+	    FA_FLAGS | FA_LINKCOUNT | FA_DEV | FA_INODE,
+	/* FT_BDEV */ FA_FILETYPE | FA_RDEV | FA_OWNER | FA_GROUP | FA_MODE |
+	    FA_FLAGS | FA_LINKCOUNT | FA_DEV | FA_INODE,
+	/* FT_SYMLINK */ FA_FILETYPE | FA_LINKTARGET
 };

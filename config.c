@@ -39,7 +39,6 @@
 
 #include "config.h"
 #include "keyword.h"
-#include "fileattr.h"
 #include "parse.h"
 #include "y.tab.h"
 
@@ -70,7 +69,6 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		err(1, "malloc");
 	config->host = NULL;
 	STAILQ_INIT(&config->colls);
-	config->supported = fattr_support();
 	if (colldir != NULL)
 		config->colldir = colldir;
 	else

@@ -47,7 +47,7 @@
 #include "config.h"
 #include "detailer.h"
 #include "diff.h"
-#include "fileattr.h"
+#include "fattr.h"
 #include "keyword.h"
 #include "lister.h"
 #include "misc.h"
@@ -195,8 +195,6 @@ bad:
 
 /*
  * File attribute support negotiation.
- * XXX - We don't really negotiate yet but expect the server
- * to have the same attributes support as us.
  */
 static int
 cvsup_fileattr(struct config *config)
@@ -207,9 +205,9 @@ cvsup_fileattr(struct config *config)
 
 	s = config->server;
 	lprintf(2, "Negotiating file attribute support\n");
-	stream_printf(s, "ATTR %d\n", config->supported->number);
-	for (i = 0; i < config->supported->number; i++)
-		stream_printf(s, "%x\n", config->supported->attrs[i]);
+	stream_printf(s, "ATTR %d\n", FT_NUMBER);
+	for (i = 0; i < FT_NUMBER; i++)
+		stream_printf(s, "%x\n", fattr_supported(i));
 	stream_printf(s, ".\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
@@ -218,13 +216,15 @@ cvsup_fileattr(struct config *config)
 		goto bad;
 	errno = 0;
 	n = strtol(line, NULL, 10);
-	if (errno || n != config->supported->number)
+	if (errno || n != FT_NUMBER)
+		/* XXX - We should merge here. */
 		goto bad;
 	for (i = 0; i < n; i++) {
 		line = stream_getln(s, NULL);
 		errno = 0;
 		attr = strtol(line, NULL, 16);
-		if (errno || attr != config->supported->attrs[i])
+		if (errno || attr != fattr_supported(i))
+			/* XXX - Ditto. */
 			goto bad;
 	}
 	line = stream_getln(s, NULL);
@@ -232,7 +232,7 @@ cvsup_fileattr(struct config *config)
 		goto bad;
 	return (0);
 bad:
-	printf("Protocol error negotiating attribute support\n");
+	fprintf(stderr, "Protocol error negotiating attribute support\n");
 	return (1);
 }
 
