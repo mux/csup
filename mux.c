@@ -461,7 +461,7 @@ chan_new(void)
 
 	chan = malloc(sizeof(struct chan));
 	if (chan == NULL)
-		return (NULL);
+		err(1, "malloc");
 	chan->state = CS_UNUSED;
 	chan->flags = 0;
 	chan->sendbuf = buf_new(CHAN_SBSIZE);
@@ -832,12 +832,12 @@ buf_new(size_t size)
 
 	buf = malloc(sizeof(struct buf));
 	if (buf == NULL)
-		return (NULL);
+		err(1, "malloc");
 	buf->data = malloc(size + 1);
 	buf->size = size;
 	if (buf->data == NULL) {
 		free(buf);
-		return (NULL);
+		err(1, "malloc");
 	}
 	buf->in = 0;
 	buf->out = 0;

@@ -31,6 +31,7 @@ __FBSDID("$Id$");
 #include <sys/queue.h>
 #include <sys/stat.h>
 
+#include <err.h>
 #include <stdlib.h>
 
 #include "fileattr.h"
@@ -50,7 +51,7 @@ fileattr_fromstat(struct stat *sb)
 
 	fa = malloc(sizeof(struct fileattr));
 	if (fa == NULL)
-		return (NULL);
+		err(1, "malloc");
 	switch (sb->st_mode & S_IFMT) {
 	case S_IFREG:
 		fa->type = FT_FILE;

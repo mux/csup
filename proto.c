@@ -286,8 +286,6 @@ cvsup_xchgcoll(struct config *config)
 		cur->options = (cur->options | (opts & CO_SERVMAYSET)) &
 		    ~(~opts & CO_SERVMAYCLEAR);
 		cur->keyword = keyword_new();
-		if (cur->keyword == NULL)
-			err(1, "malloc");
 		for (;;) {
 			line = stream_getln(s, NULL);
 		 	if (strcmp(line, ".") == 0)

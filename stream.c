@@ -30,6 +30,7 @@ __FBSDID("$Id$");
 #include <sys/types.h>
 
 #include <assert.h>
+#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -75,11 +76,11 @@ buf_new(size_t size)
 
 	buf = malloc(sizeof(struct buf));
 	if (buf == NULL)
-		return (NULL);
+		err(1, "malloc");
 	buf->buf = malloc(size);
 	if (buf->buf == NULL) {
 		free(buf);
-		return (NULL);
+		err(1, "malloc");
 	}
 	buf->size = size;
 	buf->in = 0;
@@ -101,11 +102,9 @@ stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 	struct stream *stream;
 
 	stream = malloc(sizeof(struct stream));
+	if (stream == NULL)
+		err(1, "malloc");
 	stream->rdbuf = buf_new(STREAM_BUFSIZ + 1);
-	if (stream->rdbuf == NULL) {
-		free(stream);
-		return (NULL);
-	}
 	/*
 	 * We keep one spare byte in the read buffer so that
 	 * stream_getln() can put a '\0' there in case the stream
@@ -113,11 +112,6 @@ stream_fdopen(int id, readfn_t readfn, writefn_t writefn, closefn_t closefn)
 	 */
 	stream->rdbuf->buf[--stream->rdbuf->size] = '\0';
 	stream->wrbuf = buf_new(STREAM_BUFSIZ);
-	if (stream->wrbuf == NULL) {
-		buf_delete(stream->rdbuf);
-		free(stream);
-		return (NULL);
-	}
 	stream->id = id;
 	stream->readfn = readfn;
 	stream->writefn = writefn;

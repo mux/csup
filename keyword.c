@@ -100,7 +100,7 @@ keyword_new(void)
 
 	new = malloc(sizeof(struct keyword));
 	if (new == NULL)
-		return (NULL);
+		err(1, "malloc");
 	STAILQ_INIT(&new->keywords);
 	STAILQ_INIT(&new->aliases);
 	return (new);
@@ -276,11 +276,11 @@ tag_new(const char *ident, rcskey_t key)
 
 	new = malloc(sizeof(struct tag));
 	if (new == NULL)
-		return (NULL);
+		err(1, "malloc");
 	new->ident = strdup(ident);
 	if (new->ident == NULL) {
 		free(new);
-		return (NULL);
+		err(1, "strdup");
 	}
 	new->key = key;
 	return (new);
