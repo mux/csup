@@ -1,20 +1,16 @@
 $Id$
 
-- Fix the diff updating algorithm.
-  - Make the stream API good enough to write files and use it in the diff
-    updating code instead of mixing the stream and stdio APIs.
 - Parse, use and update status file.
 - Implement zlib compression.
+- Make the stream API buffers resizable.
 - Update file attributes and not only their content.
+- Properly close the channels at the end of a session.
 - Correctly handle (un)escaping in tokens as described in the
   doc/Protocol file of CVSup : \_ -> space, \t -> tab, \n -> newline,
   \r -> carriage return and \\ -> backslash.
 - Always use absolute pathnames and don't use chdir().  Depending on the
   threading library, we may not have a current working directory for each
   thread and it's wrong to rely on it.
-- We can't handle lines bigger than STREAM_BUFSIZ at the moment.  This
-  could be a problem if people have files with very big lines, which is
-  more likely to happen if we are sent binary files.
 - Add missing support for supfile keywords and add sanity checks for
   some of them.  Also, we're not supposed to choke on unknown keywords
   to stay in line with CVSup, which just ignores them in order to
@@ -32,7 +28,6 @@ $Id$
 - Cleanup error handling just about everywhere.
 - Handle some signals (SIGINT, SIGPIPE and maybe others) gracefully, like
   CVSup does and like we should.
-- Properly close the channels at the end of a session.
 - Write a manual page (the CVSup one should probably be reused).
 - Make the code work on other systems than FreeBSD.  OpenBSD and NetBSD
   support will probably be easy, Linux support will probably require more
