@@ -7,7 +7,7 @@ SRCS=	main.h main.c proto.h proto.c token.l parse.y y.tab.h parse.h \
 CFLAGS+=-g
 WARNS?=	6
 NOMAN=	yes
-DPADD=	${LIBKSE}
+DPADD=	${LIBL} ${LIBKSE}
 LDADD=	-ll -lkse
 
 .include <bsd.prog.mk>
