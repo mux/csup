@@ -236,7 +236,11 @@ again:
 	va_end(ap);
 	if (ret < 0)
 		return (ret);
-	if (ret > (signed)(buf->size - buf->in)) {
+	if ((unsigned)ret > buf->size - buf->in) {
+		if ((unsigned)ret > buf->size) {
+			printf("%s: Implement buffer resizing\n", __func__);
+			return (-1);
+		}
 		stream_flush(stream);
 		goto again;
 	}
@@ -264,6 +268,18 @@ again:
 	}
 	buf->off = 0;
 	return (0);
+}
+
+int
+stream_truncate(struct stream *stream, off_t size)
+{
+	int error;
+
+	error = stream_flush(stream);
+	if (error)
+		return (-1);
+	error = ftruncate(stream->id, size);
+	return (error);
 }
 
 int

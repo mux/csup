@@ -35,4 +35,5 @@ ssize_t		 stream_read(struct stream *, void *, size_t);
 char		*stream_getln(struct stream *, size_t *);
 int		 stream_printf(struct stream *, const char *, ...);
 int		 stream_flush(struct stream *);
+int		 stream_truncate(struct stream *, off_t);
 int		 stream_close(struct stream *);
