@@ -31,6 +31,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/event.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/uio.h>
 
 #include <netinet/in.h>
 
@@ -125,25 +126,37 @@ static pthread_t sender;
 static pthread_t receiver;
 
 static int
+sock_writev(int s, struct iovec *iov, int iovcnt)
+{
+	ssize_t nbytes;
+
+again:
+	nbytes = writev(s, iov, iovcnt);
+	if (nbytes != -1) {
+		while (nbytes > 0 && (size_t)nbytes >= iov->iov_len) {
+			nbytes -= iov->iov_len;
+			iov++;
+			iovcnt--;
+		}
+		if (nbytes == 0)
+			return (0);
+		iov->iov_len -= nbytes;
+		iov->iov_base = (char *)iov->iov_base + nbytes;
+	} else if (errno != EINTR)
+		return (-1);
+	goto again;
+}
+
+static int
 sock_write(int s, void *buf, size_t size)
 {
-	char *cp;
-	ssize_t nbytes;
-	size_t left;
+	struct iovec iov;
+	int ret;
 
-	cp = buf;
-	left = size;
-	while (left > 0) {
-		nbytes = write(s, cp, left);
-		if (nbytes == -1) {
-			if (errno != EINTR)
-				return (-1);
-		} else {
-			left -= nbytes;
-			cp += nbytes;
-		}
-	}
-	return (0);
+	iov.iov_base = buf;
+	iov.iov_len = size;
+	ret = sock_writev(s, &iov, 1);
+	return (ret);
 }
 
 int
@@ -176,9 +189,9 @@ mux_initproto(int s)
 
 	mh.type = MUX_STARTUPREQ;
 	mh.mh_startup.version = htons(MUX_PROTOVER);
-	sock_write(s, &mh, MUX_STARTUPPKTSZ);
-	n = recv(s, &mh, MUX_STARTUPPKTSZ, MSG_WAITALL);
-	if (n != MUX_STARTUPPKTSZ || mh.type != MUX_STARTUPREP ||
+	sock_write(s, &mh, MUX_STARTUPHDRSZ);
+	n = recv(s, &mh, MUX_STARTUPHDRSZ, MSG_WAITALL);
+	if (n != MUX_STARTUPHDRSZ || mh.type != MUX_STARTUPREP ||
 	    ntohs(mh.mh_startup.version) != MUX_PROTOVER)
 		return (-1);
 	pthread_create(&sender, NULL, sender_loop, &s);
@@ -223,16 +236,19 @@ mux_listen(void)
 static void *
 sender_loop(void *arg)
 {
+	struct iovec iov[3];
 	struct mux_header mh;
 	struct chan *chan;
-	size_t size;
-	int id, s, what;
+	struct buf *buf;
+	uint32_t winsize;
+	uint16_t hdrsize, size, len;
+	int id, iovcnt, s, what;
 
 	s = *(int *)arg;
 again:
 	id = sender_waitforwork(&what);
 	chan = chan_get(id);
-	size = 0;
+	hdrsize = size = 0;
 	switch (what) {
 	case CF_CONNECT:
 		mh.type = MUX_CONNECT;
@@ -240,7 +256,7 @@ again:
 		mh.mh_connect.mss = htons(chan->recvmss);
 		mh.mh_connect.window = htonl(chan->recvseq +
 		    chan->recvbuf->size);
-		size = MUX_CONNECTPKTSZ;
+		hdrsize = MUX_CONNECTHDRSZ;
 		break;
 	case CF_ACCEPT:
 		mh.type = MUX_ACCEPT;
@@ -248,32 +264,62 @@ again:
 		mh.mh_accept.mss = htons(chan->recvmss);
 		mh.mh_accept.window = htonl(chan->recvseq +
 		    chan->recvbuf->size);
-		size = MUX_ACCEPTPKTSZ;
+		hdrsize = MUX_ACCEPTHDRSZ;
 		break;
 	case CF_RESET:
 		mh.type = MUX_RESET;
 		mh.mh_reset.id = id;
-		size = MUX_RESETPKTSZ;
+		hdrsize = MUX_RESETHDRSZ;
 		break;
 	case CF_WINDOW:
 		mh.type = MUX_WINDOW;
 		mh.mh_window.id = id;
 		mh.mh_window.window = htonl(chan->recvseq +
 		    chan->recvbuf->size);
-		size = MUX_WINDOWPKTSZ;
+		hdrsize = MUX_WINDOWHDRSZ;
 		break;
 	case CF_DATA:
-		printf("Sender: need to send data\n");
+		mh.type = MUX_DATA;
+		mh.mh_data.id = id;
+		size = min(buf_count(chan->sendbuf), chan->sendmss);
+		winsize = chan->sendwin - chan->sendseq;
+		if (winsize < size)
+			size = winsize;
+		mh.mh_data.len = htons(size);
+		hdrsize = MUX_DATAHDRSZ;
 		break;
 	case CF_CLOSE:
 		mh.type = MUX_CLOSE;
 		mh.mh_close.id = id;
-		size = MUX_CLOSEPKTSZ;
+		hdrsize = MUX_CLOSEHDRSZ;
 		break;
 	}
-	pthread_mutex_unlock(&chan->lock);
-	if (size > 0)
-		sock_write(s, &mh, size);
+	if (size > 0) {
+		assert(mh.type == MUX_DATA);
+		iov[0].iov_base = &mh;
+		iov[0].iov_len = hdrsize;
+		/* We access the buffer directly to avoid some copying. */
+		buf = chan->sendbuf;
+		len = min(size, buf->size - buf->out);
+		iov[1].iov_base = buf->data + buf->out;
+		iov[1].iov_len = len;
+		iovcnt = 2;
+		if (size > len) {
+			/* Wrapping around. */
+			iovcnt++;
+			iov[2].iov_base = buf->data;
+			iov[2].iov_len = size - len;
+		}
+		sock_writev(s, iov, iovcnt);
+		chan->sendseq += size;
+		buf->out += size;
+		if (buf->out >= buf->size)
+			buf->out -= buf->size;
+		pthread_mutex_unlock(&chan->lock);
+	} else {
+		pthread_mutex_unlock(&chan->lock);
+		sock_write(s, &mh, hdrsize);
+	}
 	goto again;
 	return (NULL);
 }
@@ -307,8 +353,6 @@ sender_scan(int *what)
 		chan = chans[i];
 		pthread_mutex_lock(&chan->lock);
 		if (chan->state != CS_UNUSED) {
-			printf("Sender: %zd bytes in buffer\n",
-			    buf_count(chan->sendbuf));
 			if (chan->sendseq != chan->sendwin &&
 			    buf_count(chan->sendbuf) > 0)
 				chan->flags |= CF_DATA;
@@ -359,7 +403,7 @@ receiver_loop(void *arg)
 	for (;;) {
 		kevent(kq, NULL, 0, &kev, 1, NULL);
 		assert(kev.filter == EVFILT_READ);
-		recv(s, &mh, MUX_ACCEPTPKTSZ, MSG_WAITALL);
+		recv(s, &mh, MUX_ACCEPTHDRSZ, MSG_WAITALL);
 		if (mh.type == MUX_ACCEPT) {
 			id = mh.mh_accept.id;
 			chan = chan_get(id);

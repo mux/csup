@@ -47,12 +47,13 @@
 /*
  * Defines for fixed-size packets.
  */
-#define	MUX_STARTUPPKTSZ	3
-#define	MUX_CONNECTPKTSZ	8
-#define	MUX_ACCEPTPKTSZ		8
-#define	MUX_RESETPKTSZ		2
-#define	MUX_WINDOWPKTSZ		6
-#define	MUX_CLOSEPKTSZ		2
+#define	MUX_STARTUPHDRSZ	3
+#define	MUX_CONNECTHDRSZ	8
+#define	MUX_ACCEPTHDRSZ		8
+#define	MUX_RESETHDRSZ		2
+#define	MUX_DATAHDRSZ		4
+#define	MUX_WINDOWHDRSZ		6
+#define	MUX_CLOSEHDRSZ		2
 
 struct mux_header {
 	uint8_t type;
