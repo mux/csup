@@ -13,8 +13,8 @@
   to happen if we are sent binary files.
 - Add missing support for supfile keywords and add sanity checks for
   some of them.  Also, we're not supposed to choke on unknown keywords
-  to stay in line with CVSup, which just ignores them so as to maintain
-  compatibility with sup.
+  to stay in line with CVSup, which just ignores them in order to
+  maintain compatibility with sup configuration files.
 - Add support for refuse files.
 - Add support for authentication.
 - Add support for shell commands sent by the server.
@@ -22,8 +22,18 @@
   -s (requires status file support), -z and -Z (requires zlib compression
   support), -d, -i, -a (requires authentication support), -e and -E
   (requires shell commands support) and the destDir parameter.
-- Cleanup error handling.
-- Handle some signals gracefully, like CVSup does.
+- Cleanup error handling just about everywhere.
+- Handle some signals (SIGINT, SIGPIPE and maybe others) gracefully, like
+  CVSup does and like we should.
 - Properly close the channels at the end of a session.
-- Switch from libmd to openssl.
+- Switch from libmd to the openssl library.  It is more portable and
+  libmd should die soon in FreeBSD.
+- Write a manual page (the CVSup one should probably be reused).
+- Make the code work on other systems than FreeBSD.  OpenBSD and NetBSD
+  support will probably be easy, Linux support will probably require more
+  work.  Solaris and Darwin support would also be nice.
+- Implement some new useful options : the ability to generate CVS
+  checkout files (files in CVS/ subdirectores), a command line override
+  to only update a specific collection and a third verbosity level to
+  display commit log messages.
 - Add support for CVS mode (maybe?).
