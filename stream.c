@@ -715,6 +715,8 @@ zfilter_inflate(struct stream *stream, int flags)
 		n = stream_refill_buf(stream, zbuf);
 		if (n == -1)
 			return (Z_ERRNO);
+		if (n == 0)
+			return (Z_OK);
 	}
 again:
 	state->next_in = zbuf->buf + zbuf->off;
@@ -730,6 +732,8 @@ again:
 		n = stream_refill_buf(stream, zbuf);
 		if (n == -1)
 			return (Z_ERRNO);
+		if (n == 0)
+			return (Z_OK);
 		goto again;
 	}
 	buf_more(buf, lastout - state->avail_out);
