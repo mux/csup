@@ -352,17 +352,25 @@ chan_accept(int id)
 }
 
 /* Read bytes from a channel. */
-size_t
+ssize_t
 chan_read(int id, void *buf, size_t size)
 {
 	struct chan *chan;
 	char *cp;
 	size_t count, n;
 
+	count = 0;	/* Quiet bogus warning from GCC. */
 	cp = buf;
 	chan = chan_get(id);
-	while ((count = buf_count(chan->recvbuf)) == 0)
+	while ((chan->state == CS_ESTABLISHED || chan->state == CS_WRCLOSED) &&
+	    (count = buf_count(chan->recvbuf)) == 0)
 		pthread_cond_wait(&chan->rdready, &chan->lock);
+	if (chan->state == CS_RDCLOSED || chan->state == CS_CLOSED)
+		return (0);
+	if (chan->state != CS_ESTABLISHED && chan->state != CS_WRCLOSED) {
+		errno = EBADF;
+		return (-1);
+	}
 	n = min(count, size);
 	buf_get(chan->recvbuf, cp, n);
 	chan->recvseq += n;
@@ -378,7 +386,8 @@ char *
 chan_getln(int id, void *buf, size_t size, size_t *inp, size_t *offp)
 {
 	char *cp, *s;
-	size_t in, off, nbytes, len;
+	size_t in, off, len;
+	ssize_t nbytes;
 
 	cp = buf;
 	in = *inp;
@@ -391,6 +400,8 @@ chan_getln(int id, void *buf, size_t size, size_t *inp, size_t *offp)
 			off = 0;
 		}
 		nbytes = chan_read(id, cp + off + in, size - off - in);
+		if (nbytes <= 0)
+			return (NULL);
 		in += nbytes;
 	}
 	len = s - (cp + off) + 1;
@@ -404,7 +415,7 @@ chan_getln(int id, void *buf, size_t size, size_t *inp, size_t *offp)
 }
 
 /* Write bytes to a channel. */
-void
+ssize_t
 chan_write(int id, const void *buf, size_t size)
 {
 	struct chan *chan;
@@ -412,17 +423,26 @@ chan_write(int id, const void *buf, size_t size)
 	size_t avail, n, pos;
 
 	pos = 0;
+	avail = 0;	/* Quiet bogus warning from GCC. */
 	cp = buf;
 	chan = chan_get(id);
 	while (pos < size) {
-		while ((avail = buf_avail(chan->sendbuf)) == 0)
+		while ((chan->state == CS_ESTABLISHED ||
+		    chan->state == CS_RDCLOSED) && 
+		    (avail = buf_avail(chan->sendbuf)) == 0)
 			pthread_cond_wait(&chan->wrready, &chan->lock);
+		if (chan->state != CS_ESTABLISHED &&
+		    chan->state != CS_RDCLOSED) {
+			errno = EPIPE;
+			return (-1);
+		}
 		n = min(avail, size - pos);
 		buf_put(chan->sendbuf, cp + pos, n);
 		pos += n;
 	}
 	pthread_mutex_unlock(&chan->lock);
 	sender_wakeup();
+	return (size);
 }
 
 int
