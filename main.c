@@ -71,8 +71,7 @@ main(int argc, char *argv[])
 	struct config *config;
 	char *base, *colldir, *host, *file;
 	in_port_t port;
-	int error;
-	char c;
+	int c, error;
 
 	port = 0;
 	base = colldir = host = NULL;
