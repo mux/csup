@@ -1,8 +1,10 @@
 $Id$
 
 - Fix the diff updating algorithm.
-- Make the stream API good enough to write files and use it in the diff
-  updating code instead of mixing the stream and stdio APIs.
+  - Use a lineno_t type instead of intmax_t so that we can typedef it
+    to long if C99 isn't supported.
+  - Make the stream API good enough to write files and use it in the diff
+    updating code instead of mixing the stream and stdio APIs.
 - Parse, use and update status file.
 - Implement zlib compression.
 - Update file attributes and not only their content.
