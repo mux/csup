@@ -3,6 +3,8 @@ $Id$
 - Parse, use and update status file.
 - Implement zlib compression.
 - Make the stream API buffers resizable.
+- Consider computing the MD5 checksum when updating rather than after the
+  diff/checkout is done, it would avoid reading the whole file two times.
 - Update file attributes and not only their content.
 - Properly close the channels at the end of a session.
 - Correctly handle (un)escaping in tokens as described in the
