@@ -122,7 +122,6 @@ buf_new(size_t size)
 		free(buf);
 		err(1, "malloc");
 	}
-	buf->buf[size] = '\0';
 	buf->size = size;
 	buf->in = 0;
 	buf->off = 0;
@@ -283,15 +282,15 @@ stream_read(struct stream *stream, void *buf, size_t size)
  * can be modified by the caller, provided he doesn't write before or
  * after it.
  *
- * This is somewhat similar to the BSD fgetln() function, except
- * that it terminates the string by overwriting the '\n' character
- * with a NUL character.  If it's the last line in the stream and
- * it has no ending newline, we can still add '\0' after it, because
- * we keep one spare byte in the buffers.
+ * This is somewhat similar to the BSD fgetln() function, except that
+ * "len" can be NULL here.  In that case the string is terminated by
+ * overwriting the '\n' character with a NUL character.  If it's the
+ * last line in the stream and it has no ending newline, we can still
+ * add '\0' after it, because we keep one spare byte in the buffers.
  *
- * Furthermore, "len" can be NULL here - but be warned that one can't
- * handle binary lines without knowing the size since those can contain
- * other NUL characters.
+ * However, be warned that one can't handle binary lines properly
+ * without knowing the size of the string since those can contain
+ * NUL characters.
  */
 char *
 stream_getln(struct stream *stream, size_t *len)
@@ -313,22 +312,27 @@ stream_getln(struct stream *stream, size_t *len)
 		if (n < 0)
 			return (NULL);
 		if (n == 0) {
-			/* This is OK since we keep one spare byte. */
+			/*
+			 * This is OK since we keep one spare byte, and
+			 * this is the last line in the stream.
+			 */
 			c = buf->buf + buf->off + buf->in;
+			*c = '\0';
 		} else {
 			c = memchr(buf->buf + buf->off + done, '\n',
 			    buf_count(buf) - done);
 		}
 	}
 	s = buf->buf + buf->off;
-	size = c - s + 1;
-	if (*c != '\n')
-		size--;
-	assert(size <= buf_count(buf));
-	buf_less(buf, size);
+	size = c - s;
+	if (*c == '\n')
+		buf_less(buf, size + 1);
+	else
+		buf_less(buf, size);
 	if (len != NULL)
-		*len = size - 1;
-	*c = '\0';
+		*len = size;
+	else
+		*c = '\0';	/* Always terminate when len == NULL. */
 	return (s);
 }
 
