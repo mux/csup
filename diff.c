@@ -197,10 +197,10 @@ diff_write(struct editcmd *ec, void *buf, size_t size)
 {
 	char *line, *newline;
 
+	line = buf;
 	if (ec->diff->d_expand != EXPAND_OLD &&
 	    ec->diff->d_expand != EXPAND_BINARY) {
 		/* XXX - the keyword API doesn't support binary lines. */
-		line = buf;
 		if (line[size] == '\n') {
 			line[size] = '\0';
 			newline = keyword_expand(ec->keyword, ec->diff, line);
@@ -212,6 +212,9 @@ diff_write(struct editcmd *ec, void *buf, size_t size)
 		}
 		if (newline != line)
 			free(newline);
-	} else
+	} else {
+		if (line[size] == '\n')
+			size++;
 		stream_write(ec->diff->d_to, buf, size);
+	}
 }
