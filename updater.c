@@ -160,17 +160,23 @@ updater_diff(int rd, char *line)
 			for (;;) {
 				line = chan_getln(rd, buf, sizeof(buf),
 				    &in, &off);
+				if (line == NULL)
+					return (-1);
 				if (strcmp(line, ".") == 0)
 					break;
 				tok = strsep(&line, " ");
 				if (strcmp(tok, "T") == 0 ||
 				    strcmp(tok, "L") == 0) {
-					for (;;) {
+					line = chan_getln(rd, buf, sizeof(buf),
+					    &in, &off);
+					while (line != NULL &&
+					    strcmp(line, ".") != 0 &&
+					    strcmp(line, ".+") != 0) {
 						line = chan_getln(rd, buf,
 						    sizeof(buf), &in, &off);
-						if (strcmp(line, ".") == 0)
-							break;
 					}
+					if (line == NULL)
+						return (-1);
 				}
 			}
 		}
@@ -210,17 +216,18 @@ updater_checkout(int rd, char *line)
 		return (-1);
 	}
 	line = chan_getln(rd, buf, sizeof(buf), &in, &off);
-	while (strcmp(line, ".") != 0 && strcmp(line, ".+") != 0) {
-		if (line == NULL) {
-			fclose(to);
-			return (-1);
-		}
+	while (line != NULL && strcmp(line, ".") != 0 &&
+	    strcmp(line, ".+") != 0) {
 		if (strncmp(line, "..", 2) == 0)
 			line++;
 		fprintf(to, "%s\n", line);
 		line = chan_getln(rd, buf, sizeof(buf), &in, &off);
 	}
 	fflush(to);
+	if (line == NULL) {
+		fclose(to);
+		return (-1);
+	}
 	if (strcmp(line, ".+") == 0) {
 		/* Supress the ending newline. */
 		fseek(to, -1, SEEK_CUR);
@@ -245,7 +252,8 @@ static int
 updater_checkfile(char *path)
 {
 
-	if (*path == '/' || strstr(path, "..") != NULL)
+	if (*path == '/' || path[strlen(path) - 1] == '/' ||
+	    strstr(path, "/../") != NULL)
 		return (-1);
 	return (0);
 }
