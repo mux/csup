@@ -270,7 +270,7 @@ sock_readwait(int s, void *buf, size_t size)
 	left = size;
 	while (left > 0) {
 		nbytes = sock_read(s, cp, left);
-		if (nbytes == -1)
+		if (nbytes <= 0)
 			return (-1);
 		left -= nbytes;
 		cp += nbytes;
@@ -740,6 +740,8 @@ receiver_loop(void *arg)
 	s = rd->s;
 	for (;;) {
 		error = sock_readwait(s, &mh.type, sizeof(mh.type));
+		if (error)
+			abort();
 		switch (mh.type) {
 		case MUX_CONNECT:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),

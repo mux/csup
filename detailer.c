@@ -70,6 +70,7 @@ detailer(void *arg)
 		assert(strcmp(tok, "COLL") == 0);
 		tok = strsep(&line, " ");
 		assert(strcmp(tok, cur->name) == 0);
+		assert(line != NULL);
 		chan_printf(wrchan, "COLL %s %s\n", cur->name, cur->release);
 		for (;;) {
 			line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
@@ -77,6 +78,7 @@ detailer(void *arg)
 				break;
 			assert(line != NULL);
 			tok = strsep(&line, " ");
+			assert(strcmp(tok, "U") == 0);
 			tok = strsep(&line, " ");
 			tok[strlen(tok) - 2] = '\0';
 			error = stat(tok, &sb);
@@ -91,6 +93,8 @@ detailer(void *arg)
 		}
 		chan_printf(wrchan, ".\n");
 	}
+	line = chan_getln(rdchan, buf, sizeof(buf), &in, &off);
+	assert(strcmp(line, ".") == 0);
 	chan_printf(wrchan, ".\n");
 	return (NULL);
 }

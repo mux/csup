@@ -325,6 +325,22 @@ cvsup_mux(FILE *f, struct config *config)
 	return (0);
 }
 
+static void *
+updater(void *arg)
+{
+	char buf[4096];
+	struct config *config;
+	size_t n;
+	int rd;
+
+	config = arg;
+	rd = config->chan1;
+	for (;;) {
+		n = chan_read(rd, buf, sizeof(buf));
+		printf("%.*s", n, buf);
+	}
+}
+
 /*
  * Initializes the connection to the CVSup server.  This includes
  * the protocol negotiation, logging in, exchanging file attributes
@@ -334,7 +350,9 @@ int
 cvsup_init(FILE *f, struct config *config)
 {
 	char *cur, *line;
-	pthread_t lister_thread, detailer_thread;
+	pthread_t lister_thread;
+	pthread_t detailer_thread;
+	pthread_t updater_thread;
 	int error;
 
 	line = cvsup_getline(f);
@@ -366,7 +384,17 @@ cvsup_init(FILE *f, struct config *config)
 	error = cvsup_mux(f, config);
 	pthread_create(&lister_thread, NULL, lister, config);
 	pthread_create(&detailer_thread, NULL, detailer, config);
+	pthread_create(&updater_thread, NULL, updater, config);
 	lprintf(2, "Running\n");
-	sleep(60 * 60);
+	error = pthread_join(lister_thread, NULL);
+	if (error)
+		err(1, "pthread_join");
+	error = pthread_join(detailer_thread, NULL);
+	if (error)
+		err(1, "pthread_join");
+	error = pthread_join(updater_thread, NULL);
+	if (error)
+		err(1, "pthread_join");
+	lprintf(2, "Finished successfully\n");
 	return (error);
 }
