@@ -335,6 +335,7 @@ cvsup_init(FILE *f, struct config *config)
 	char buf[4096];
 	char *cur, *line;
 	pthread_t lister_thread;
+	size_t size;
 	int error;
 
 	line = cvsup_getline(f);
@@ -371,7 +372,9 @@ cvsup_init(FILE *f, struct config *config)
 	 * so that we send window updates and can test the code.
 	 */
 	for (;;) {
-		chan_read(config->chan0, buf, sizeof(buf));
+		size = chan_read(config->chan0, buf, sizeof(buf) - 1);
+		buf[size] = '\0';
+		printf("%s", buf);
 	}
 	return (error);
 }
