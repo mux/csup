@@ -55,8 +55,8 @@ detailer(void *arg)
 	int error;
 
 	config = arg;
-	rd = config->chan0;
-	wr = config->chan1;
+	rd = stream_fdopen(config->id0, chan_read, NULL, NULL);
+	wr = stream_fdopen(config->id1, NULL, chan_write, NULL);
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
@@ -71,6 +71,10 @@ detailer(void *arg)
 			goto bad;
 		stream_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		if (coll->co_options & CO_COMPRESS) {
+			stream_filter(rd, SF_ZLIB);
+			stream_filter(wr, SF_ZLIB);
+		}
 		line = stream_getln(rd, NULL);
 		if (line == NULL)
 			goto bad;
@@ -94,6 +98,10 @@ detailer(void *arg)
 				goto bad;
 		}
 		stream_printf(wr, ".\n");
+		if (coll->co_options & CO_COMPRESS) {
+			stream_filter(rd, SF_NONE);
+			stream_filter(wr, SF_NONE);
+		}
 		stream_flush(wr);
 	}
 	line = stream_getln(rd, NULL);
@@ -108,13 +116,20 @@ detailer(void *arg)
 			continue;
 		stream_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		if (coll->co_options & CO_COMPRESS)
+			stream_filter(wr, SF_ZLIB);
 		stream_printf(wr, ".\n");
+		if (coll->co_options & CO_COMPRESS)
+			stream_filter(wr, SF_NONE);
 		stream_flush(wr);
 	}
 	stream_printf(wr, ".\n");
-	stream_flush(wr);
+	stream_close(wr);
+	stream_close(rd);
 	return (NULL);
 bad:
+	stream_close(wr);
+	stream_close(rd);
 	fprintf(stderr, "Detailer: Protocol error\n");
 	return (NULL);
 }

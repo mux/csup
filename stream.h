@@ -26,10 +26,20 @@
  * $Id$
  */
 
+/* Stream filters. */
+typedef enum {
+	SF_NONE,
+	SF_ZLIB
+} stream_filter_t;
+
 struct stream;
 
-struct stream	*stream_fdopen(int, ssize_t (*)(int, void *, size_t),
-		    ssize_t (*)(int, const void *, size_t), int (*)(int));
+typedef ssize_t	(*stream_readfn_t)(int, void *, size_t);
+typedef ssize_t	(*stream_writefn_t)(int, const void *, size_t);
+typedef int	(*stream_closefn_t)(int);
+
+struct stream	*stream_fdopen(int, stream_readfn_t, stream_writefn_t,
+		     stream_closefn_t);
 struct stream	*stream_open_file(char *, int, ...);
 ssize_t		 stream_read(struct stream *, void *, size_t);
 ssize_t		 stream_write(struct stream *, const void *, size_t);
@@ -41,3 +51,4 @@ int		 stream_truncate(struct stream *, off_t);
 int		 stream_truncate_rel(struct stream *, off_t);
 int		 stream_rewind(struct stream *);
 int		 stream_close(struct stream *);
+int		 stream_filter(struct stream *, stream_filter_t);

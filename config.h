@@ -80,11 +80,10 @@ struct config {
 	int socket;
 	int id0, id1;
 	struct stream *server;
-	struct stream *chan0;
-	struct stream *chan1;
 };
 
-struct config	*config_init(const char *, char *, char *, char *, in_port_t);
+struct config	*config_init(const char *, char *, char *, char *, in_port_t,
+		     int);
 int		 config_sethost(char *);
 
 struct coll	*coll_new(void);

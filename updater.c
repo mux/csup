@@ -87,7 +87,7 @@ updater(void *arg)
 	int error;
 
 	config = arg;
-	rd = config->chan1;
+	rd = stream_fdopen(config->id1, chan_read, NULL, NULL);
 	error = 0;
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
@@ -106,6 +106,8 @@ updater(void *arg)
 		lprintf(1, "Updating collection %s/%s\n", coll->co_name,
 		    coll->co_release);
 			
+		if (coll->co_options & CO_COMPRESS)
+			stream_filter(rd, SF_ZLIB);
 		while ((line = stream_getln(rd, NULL)) != NULL) {
 			if (strcmp(line, ".") == 0)
 				break;
@@ -129,13 +131,17 @@ updater(void *arg)
 		}
 		if (line == NULL)
 			goto bad;
+		if (coll->co_options & CO_COMPRESS)
+			stream_filter(rd, SF_NONE);
 	}
 	line = stream_getln(rd, NULL);
 	if (line == NULL || strcmp(line, ".") != 0)
 		goto bad;
+	stream_close(rd);
 	return (NULL);
 bad:
-	fprintf(stderr, "Updater: error\n");
+	fprintf(stderr, "Updater: error (%s)\n", line);
+	stream_close(rd);
 	return (NULL);
 }
 

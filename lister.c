@@ -44,16 +44,20 @@ lister(void *arg)
 	struct stream *wr;
 
 	config = arg;
-	wr = config->chan0;
+	wr = stream_fdopen(config->id0, NULL, chan_write, NULL);
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
 		stream_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		if (coll->co_options & CO_COMPRESS)
+			stream_filter(wr, SF_ZLIB);
 		stream_printf(wr, ".\n");
+		if (coll->co_options & CO_COMPRESS)
+			stream_filter(wr, SF_NONE);
 		stream_flush(wr);
 	}
 	stream_printf(wr, ".\n");
-	stream_flush(wr);
+	stream_close(wr);
 	return (NULL);
 }

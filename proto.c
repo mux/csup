@@ -388,7 +388,7 @@ bad:
 static int
 cvsup_mux(struct config *config)
 {
-	struct stream *s;
+	struct stream *s, *chan0;
 	int id0, id1;
 	int error;
 
@@ -411,16 +411,15 @@ cvsup_mux(struct config *config)
 		fprintf(stderr, "chan_listen() failed\n");
 		return (-1);
 	}
-	config->chan0 = stream_fdopen(id0, chan_read, chan_write, NULL);
-	stream_printf(config->chan0, "CHAN %d\n", id1);
-	stream_flush(config->chan0);
+	chan0 = stream_fdopen(id0, chan_read, chan_write, NULL);
+	stream_printf(chan0, "CHAN %d\n", id1);
+	stream_close(chan0);
 	error = chan_accept(id1);
 	if (error) {
 		/* XXX - Sync error message with CVSup. */
 		fprintf(stderr, "Accept failed for channel %d\n", id1);
 		return (-1);
 	}
-	config->chan1 = stream_fdopen(id1, chan_read, chan_write, NULL);
 	stream_close(config->server);
 	config->id0 = id0;
 	config->id1 = id1;

@@ -58,7 +58,7 @@ static const char *cfgfile;
  */
 struct config *
 config_init(const char *file, char *host, char *base, char *colldir,
-    in_port_t port)
+    in_port_t port, int compress)
 {
 	struct coll *cur;
 	mode_t mask;
@@ -126,6 +126,10 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			if (cur->co_date == NULL)
 				err(1, "strdup");
 		}
+		if (compress > 0)
+			cur->co_options |= CO_COMPRESS;
+		else if (compress < 0)
+			cur->co_options &= ~CO_COMPRESS;
 	}
 
 	/* Override host if necessary. */
@@ -268,10 +272,7 @@ coll_setopt(int opt, char *value)
 		coll->co_options |= CO_DELETE;
 		break;
 	case PT_COMPRESS:
-#ifdef notyet
-		/* XXX - implement zlib compression */
 		coll->co_options |= CO_COMPRESS;
-#endif
 		break;
 	}
 }

@@ -63,6 +63,10 @@ usage(void)
 	fprintf(stderr, USAGE_OPTFMT, "-p port",
 	    "Alternate server port (default 5999)");
 	fprintf(stderr, USAGE_OPTFMT, "-v", "Print version and exit");
+	fprintf(stderr, USAGE_OPTFMT, "-z", "Enable compression for all "
+	    "collections");
+	fprintf(stderr, USAGE_OPTFMT, "-Z", "Disable compression for all "
+	    "collections");
 }
 
 int
@@ -71,11 +75,12 @@ main(int argc, char *argv[])
 	struct config *config;
 	char *base, *colldir, *host, *file;
 	in_port_t port;
-	int c, error;
+	int c, compress, error;
 
 	port = 0;
+	compress = 0;
 	base = colldir = host = NULL;
-	while ((c = getopt(argc, argv, "b:c:gh:L:p:P:v")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:gh:L:p:P:vzZ")) != -1) {
 		switch (c) {
 		case 'b':
 			base = optarg;
@@ -99,6 +104,7 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'p':
+			/* Use specified server port. */
 			errno = 0;
 			port = strtol(optarg, NULL, 0);
 			if (errno == EINVAL) {
@@ -119,6 +125,14 @@ main(int argc, char *argv[])
 			fprintf(stderr, "Csup version 0.1\n");
 			return (0);
 			break;
+		case 'z':
+			/* Force compression on all collections. */
+			compress = 1;
+			break;
+		case 'Z':
+			/* Disables compression on all collections. */
+			compress = -1;
+			break;
 		case '?':
 		default:
 			usage();
@@ -136,7 +150,7 @@ main(int argc, char *argv[])
 
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
-	config = config_init(file, host, base, colldir, port);
+	config = config_init(file, host, base, colldir, port, compress);
 	lprintf(2, "Connecting to %s\n", config->host);
 	error = cvsup_connect(config);
 	if (error)

@@ -1,7 +1,6 @@
 $Id$
 
 - Parse, use and update status file.
-- Implement zlib compression.
 - Consider computing the MD5 checksum when updating rather than after the
   diff/checkout is done, it would avoid reading the whole file two times.
 - Correctly handle (un)escaping in tokens as described in the
@@ -18,9 +17,9 @@ $Id$
 - Add support for authentication.
 - Add support for shell commands sent by the server.
 - Add missing support for various CVSup options : -A, -k, -l, -1 and -r,
-  -s (requires status file support), -z and -Z (requires zlib compression
-  support), -d, -i, -a (requires authentication support), -e and -E
-  (requires shell commands support) and the destDir parameter.
+  -s (requires status file support), -d, -i, -a (requires authentication
+  support), -e and -E (requires shell commands support) and the destDir
+  parameter.
 - If the prefix directory is a symbolic link pointing to a nonexistent
   file named `SKIP', then we should skip the collection, as described in
   the CVSup manual page.
