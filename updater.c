@@ -204,7 +204,7 @@ updater_checkout(int rd, char *line)
 	 * We need to copy the filename because we'll need it later and
 	 * the pointer is only valid until the next chan_getln() call.
 	 */
-	strlcpy(pathbuf, file, min(sizeof(buf), (unsigned)(cp - file + 1)));
+	strlcpy(pathbuf, file, min(sizeof(pathbuf), (unsigned)(cp - file + 1)));
 	file = pathbuf;
 	lprintf(1, " Checkout %s\n", file);
 	error = updater_makedirs(file);
