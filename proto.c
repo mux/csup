@@ -59,7 +59,13 @@
 #define	PROTO_MAJ	17
 #define	PROTO_MIN	0
 #define	PROTO_SWVER	"Csup_0.1"
-#define	PROTO_MAXLINE	2048
+
+static int	cvsup_greet(struct config *);
+static int	cvsup_negproto(struct config *);
+static int	cvsup_login(struct config *);
+static int	cvsup_fileattr(struct config *);
+static int	cvsup_xchgcoll(struct config *);
+static int	cvsup_mux(struct config *);
 
 /*
  * XXX - we only print the error for the last connection attempt
@@ -112,6 +118,34 @@ cvsup_connect(struct config *config)
 	}
 	config->socket = s;
 	return (0);
+}
+
+/* Greet the server. */
+static int
+cvsup_greet(struct config *config)
+{
+	char *line, *tok;
+	struct stream *s;
+
+	s = config->server;
+	line = stream_getln(s, NULL);
+	tok = strsep(&line, " "); 
+	if (tok == NULL)
+		goto bad;
+	if (strcmp(tok, "OK") == 0) {
+		tok = strsep(&line, " "); 
+		tok = strsep(&line, " "); 
+		tok = strsep(&line, " "); 
+	} else if (strcmp(tok, "!") == 0) {
+		printf("Rejected by server: %s\n", line);
+		return (-1);
+	} else
+		goto bad;
+	lprintf(2, "Server software version: %s\n", tok != NULL ? tok : ".");
+	return (0);
+bad:
+	fprintf(stderr, "Invalid greeting from server\n");
+	return (-1);
 }
 
 /* Negotiate protocol version with the server. */
@@ -394,8 +428,6 @@ cvsup_mux(struct config *config)
 int
 cvsup_init(struct config *config)
 {
-	struct stream *s;
-	char *cur, *line;
 	pthread_t lister_thread;
 	pthread_t detailer_thread;
 	pthread_t updater_thread;
@@ -406,21 +438,9 @@ cvsup_init(struct config *config)
 	 * the socket after the stream is closed.
 	 */
 	config->server = stream_fdopen(config->socket, read, write, NULL);
-	s = config->server;
-	line = stream_getln(s, NULL);
-	cur = strsep(&line, " "); 
-	if (strcmp(cur, "OK") == 0) {
-		cur = strsep(&line, " "); 
-		cur = strsep(&line, " "); 
-		cur = strsep(&line, " "); 
-	} else if (strcmp(cur, "!") == 0) {
-		printf("Rejected by server: %s\n", line);
-		return (1);
-	} else {
-		printf("Invalid greeting from server\n");
-		return (1);
-	}
-	lprintf(2, "Server software version: %s\n", cur != NULL ? cur : ".");
+	error = cvsup_greet(config);
+	if (error)
+		return (error);
 	error = cvsup_negproto(config);
 	if (error)
 		return (error);
