@@ -224,6 +224,8 @@ void
 fattr_free(struct fattr *fa)
 {
 
+	if (fa == NULL)
+		return;
 	free(fa->linktarget);
 	free(fa);
 }
@@ -247,7 +249,7 @@ fattr_maskout(struct fattr *fa, int mask)
  *
  * This would be much prettier if we had strnto{l, ul, ll, ull}().
  * Besides, we need to use a (unsigned) long long types here because
- * some attributes may need 64bits to fit.
+ * some types may need 64bits to fit (off_t and time_t come to mind).
  */
 static char *
 fattr_scanattr(struct fattr *fa, int type, char *attr)
@@ -428,61 +430,105 @@ fattr_override(struct fattr *fa, struct fattr *from, int mask)
  * it has been applied successfully.
  */
 int
-fattr_apply(struct fattr *fa, int fd)
+fattr_install(struct fattr *fa, const char *frompath, const char *topath)
 {
 	struct timeval tv[2];
 	struct fattr *old;
-	int error;
-	mode_t mask, newmode;
+	int error, inplace, mask;
+	mode_t modemask, newmode;
 	uid_t uid;
 	gid_t gid;
 
-	old = fattr_fromfd(fd);
+	mask = fa->mask & fattr_supported(fa->type);
+	if (mask & FA_OWNER && mask & FA_GROUP)
+		modemask = FA_SETIDMASK | FA_PERMMASK;
+	else
+		modemask = FA_PERMMASK;
+
+	inplace = 0;
+	if (frompath == NULL) {
+		/* Changing attributes in place. */
+		frompath = topath;
+		inplace = 1;
+	}
+	old = fattr_frompath(topath);
 	if (old == NULL)
 		return (-1);
-	if (fattr_cmp(fa, old) == 0)
+	if (inplace && fattr_cmp(fa, old) == 0) {
+		fattr_free(old);
 		return (0);
-	printf("%s: need to update\n", __func__);
-	if (fa->mask & FA_OWNER && fa->mask & FA_GROUP)
-		mask = FA_SETIDMASK | FA_PERMMASK;
-	else
-		mask = FA_PERMMASK;
-	if (fa->mask & FA_MODTIME) {
+	}
+
+	/*
+	 * Determine whether we need to clear the flags of the target.
+	 * This is bogus in that it assumes a value of 0 is safe and
+	 * that non-zero is unsafe.  I'm not really worried by that
+	 * since as far as I know that's the way things are.
+	 */
+	if ((old->mask & FA_FLAGS) && old->flags > 0) {
+		chflags(topath, 0);
+		old->flags = 0;
+	}
+
+	/* Determine whether we need to remove the target first. */
+	if (!inplace && (fa->type == FT_DIRECTORY) !=
+	    (old->type == FT_DIRECTORY)) {
+		if (old->type == FT_DIRECTORY)
+			rmdir(topath);
+		else
+			unlink(topath);
+	}
+
+	/* Change those attributes that we can before moving the file
+	 * into place.  That makes installation atomic in most cases. */
+	if (mask & FA_MODTIME) {
 		gettimeofday(tv, NULL);		/* Access time. */
 		tv[1].tv_sec = fa->modtime;	/* Modification time. */
 		tv[1].tv_usec = 0;
-		error = futimes(fd, tv);
+		error = utimes(frompath, tv);
 		if (error)
-			return (-1);
+			goto bad;
 	}
-	if (fa->mask & FA_OWNER || fa->mask & FA_GROUP) {
+	if (mask & FA_OWNER || mask & FA_GROUP) {
 		uid = -1;
 		gid = -1;
-		if (fa->mask & FA_OWNER)
+		if (mask & FA_OWNER)
 			uid = fa->uid;
-		if (fa->mask & FA_GROUP)
+		if (mask & FA_GROUP)
 			gid = fa->gid;
-		error = fchown(fd, uid, gid);
+		error = chown(frompath, uid, gid);
 		if (error)
-			return (-1);
+			goto bad;
 	}
-	if (fa->mask & FA_MODE) {
-		newmode = fa->mode & mask;
-		/* Merge in set*id bits from the old attribute. */
+	if (mask & FA_MODE) {
+		newmode = fa->mode & modemask;
+		/* Merge in set*id bits from the old attribute.  XXX - Why? */
 		if (old->mask & FA_MODE) {
-			newmode |= (old->mode &~ mask);
+			newmode |= (old->mode & ~modemask);
 			newmode &= (FA_SETIDMASK | FA_PERMMASK);
 		}
-		error = fchmod(fd, newmode);
+		error = chmod(frompath, newmode);
 		if (error)
-			return (-1);
+			goto bad;
 	}
-	if (fa->mask & FA_FLAGS) {
-		error = fchflags(fd, fa->flags);
+
+	if (!inplace) {
+		error = rename(frompath, topath);
 		if (error)
-			return (-1);
+			goto bad;
 	}
+
+	/* Set the flags. */
+	if (mask & FA_FLAGS) {
+		error = chflags(topath, fa->flags);
+		if (error)
+			goto bad;
+	}
+	fattr_free(old);
 	return (1);
+bad:
+	fattr_free(old);
+	return (-1);
 }
 
 /*
