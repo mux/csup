@@ -47,6 +47,7 @@ int lineno = 1;
 #.*$			;
 \*default		{ return DEFAULT; }
 base			{ yylval.i = BASE; return BASE; }
+date			{ yylval.i = DATE; return DATE; }
 host			{ yylval.i = HOST; return HOST; }
 prefix			{ yylval.i = PREFIX; return PREFIX; }
 release			{ yylval.i = RELEASE; return RELEASE; }
@@ -56,7 +57,7 @@ umask			{ yylval.i = UMASK; return UMASK; }
 compress		{ yylval.i = COMPRESS; return COMPRESS; }
 delete			{ yylval.i = DELETE; return DELETE; }
 use-rel-suffix		{ yylval.i = USE_REL_SUFFIX; return USE_REL_SUFFIX; }
-[a-zA-Z0-9_\-\.\/]+	{ yylval.str = strdup(yytext); return STRING; }
+[a-zA-Z0-9./-]+		{ yylval.str = strdup(yytext); return STRING; }
 \n			lineno++;
 
 %%

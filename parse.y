@@ -41,7 +41,7 @@ extern struct collection *cur_collec;
 }
 
 %token DEFAULT
-%token <i> BASE HOST PREFIX RELEASE TAG UMASK
+%token <i> BASE DATE HOST PREFIX RELEASE TAG UMASK
 %token <i> COMPRESS DELETE USE_REL_SUFFIX
 %token EQUAL
 %token <str> STRING
@@ -106,6 +106,7 @@ value
 
 name
 	: BASE
+	| DATE
 	| HOST
 	| PREFIX
 	| RELEASE
