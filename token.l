@@ -64,5 +64,5 @@ use-rel-suffix		{ yylval.i = USE_REL_SUFFIX; return USE_REL_SUFFIX; }
 void
 yyerror(const char *s)
 {
-	errx(1, "Parse error line %d: %s\n%s\n", lineno, s, yytext);
+	errx(1, "Parse error line %d: %s\n%s", lineno, s, yytext);
 }
