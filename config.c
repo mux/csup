@@ -261,8 +261,9 @@ coll_alloc(void)
 {
 	struct collection *new;
 
-	new = calloc(1, sizeof(struct collection));
+	new = malloc(sizeof(struct collection));
 	if (new == NULL)
 		err(1, "malloc");
+	memset(new, 0, sizeof(*new));
 	return (new);
 }
