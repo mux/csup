@@ -1,18 +1,39 @@
 $Id$
 
-- Parse, use and update status file.
-- Consider computing the MD5 checksum when updating rather than after the
-  diff/checkout is done, it would avoid reading the whole file two times.
+BUGS:
+
 - Correctly handle (un)escaping in tokens as described in the
   doc/Protocol file of CVSup : \_ -> space, \t -> tab, \n -> newline,
-  \r -> carriage return and \\ -> backslash.
+  \r -> carriage return and \\ -> backslash.  The code is riddled with
+  strsep() calls, they need to be isolated and replaced with clean
+  parsing interface that handles escaping.
+- Cleanup error handling just about everywhere.  For now, the code is
+  unable to properly handle failures.  We need the worker threads to
+  return an exist status and possible an error message.  The stream API
+  needs error numbers too, and a stream_eof() function. In case of an
+  error, the updater thread needs to recover gracefully so as to write
+  a proper status file.  I probably overlooked a few things.
 - Always use absolute pathnames and don't use chdir().  Depending on the
   threading library, we may not have a current working directory for each
   thread and it's wrong to rely on it.
+- Some code uses getpwnam() while it should use the thread-safe variant,
+  getpwnam_r().  Same for getpwuid() and getgrgid().  We probably need a
+  UID/GID lookup cache here.
 - Add missing support for supfile keywords and add sanity checks for
   some of them.  Also, we're not supposed to choke on unknown keywords
   to stay in line with CVSup, which just ignores them in order to
   maintain compatibility with sup configuration files.
+- If the prefix directory is a symbolic link pointing to a nonexistent
+  file named `SKIP', then we should skip the collection, as described in
+  the CVSup manual page.
+- Handle some signals (SIGINT, SIGPIPE and maybe others) gracefully, like
+  CVSup does and like we should.
+
+MISSING FEATURES:
+
+- Parse, use and update status file (ongoing).
+- Consider computing the MD5 checksum when updating rather than after the
+  diff/checkout is done, it would avoid reading the whole file two times.
 - Add support for refuse files.
 - Add support for authentication.
 - Add support for shell commands sent by the server.
@@ -20,12 +41,6 @@ $Id$
   -s (requires status file support), -d, -i, -a (requires authentication
   support), -e and -E (requires shell commands support) and the destDir
   parameter.
-- If the prefix directory is a symbolic link pointing to a nonexistent
-  file named `SKIP', then we should skip the collection, as described in
-  the CVSup manual page.
-- Cleanup error handling just about everywhere.
-- Handle some signals (SIGINT, SIGPIPE and maybe others) gracefully, like
-  CVSup does and like we should.
 - Write a manual page (the CVSup one should probably be reused).
 - Make the code work on other systems than FreeBSD.  OpenBSD and NetBSD
   support will probably be easy, Linux support will probably require more
