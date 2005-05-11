@@ -4,15 +4,20 @@ BUGS:
 
 - Correctly handle (un)escaping in tokens as described in the
   doc/Protocol file of CVSup : \_ -> space, \t -> tab, \n -> newline,
-  \r -> carriage return and \\ -> backslash.  The code is riddled with
-  strsep() calls, they need to be isolated and replaced with clean
-  parsing interface that handles escaping.
+  \r -> carriage return and \\ -> backslash.  For now, the code is
+  *riddled* with strsep() calls, they need to be isolated and replaced
+  with a clean parsing interface that handles escaping.
 - Cleanup error handling just about everywhere.  For now, the code is
-  unable to properly handle failures.  We need the worker threads to
-  return an exist status and possible an error message.  The stream API
-  needs error numbers too, and a stream_eof() function. In case of an
-  error, the updater thread needs to recover gracefully so as to write
-  a proper status file.  I probably overlooked a few things.
+  unable to properly handle failures.  This is made complicated due to
+  the multi-threaded design and because the worker threads can block in
+  many different places.  We need a way to properly "kill" threads in
+  case of an error, and at least the updater thread needs to be able to
+  recover nicely so that a proper status file is written.  We also need
+  the worker threads to return an exist status and possibly an error
+  message.  I probably overlooked a few more things.
+- The stream API needs some polishing.  It needs proper error numbers
+  and stream_error() and stream_eof() functions similar to the ferror()
+  and feof() functions.
 - Always use absolute pathnames and don't use chdir().  Depending on the
   threading library, we may not have a current working directory for each
   thread and it's wrong to rely on it.
