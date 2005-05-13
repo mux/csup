@@ -123,7 +123,8 @@ cvsup_connect(struct config *config)
 			close(s);
 			lprintf(0, "Cannot connect to %s: %s\n", config->host,
 			    strerror(errno));
-		}
+		} else
+			break;
 	}
 	freeaddrinfo(res);
 	config->socket = s;
