@@ -31,6 +31,7 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include "main.h"
@@ -129,4 +130,17 @@ pathcmp(const char *s1, const char *s2)
 	} while (c1 == c2 && c1 != '\0');
 
 	return (c1 - c2);
+}
+
+char *
+pathlast(char *path)
+{
+	char *s;
+
+	s = strrchr(path, '/');
+	if (s == NULL)
+		s = path;
+	else
+		s++;
+	return (s);
 }
