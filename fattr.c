@@ -561,7 +561,6 @@ fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
 	struct fattr *fa;
 
 	fa = fattr_new(0);
-	fattr_merge(fa, rcsattr);
 	if (rcsattr->mask & FA_MODE) {
 		if ((rcsattr->mode & 0111) > 0)
 			fa->mode = 0777;
