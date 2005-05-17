@@ -78,6 +78,10 @@ typedef uint32_t fflags_t;
  */
 #define	FA_COIGNORE	(FA_MASK & ~(FA_FILETYPE|FA_MODTIME|FA_SIZE|FA_MODE))
 
+/* These are for fattr_frompath(). */
+#define	FATTR_FOLLOW	0
+#define	FATTR_NOFOLLOW	1
+
 struct stat;
 struct fattr;
 

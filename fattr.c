@@ -73,7 +73,7 @@ struct fattr {
 };
 
 struct fattr bogus = {
-	FA_MODE | FA_MODTIME | FA_SIZE,
+	0,
 	FT_UNKNOWN,
 	1,
 	0,
@@ -107,6 +107,8 @@ fattr_new(int type)
 		err(1, "malloc");
 	memset(new, 0, sizeof(struct fattr));
 	new->type = type;
+	if (type != FT_UNKNOWN)
+		new->mask |= FA_FILETYPE;
 	if (fattr_supported(new->type) & FA_LINKCOUNT) {
 		new->mask |= FA_LINKCOUNT;
 		new->linkcount = 1;
@@ -127,7 +129,7 @@ fattr_fromstat(struct stat *sb)
 {
 	struct fattr *fa;
 
-	fa = fattr_new(0);
+	fa = fattr_new(FT_UNKNOWN);
 	if (S_ISREG(sb->st_mode))
 		fa->type = FT_FILE;
 	else if (S_ISDIR(sb->st_mode))
@@ -210,7 +212,7 @@ fattr_decode(char *attr)
 	struct fattr *fa;
 	char *next;
 
-	fa = fattr_new(0);
+	fa = fattr_new(FT_UNKNOWN);
 	next = fattr_scanattr(fa, FA_MASK, attr);
 	if (next == NULL || (fa->mask & ~FA_MASK) > 0)
 		goto bad;
@@ -416,7 +418,7 @@ fattr_dup(struct fattr *from)
 {
 	struct fattr *fa;
 
-	fa = fattr_new(0);
+	fa = fattr_new(FT_UNKNOWN);
 	fattr_override(fa, from, FA_MASK);
 	return (fa);
 }
@@ -560,7 +562,7 @@ fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
 {
 	struct fattr *fa;
 
-	fa = fattr_new(0);
+	fa = fattr_new(FT_FILE);
 	if (rcsattr->mask & FA_MODE) {
 		if ((rcsattr->mode & 0111) > 0)
 			fa->mode = 0777;
@@ -568,17 +570,6 @@ fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
 			fa->mode = 0666;
 		fa->mode &= ~mask;
 		fa->mask |= FA_MODE;
-	}
-	fa->mask |= FA_FILETYPE;
-	fa->type = FT_FILE;
-
-	/*
-	 * If the link count attribute is supported by this file type,
-	 * set it to 1.
-	 */
-	if (fattr_supported(FT_FILE) & FA_LINKCOUNT) {
-		fa->linkcount = 1;
-		fa->mask |= FA_LINKCOUNT;
 	}
 	return (fa);
 }
@@ -597,6 +588,8 @@ fattr_override(struct fattr *fa, struct fattr *from, int mask)
 {
 
 	mask &= from->mask;
+	if (fa->mask & FA_LINKTARGET && mask & FA_LINKTARGET)
+		free(fa->linktarget);
 	fa->mask |= mask;
 	if (mask & FA_FILETYPE)
 		fa->type = from->type;
@@ -605,7 +598,6 @@ fattr_override(struct fattr *fa, struct fattr *from, int mask)
 	if (mask & FA_SIZE)
 		fa->size = from->size;
 	if (mask & FA_LINKTARGET) {
-		free(fa->linktarget);
 		fa->linktarget = strdup(from->linktarget);
 		if (fa->linktarget == NULL)
 			err(1, "strdup");
@@ -655,7 +647,7 @@ fattr_install(struct fattr *fa, const char *frompath, const char *topath)
 		frompath = topath;
 		inplace = 1;
 	}
-	old = fattr_frompath(topath, 0);
+	old = fattr_frompath(topath, FATTR_NOFOLLOW);
 	if (old == NULL)
 		return (-1);
 	if (inplace && fattr_cmp(fa, old) == 0) {
