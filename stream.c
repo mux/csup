@@ -323,7 +323,7 @@ stream_fdopen(int id, stream_readfn_t readfn, stream_writefn_t writefn,
 
 /* Like open() but returns a stream. */
 struct stream *
-stream_open_file(char *path, int flags, ...)
+stream_open_file(const char *path, int flags, ...)
 {
 	struct stream *stream;
 	va_list ap;

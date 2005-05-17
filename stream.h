@@ -41,7 +41,7 @@ typedef int	(*stream_closefn_t)(int);
 
 struct stream	*stream_fdopen(int, stream_readfn_t, stream_writefn_t,
 		     stream_closefn_t);
-struct stream	*stream_open_file(char *, int, ...);
+struct stream	*stream_open_file(const char *, int, ...);
 ssize_t		 stream_read(struct stream *, void *, size_t);
 ssize_t		 stream_write(struct stream *, const void *, size_t);
 char		*stream_getln(struct stream *, size_t *);
