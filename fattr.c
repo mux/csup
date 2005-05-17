@@ -31,7 +31,6 @@
 #include <sys/queue.h>
 #include <sys/stat.h>
 
-#include <assert.h>
 #include <err.h>
 #include <errno.h>
 #include <grp.h>
@@ -740,7 +739,6 @@ fattr_cmp(struct fattr *fa1, struct fattr *fa2)
 	int mask;
 
 	mask = fa1->mask & fa2->mask;
-	assert(mask & FA_FILETYPE);
 	if (fa1->type == FT_UNKNOWN || fa2->type == FT_UNKNOWN)
 		return (-1);
 	if (mask & FA_MODTIME)
