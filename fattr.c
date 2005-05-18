@@ -72,7 +72,7 @@ struct fattr {
 };
 
 struct fattr bogus = {
-	0,
+	FA_MODTIME | FA_SIZE | FA_MODE,
 	FT_UNKNOWN,
 	1,
 	0,
