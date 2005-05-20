@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2005, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -614,6 +614,7 @@ stream_fill_default(struct stream *stream, struct buf *buf)
 {
 	ssize_t n;
 
+	assert(buf_avail(buf) > 0);
 	n = (*stream->readfn)(stream->id, buf->buf + buf->off + buf->in,
 	    buf_avail(buf));
 	if (n < 0)
@@ -947,6 +948,7 @@ md5filter_fill(struct stream *stream, struct buf *buf)
 {
 	ssize_t n;
 
+	assert(buf_avail(buf) > 0);
 	n = stream_fill_default(stream, buf);
 	return (n);
 }
