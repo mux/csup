@@ -279,7 +279,14 @@ fattr_encode(struct fattr *fa)
 
 	pw = NULL;
 	gr = NULL;
-	mask = fa->mask;
+	/*
+	 * XXX - We should pass the supported file attributes as a
+	 * parameter to fattr_encode() as is done with CVSup, and
+	 * not use fattr_supported() here.  This is because we're
+	 * supposed to negotiate those file attributes with the
+	 * server and then encode accordingly.
+	 */
+	mask = fa->mask & fattr_supported(fa->type);
 	/* XXX - Use getpwuid_r() and getgrgid_r(). */
 	if (fa->mask & FA_OWNER) {
 		pw = getpwuid(fa->uid);
@@ -394,7 +401,7 @@ fattr_encode(struct fattr *fa)
 		piece++;
 	}
 
-	s = malloc(len);
+	s = malloc(len + 1);
 	if (s == NULL)
 		err(1, "malloc");
 
@@ -428,7 +435,8 @@ fattr_free(struct fattr *fa)
 
 	if (fa == NULL)
 		return;
-	free(fa->linktarget);
+	if (fa->linktarget != NULL)
+		free(fa->linktarget);
 	free(fa);
 }
 
