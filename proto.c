@@ -262,8 +262,7 @@ cvsup_fileattr(struct config *config)
 		goto bad;
 	errno = 0;
 	n = strtol(line, NULL, 10);
-	if (errno || n != FT_NUMBER)
-		/* XXX - We should merge here. */
+	if (errno || n > FT_NUMBER)
 		goto bad;
 	for (i = 0; i < n; i++) {
 		line = stream_getln(s, NULL);
@@ -275,6 +274,8 @@ cvsup_fileattr(struct config *config)
 			goto bad;
 		support[i] = fattr_supported(i) & attr;
 	}
+	for (i = n; i < FT_NUMBER; i++)
+		support[i] = 0;
 	line = stream_getln(s, NULL);
 	if (line == NULL || strcmp(line, ".") != 0)
 		goto bad;
