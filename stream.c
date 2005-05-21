@@ -722,6 +722,22 @@ stream_filter_stop(struct stream *stream)
 }
 
 /* The zlib stream filter implementation. */
+
+/* Take no chances with zlib... */
+static void *
+zfilter_alloc(void __unused *opaque, unsigned int items, unsigned int size)
+{
+
+	return (malloc(items * size));
+}
+
+static void
+zfilter_free(void __unused *opaque, void *ptr)
+{
+
+	free(ptr);
+}
+
 static int
 zfilter_init(struct stream *stream, void __unused *data)
 {
@@ -738,8 +754,8 @@ zfilter_init(struct stream *stream, void __unused *data)
 		state = malloc(sizeof(z_stream));
 		if (state == NULL)
 			err(1, "malloc");
-		state->zalloc = Z_NULL;
-		state->zfree = Z_NULL;
+		state->zalloc = zfilter_alloc;
+		state->zfree = zfilter_free;
 		state->opaque = Z_NULL;
 		rv = inflateInit(state);
 		if (rv != Z_OK)
@@ -753,8 +769,8 @@ zfilter_init(struct stream *stream, void __unused *data)
 		state = malloc(sizeof(z_stream));
 		if (state == NULL)
 			err(1, "malloc");
-		state->zalloc = Z_NULL;
-		state->zfree = Z_NULL;
+		state->zalloc = zfilter_alloc;
+		state->zfree = zfilter_free;
 		state->opaque = Z_NULL;
 		rv = deflateInit(state, Z_BEST_SPEED);
 		if (rv != Z_OK)
