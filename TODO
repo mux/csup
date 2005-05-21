@@ -18,6 +18,12 @@ BUGS:
 - The stream API needs some polishing.  It needs proper error numbers
   and stream_error() and stream_eof() functions similar to the ferror()
   and feof() functions.
+- The keyword API which deals with CVS tags ($Id$ and such) can't handle
+  binary lines correctly, and that makes diff_write() needlessly complex,
+  if my memory is entirely correct.  Also, that means if we are using
+  csup with a CVS repository where there are binary files with tag
+  expansion enabled and that they really contain tags, we will not
+  handle it correctly.  However, this is extremely unlikely.
 - The yacc/lex code to parse the configuration file is sub-optimal.  It
   has global variables because of yacc, but I think it should be possible
   to do it better by using YYFUNC_PROTOTYPE or something.  I think it
