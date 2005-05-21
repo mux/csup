@@ -71,7 +71,7 @@ struct fattr {
 	ino_t		inode;
 };
 
-struct fattr bogus = {
+static struct fattr bogus = {
 	FA_MODTIME | FA_SIZE | FA_MODE,
 	FT_UNKNOWN,
 	1,
@@ -86,6 +86,8 @@ struct fattr bogus = {
 	0,
 	0
 };
+
+struct fattr *fattr_bogus = &bogus;
 
 static char		*fattr_scanattr(struct fattr *, int, char *);
 
@@ -113,13 +115,6 @@ fattr_new(int type)
 		new->linkcount = 1;
 	}
 	return (new);
-}
-
-struct fattr *
-fattr_bogus(void)
-{
-
-	return (&bogus);
 }
 
 /* Returns a new file attribute structure based on a stat structure. */
@@ -262,7 +257,7 @@ bad:
 }
 
 char *
-fattr_encode(struct fattr *fa)
+fattr_encode(struct fattr *fa, fattr_support_t support)
 {
 	struct {
 		char val[32];
@@ -279,14 +274,7 @@ fattr_encode(struct fattr *fa)
 
 	pw = NULL;
 	gr = NULL;
-	/*
-	 * XXX - We should pass the supported file attributes as a
-	 * parameter to fattr_encode() as is done with CVSup, and
-	 * not use fattr_supported() here.  This is because we're
-	 * supposed to negotiate those file attributes with the
-	 * server and then encode accordingly.
-	 */
-	mask = fa->mask & fattr_supported(fa->type);
+	mask = fa->mask & support[fa->type];
 	/* XXX - Use getpwuid_r() and getgrgid_r(). */
 	if (fa->mask & FA_OWNER) {
 		pw = getpwuid(fa->uid);
