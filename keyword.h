@@ -25,6 +25,8 @@
  *
  * $Id$
  */
+#ifndef _KEYWORD_H_
+#define _KEYWORD_H_
 
 /* CVS expansion modes. */
 #define	EXPAND_DEFAULT		0
@@ -44,3 +46,5 @@ int		 keyword_enable(struct keyword *, char *);
 int		 keyword_disable(struct keyword *, char *);
 char		*keyword_expand(struct keyword *, struct diff *, char *);
 void		 keyword_free(struct keyword *);
+
+#endif /* _KEYWORD_H_ */

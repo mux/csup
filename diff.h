@@ -25,6 +25,8 @@
  *
  * $Id$
  */
+#ifndef _DIFF_H_
+#define _DIFF_H_
 
 struct stream;
 struct keyword;
@@ -47,3 +49,5 @@ struct diff {
 };
 
 int		 diff_apply(struct diff *, struct keyword *);
+
+#endif /* _DIFF_H_ */

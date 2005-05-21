@@ -25,6 +25,8 @@
  *
  * $Id$
  */
+#ifndef _MISC_H_
+#define _MISC_H_
 
 #define	MD5_DIGEST_SIZE		33
 
@@ -35,3 +37,5 @@ int	MD5file(char *, char *);
 void	md5tostr(unsigned char *, char *);
 int	pathcmp(const char *, const char *);
 char	*pathlast(char *);
+
+#endif /* _MISC_H_ */

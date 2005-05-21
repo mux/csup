@@ -25,5 +25,9 @@
  *
  * $Id$
  */
+#ifndef _DETAILER_H_
+#define _DETAILER_H_
 
 void	*detailer(void *);
+
+#endif /* _DETAILER_H_ */

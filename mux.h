@@ -25,6 +25,8 @@
  *
  * $Id$
  */
+#ifndef _MUX_H_
+#define _MUX_H_
 
 int	mux_init(int);
 void	mux_fini(void);
@@ -36,3 +38,5 @@ int	chan_listen(void);
 int	chan_accept(int);
 ssize_t	chan_read(int, void *, size_t);
 ssize_t	chan_write(int, const void *, size_t);
+
+#endif /* _MUX_H_ */

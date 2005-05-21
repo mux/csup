@@ -25,6 +25,10 @@
  *
  * $Id$
  */
+#ifndef _PROTO_H_
+#define _PROTO_H_
 
 int	cvsup_connect(struct config *);
 int	cvsup_init(struct config *);
+
+#endif /* _PROTO_H_ */

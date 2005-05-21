@@ -33,7 +33,7 @@
  * that it's easier if we want to port that code to platforms with
  * different file types support.
  */
-int fattr_support[FT_NUMBER] = {
+fattr_support_t fattr_support = {
 	/* FT_UNKNOWN */ 0,
 	/* FT_FILE */ FA_FILETYPE | FA_MODTIME | FA_SIZE | FA_OWNER |
 	    FA_GROUP | FA_MODE | FA_FLAGS | FA_LINKCOUNT | FA_INODE | FA_DEV,

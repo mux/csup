@@ -25,5 +25,9 @@
  *
  * $Id$
  */
+#ifndef _UPDATER_H_
+#define _UPDATER_H
 
 void	*updater(void *);
+
+#endif /* _UPDATER_H_ */

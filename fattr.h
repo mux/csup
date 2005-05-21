@@ -25,6 +25,9 @@
  *
  * $Id$
  */
+#ifndef _FATTR_H_
+#define _FATTR_H_
+
 #include <sys/types.h>
 #include <sys/queue.h>
 
@@ -105,3 +108,5 @@ int		 fattr_install(struct fattr *, const char *, const char *);
 int		 fattr_cmp(struct fattr *, struct fattr *);
 void		 fattr_free(struct fattr *);
 int		 fattr_supported(int);
+
+#endif /* _FATTR_H_ */

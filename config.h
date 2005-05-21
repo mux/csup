@@ -25,6 +25,10 @@
  *
  * $Id$
  */
+#ifndef _CONFIG_H_
+#define _CONFIG_H_
+
+#include "fattr.h"
 
 /*
  * Collection options.
@@ -80,6 +84,7 @@ struct config {
 	int socket;
 	int id0, id1;
 	struct stream *server;
+	fattr_support_t fasupport;
 };
 
 struct config	*config_init(const char *, char *, char *, char *, in_port_t,
@@ -91,3 +96,5 @@ void		coll_add(char *);
 void		coll_free(struct coll *);
 void		coll_setdef(void);
 void		coll_setopt(int, char *);
+
+#endif /* _CONFIG_H_ */

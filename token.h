@@ -25,6 +25,8 @@
  *
  * $Id$
  */
+#ifndef _PARSE_H_
+#define _PARSE_H_
 
 void	yyerror(const char *);
 int	yylex(void);
@@ -41,3 +43,5 @@ int	yyparse(void);
 #define PT_COMPRESS		7
 #define PT_DELETE		8
 #define PT_USE_REL_SUFFIX	9
+
+#endif /* _PARSE_H_ */

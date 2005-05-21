@@ -25,5 +25,9 @@
  *
  * $Id$
  */
+#ifndef _LISTER_H_
+#define _LISTER_H_
 
 void	*lister(void *);
+
+#endif /* _LISTER_H_ */

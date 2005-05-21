@@ -25,6 +25,8 @@
  *
  * $Id$
  */
+#ifndef _STREAM_H_
+#define _STREAM_H_
 
 /* Stream filters. */
 typedef enum {
@@ -54,3 +56,5 @@ int		 stream_rewind(struct stream *);
 int		 stream_close(struct stream *);
 int		 stream_filter_start(struct stream *, stream_filter_t, void *);
 void		 stream_filter_stop(struct stream *);
+
+#endif /* _STREAM_H_ */

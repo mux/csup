@@ -244,6 +244,7 @@ bad:
 static int
 cvsup_fileattr(struct config *config)
 {
+	fattr_support_t support;
 	struct stream *s;
 	char *line, *cmd;
 	int i, n, attr;
@@ -266,15 +267,18 @@ cvsup_fileattr(struct config *config)
 		goto bad;
 	for (i = 0; i < n; i++) {
 		line = stream_getln(s, NULL);
+		if (line == NULL)
+			goto bad;
 		errno = 0;
 		attr = strtol(line, NULL, 16);
-		if (errno || attr != fattr_supported(i))
-			/* XXX - Ditto. */
+		if (errno)
 			goto bad;
+		support[i] = fattr_supported(i) & attr;
 	}
 	line = stream_getln(s, NULL);
-	if (strcmp(line, ".") != 0)
+	if (line == NULL || strcmp(line, ".") != 0)
 		goto bad;
+	memcpy(config->fasupport, support, sizeof(config->fasupport));
 	return (0);
 bad:
 	lprintf(-1, "Protocol error negotiating attribute support\n");

@@ -25,6 +25,8 @@
  *
  * $Id$
  */
+#ifndef _THREADS_H_
+#define _THREADS_H_
 
 struct threads;
 
@@ -34,3 +36,5 @@ void		 threads_unlock(struct threads *);
 void		*threads_create(struct threads *, void *(*)(void *), void *);
 void		*threads_wait(struct threads *);
 void		 threads_free(struct threads *);
+
+#endif /* _THREADS_H_ */
