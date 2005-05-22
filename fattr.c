@@ -447,6 +447,10 @@ fattr_maskout(struct fattr *fa, int mask)
  * structure.  Returns NULL on error, or a pointer to the next
  * attribute to parse.
  *
+ * This would be much prettier if we had strntol() so that we're
+ * not forced to write '\0' to the string before calling strtol()
+ * and then put back the old value...
+ *
  * We need to use (unsigned) long long types here because some
  * of the opaque types we're parsing (off_t, time_t...) may need
  * 64bits to fit.
