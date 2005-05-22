@@ -12,17 +12,22 @@ SRCS=	config.c config.h \
 	main.c main.h \
 	misc.c misc.h \
 	mux.c mux.h \
-	parse.y \
+	parse.h parse.y \
 	proto.c proto.h \
 	stream.c stream.h \
 	threads.c threads.h \
 	token.h token.l \
-	updater.c updater.h \
-	y.tab.h 
-CFLAGS+=-g -pthread # -DNDEBUG
-WARNS?=	6
-NOMAN=	yes
-NO_MAN=	yes
+	updater.c updater.h
+
+CFLAGS+=	-g -pthread -DNDEBUG
+WARNS?=		6
+NOMAN=		yes
+NO_MAN=		yes
+
+# Those are needed for compiling under NetBSD/OpenBSD.
+LDFLAGS+=	-pthread
+YHEADER=	yes
+
 DPADD=	${LIBCRYPTO} ${LIBZ}
 LDADD=	-lcrypto -lz
 
