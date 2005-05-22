@@ -29,7 +29,6 @@
 #define _FATTR_H_
 
 #include <sys/types.h>
-#include <sys/queue.h>
 
 #ifdef __FreeBSD__
 #include <osreldate.h>

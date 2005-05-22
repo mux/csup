@@ -27,7 +27,6 @@
  */
 
 #include <sys/types.h>
-#include <sys/queue.h>
 
 #include <errno.h>
 #include <libgen.h>

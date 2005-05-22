@@ -26,13 +26,12 @@
  * $Id$
  */
 
-#include <sys/queue.h>
-
 #include <assert.h>
 #include <err.h>
 #include <pthread.h>
 #include <stdlib.h>
 
+#include "queue.h"
 #include "threads.h"
 
 /*

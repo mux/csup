@@ -26,7 +26,6 @@
  * $Id$
  */
 
-#include <sys/queue.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 

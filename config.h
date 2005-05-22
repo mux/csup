@@ -29,6 +29,7 @@
 #define _CONFIG_H_
 
 #include "fattr.h"
+#include "queue.h"
 
 /*
  * Collection options.

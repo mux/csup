@@ -27,7 +27,6 @@
  */
 
 #include <sys/types.h>
-#include <sys/queue.h>
 
 #include <assert.h>
 #include <err.h>
@@ -39,6 +38,7 @@
 
 #include "diff.h"
 #include "keyword.h"
+#include "queue.h"
 #include "stream.h"
 
 enum rcskey {
