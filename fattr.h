@@ -96,7 +96,7 @@ struct fattr	*fattr_new(int);
 struct fattr	*fattr_fromstat(struct stat *);
 struct fattr	*fattr_frompath(const char *, int);
 struct fattr	*fattr_fromfd(int);
-struct fattr	*fattr_decode(char *);
+struct fattr	*fattr_decode(const char *);
 struct fattr	*fattr_forcheckout(struct fattr *, mode_t);
 struct fattr	*fattr_dup(struct fattr *);
 char		*fattr_encode(struct fattr *, fattr_support_t);

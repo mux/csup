@@ -89,7 +89,7 @@ static struct fattr bogus = {
 
 struct fattr *fattr_bogus = &bogus;
 
-static char		*fattr_scanattr(struct fattr *, int, char *);
+static char		*fattr_scanattr(struct fattr *, int, const char *);
 
 int
 fattr_supported(int type)
@@ -201,7 +201,7 @@ fattr_type(struct fattr *fa)
 
 /* Returns a new file attribute structure from its encoded text form. */
 struct fattr *
-fattr_decode(char *attr)
+fattr_decode(const char *attr)
 {
 	struct fattr *fa;
 	char *next;
@@ -450,7 +450,7 @@ fattr_maskout(struct fattr *fa, int mask)
  * some types may need 64bits to fit (off_t and time_t come to mind).
  */
 static char *
-fattr_scanattr(struct fattr *fa, int type, char *attr)
+fattr_scanattr(struct fattr *fa, int type, const char *attr)
 {
 	struct passwd *pw;
 	char *attrend, *attrstart, *end;
