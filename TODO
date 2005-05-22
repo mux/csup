@@ -18,7 +18,7 @@ BUGS:
 - The stream API needs some polishing.  It needs proper error numbers
   and stream_error() and stream_eof() functions similar to the ferror()
   and feof() functions.
-- The keyword API which deals with CVS tags ($Id$ and such) can't handle
+- The keyword API which expands the CVS tags ($Foo$ etc) can't handle
   binary lines correctly, and that makes diff_write() needlessly complex,
   if my memory is entirely correct.  Also, that means if we are using
   csup with a CVS repository where there are binary files with tag
