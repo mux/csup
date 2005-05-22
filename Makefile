@@ -2,6 +2,8 @@
 
 BINDIR?=	/usr/local/bin
 
+UNAME!=		/usr/bin/uname -s
+
 PROG=	csup
 SRCS=	config.c config.h \
 	detailer.c detailer.h \
@@ -24,9 +26,29 @@ WARNS?=		6
 NOMAN=		yes
 NO_MAN=		yes
 
-# Those are needed for compiling under NetBSD.
+# A bit of tweaking is needed to get this a Makefile working
+# with the bsd.prog.mk of all the *BSD OSes...
+.if (${UNAME} == "NetBSD")
 LDFLAGS+=	-pthread
 YHEADER=	yes
+
+.elif (${UNAME} == "OpenBSD")
+# I bet there's a better way to do this with the OpenBSD mk
+# framework but well, this works and I got bored.
+LDFLAGS+=	-pthread
+YFLAGS=		-d
+CLEANFILES+=	parse.c parse.h y.tab.h
+
+config.c:	parse.h
+
+token.l:	parse.h
+
+y.tab.h:	parse.c
+
+parse.h:	y.tab.h
+	cp ${.ALLSRC} ${.TARGET}
+
+.endif
 
 DPADD=	${LIBCRYPTO} ${LIBZ}
 LDADD=	-lcrypto -lz
