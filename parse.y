@@ -31,7 +31,7 @@
 #include <sys/queue.h>
 
 #include "config.h"
-#include "parse.h"
+#include "token.h"
 
 %}
 

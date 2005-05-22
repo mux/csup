@@ -33,7 +33,7 @@
 
 #include "y.tab.h"
 #include "misc.h"
-#include "parse.h"
+#include "token.h"
 
 #define	YY_NO_UNPUT
 

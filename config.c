@@ -40,7 +40,7 @@
 #include "config.h"
 #include "keyword.h"
 #include "misc.h"
-#include "parse.h"
+#include "token.h"
 #include "y.tab.h"
 
 static struct coll *coll_alloc(void);

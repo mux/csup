@@ -12,11 +12,11 @@ SRCS=	config.c config.h \
 	main.c main.h \
 	misc.c misc.h \
 	mux.c mux.h \
-	parse.h parse.y \
+	parse.y \
 	proto.c proto.h \
 	stream.c stream.h \
 	threads.c threads.h \
-	token.l \
+	token.h token.l \
 	updater.c updater.h \
 	y.tab.h 
 CFLAGS+=-g -pthread # -DNDEBUG
