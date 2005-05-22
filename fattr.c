@@ -47,9 +47,11 @@
 #define	FA_FILETYPERADIX	10
 #define	FA_MODTIMERADIX		10
 #define	FA_SIZERADIX		10
+#define	FA_RDEVRADIX		16
 #define	FA_MODERADIX		8
 #define	FA_FLAGSRADIX		16
 #define	FA_LINKCOUNTRADIX	10
+#define	FA_DEVRADIX		16
 #define	FA_INODERADIX		10
 
 #define	FA_PERMMASK		(S_IRWXU | S_IRWXG | S_IRWXO)
@@ -445,9 +447,9 @@ fattr_maskout(struct fattr *fa, int mask)
  * structure.  Returns NULL on error, or a pointer to the next
  * attribute to parse.
  *
- * This would be much prettier if we had strnto{l, ul, ll, ull}().
- * Besides, we need to use a (unsigned) long long types here because
- * some types may need 64bits to fit (off_t and time_t come to mind).
+ * We need to use (unsigned) long long types here because some
+ * of the opaque types we're parsing (off_t, time_t...) may need
+ * 64bits to fit.
  */
 static char *
 fattr_scanattr(struct fattr *fa, int type, const char *attr)
@@ -500,6 +502,10 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 			err(1, "strdup");
 		break;
 	case FA_RDEV:
+		errno = 0;
+		fa->rdev = (dev_t)strtoll(attrstart, &end, FA_RDEVRADIX);
+		if (errno || end != attrend)
+			return (NULL);
 		break;
 	case FA_OWNER:
 		/*
@@ -543,8 +549,16 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 			return (NULL);
 		break;
 	case FA_DEV:
+		errno = 0;
+		fa->dev = (dev_t)strtoll(attrstart, &end, FA_DEVRADIX);
+		if (errno || end != attrend)
+			return (NULL);
 		break;
 	case FA_INODE:
+		errno = 0;
+		fa->inode = (ino_t)strtoll(attrstart, &end, FA_INODERADIX);
+		if (errno || end != attrend)
+			return (NULL);
 		break;
 	}
 	*attrend = tmp;
