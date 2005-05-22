@@ -98,4 +98,4 @@ void		coll_free(struct coll *);
 void		coll_setdef(void);
 void		coll_setopt(int, char *);
 
-#endif /* _CONFIG_H_ */
+#endif /* !_CONFIG_H_ */

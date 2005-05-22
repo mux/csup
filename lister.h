@@ -30,4 +30,4 @@
 
 void	*lister(void *);
 
-#endif /* _LISTER_H_ */
+#endif /* !_LISTER_H_ */

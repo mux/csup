@@ -38,4 +38,4 @@ void	md5tostr(unsigned char *, char *);
 int	pathcmp(const char *, const char *);
 char	*pathlast(char *);
 
-#endif /* _MISC_H_ */
+#endif /* !_MISC_H_ */

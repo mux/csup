@@ -30,4 +30,4 @@
 
 void	*detailer(void *);
 
-#endif /* _DETAILER_H_ */
+#endif /* !_DETAILER_H_ */

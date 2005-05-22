@@ -44,4 +44,4 @@ int	yyparse(void);
 #define PT_DELETE		8
 #define PT_USE_REL_SUFFIX	9
 
-#endif /* _TOKEN_H_ */
+#endif /* !_TOKEN_H_ */

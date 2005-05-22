@@ -39,4 +39,4 @@ int	chan_accept(int);
 ssize_t	chan_read(int, void *, size_t);
 ssize_t	chan_write(int, const void *, size_t);
 
-#endif /* _MUX_H_ */
+#endif /* !_MUX_H_ */

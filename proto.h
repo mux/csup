@@ -31,4 +31,4 @@
 int	cvsup_connect(struct config *);
 int	cvsup_init(struct config *);
 
-#endif /* _PROTO_H_ */
+#endif /* !_PROTO_H_ */

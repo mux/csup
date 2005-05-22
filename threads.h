@@ -37,4 +37,4 @@ void		*threads_create(struct threads *, void *(*)(void *), void *);
 void		*threads_wait(struct threads *);
 void		 threads_free(struct threads *);
 
-#endif /* _THREADS_H_ */
+#endif /* !_THREADS_H_ */

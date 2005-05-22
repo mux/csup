@@ -108,4 +108,4 @@ int		 fattr_cmp(struct fattr *, struct fattr *);
 void		 fattr_free(struct fattr *);
 int		 fattr_supported(int);
 
-#endif /* _FATTR_H_ */
+#endif /* !_FATTR_H_ */

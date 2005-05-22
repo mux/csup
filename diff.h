@@ -50,4 +50,4 @@ struct diff {
 
 int		 diff_apply(struct diff *, struct keyword *);
 
-#endif /* _DIFF_H_ */
+#endif /* !_DIFF_H_ */

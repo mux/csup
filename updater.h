@@ -30,4 +30,4 @@
 
 void	*updater(void *);
 
-#endif /* _UPDATER_H_ */
+#endif /* !_UPDATER_H_ */
