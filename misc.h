@@ -28,7 +28,7 @@
 #ifndef _MISC_H_
 #define _MISC_H_
 
-#define	MD5_DIGEST_SIZE		33
+#define	MD5_DIGEST_SIZE		33	/* Minimum size for MD5file() buffer. */
 
 #define	min(a, b)		((a) > (b) ? (b) : (a))
 
