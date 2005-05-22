@@ -24,7 +24,7 @@ WARNS?=		6
 NOMAN=		yes
 NO_MAN=		yes
 
-# Those are needed for compiling under NetBSD/OpenBSD.
+# Those are needed for compiling under NetBSD.
 LDFLAGS+=	-pthread
 YHEADER=	yes
 
