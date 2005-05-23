@@ -486,6 +486,8 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 	case FA_FILETYPE:
 		errno = 0;
 		fa->type = (int)strtol(attrstart, &end, FA_FILETYPERADIX);
+		if (errno || end != attrend)
+			return (NULL);
 		break;
 	case FA_MODTIME:
 		errno = 0;
