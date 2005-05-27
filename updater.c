@@ -64,10 +64,9 @@ struct update {
 	int expand;
 };
 
-static char	*updater_getpath(struct coll *, char *);
 static int	 updater_makedirs(char *);
 static void	 updater_prunedirs(char *, char *);
-static char	*updater_maketmp(char *);
+static char	*updater_maketmp(const char *, const char *);
 static int	 updater_checkout(struct coll *, struct stream *, char *);
 static int	 updater_delete(struct coll *, char *);
 static int	 updater_diff(struct coll *, struct stream *, char *);
@@ -156,7 +155,7 @@ updater_delete(struct coll *coll, char *line)
 	int error;
 
 	rcsfile = strsep(&line, " ");
-	file = updater_getpath(coll, rcsfile);
+	file = checkoutpath(coll->co_prefix, rcsfile);
 	if (file == NULL) {
 		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
 		return (-1);
@@ -204,7 +203,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	cksum = strsep(&cp, " ");
 	if (cksum == NULL || cp != NULL)
 		goto bad;
-	path = updater_getpath(coll, rcsfile);
+	path = checkoutpath(coll->co_prefix, rcsfile);
 	if (path == NULL) {
 		lprintf(-1, "Updater: bad filename %s\n", rcsfile);
 		goto bad;
@@ -276,15 +275,15 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 				warn("unlink");
 			free(topath);
 		}
-		topath = updater_maketmp(up.rcsfile);
-		if (topath == NULL)
-			goto bad;
-		up.to = stream_open_file(topath, O_RDWR | O_CREAT | O_EXCL,
-		    0600);
-		if (up.to == NULL) {
+		topath = updater_maketmp(coll->co_prefix, up.rcsfile);
+		if (topath == NULL) {
 			perror("Cannot create temporary file");
 			goto bad;
 		}
+		up.to = stream_open_file(topath, O_RDWR | O_CREAT | O_EXCL,
+		    0600);
+		if (up.to == NULL)
+			goto bad;
 		lprintf(2, "  Add delta %s %s %s\n", revnum, revdate, author);
 		error = updater_diff_batch(&up);
 		if (error)
@@ -427,7 +426,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		return (-1);
 	}
 
-	file = updater_getpath(coll, rcsfile);
+	file = checkoutpath(coll->co_prefix, rcsfile);
 	if (file == NULL) {
 		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
 		goto bad;
@@ -494,35 +493,6 @@ bad:
 	return (-1);
 }
 
-/*
- * Extract an absolute pathname from the RCS filename and
- * make sure the server isn't trying to make us change
- * unrelated files for security reasons.
- */
-static char *
-updater_getpath(struct coll *coll, char *rcsfile)
-{
-	char *cp, *path;
-
-	if (*rcsfile == '/')
-		return (NULL);
-	cp = rcsfile;
-	while ((cp = strstr(cp, "..")) != NULL) {
-		if (cp == rcsfile || cp[2] == '\0' ||
-		    (cp[-1] == '/' && cp[2] == '/'))
-			return (NULL);
-		cp += 2;
-	}
-	cp = strstr(rcsfile, ",v");
-	if (cp == NULL || *(cp + 2) != '\0')
-		return (NULL);
-	asprintf(&path, "%s/%.*s", coll->co_prefix, (int)(cp - rcsfile),
-	    rcsfile);
-	if (path == NULL)
-		err(1, "asprintf");
-	return (path);
-}
-
 static int
 updater_makedirs(char *path)
 {
@@ -572,15 +542,15 @@ updater_prunedirs(char *base, char *file)
 }
 
 static char *
-updater_maketmp(char *file)
+updater_maketmp(const char *prefix, const char *file)
 {
 	char *cp, *tmp;
 
 	cp = strrchr(file, '/');
 	if (cp == NULL)
 		return (NULL);
-	asprintf(&tmp, "%.*s/#cvs.csup-%ld", (int)(cp - file), file,
-	    (long)getpid());
+	asprintf(&tmp, "%s/%.*s/#cvs.csup-%ld", prefix, (int)(cp - file),
+	    file, (long)getpid());
 	if (tmp == NULL)
 		err(1, "asprintf");
 	return (tmp);
