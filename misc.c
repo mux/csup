@@ -155,9 +155,19 @@ pathlast(char *path)
 char *
 checkoutpath(const char *prefix, const char *file)
 {
+	const char *cp;
 	char *path;
 	size_t len;
 
+	if (file[0] == '/')
+		return (NULL);
+	cp = file;
+	while ((cp = strstr(cp, "..")) != NULL) {
+		if (cp == file || cp[2] == '\0' ||
+		    (cp[-1] == '/' && cp[2] == '/'))
+			return (NULL);
+		cp += 2;
+	}
 	len = strlen(file);
 	if (len < 2 || file[len - 1] != 'v' || file[len - 2] != ',')
 		return (NULL);
