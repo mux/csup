@@ -54,9 +54,8 @@ MISSING FEATURES:
   support), -e and -E (requires shell commands support) and the destDir
   parameter.
 - Write a manual page (the CVSup one should probably be reused).
-- Make the code work on other systems than FreeBSD.  OpenBSD and NetBSD
-  support will probably be easy, Linux support will probably require more
-  work.  Solaris and Darwin support would also be nice.
+- For now, this code should build fine on FreeBSD, NetBSD and OpenBSD.
+  Linux, Solaris and Darwin support would also be nice at some point.
 - Implement some new useful options : the ability to generate CVS
   checkout files (files in CVS/ subdirectores), a command line override
   to only update a specific collection and a third verbosity level to
