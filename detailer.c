@@ -29,10 +29,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "config.h"
 #include "detailer.h"
@@ -48,7 +46,7 @@ detailer(void *arg)
 	struct config *config;
 	struct coll *coll;
 	struct stream *rd, *wr;
-	char *cmd, *collname, *file, *line, *release;
+	char *cmd, *collname, *file, *line, *path, *release;
 	int error;
 
 	config = arg;
@@ -57,7 +55,6 @@ detailer(void *arg)
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
-		chdir(coll->co_prefix);
 		line = stream_getln(rd, NULL);
 		cmd = strsep(&line, " ");
 		collname = strsep(&line, " ");
@@ -80,15 +77,17 @@ detailer(void *arg)
 			file = strsep(&line, " ");
 			if (file == NULL || strcmp(cmd, "U") != 0)
 				goto bad;
-			/* XXX */
-			file[strlen(file) - 2] = '\0';
-			error = stat(file, &sb);
-			if (!error && MD5file(file, md5) == 0)
-				stream_printf(wr, "S %s,v %s %s %s\n", file,
+			path = checkoutpath(coll->co_prefix, file);
+			if (path == NULL)
+				goto bad;
+			error = stat(path, &sb);
+			if (!error && MD5file(path, md5) == 0)
+				stream_printf(wr, "S %s %s %s %s\n", file,
 				    coll->co_tag, coll->co_date, md5);
 			else
-				stream_printf(wr, "C %s,v %s %s\n", file,
+				stream_printf(wr, "C %s %s %s\n", file,
 				    coll->co_tag, coll->co_date);
+			free(path);
 			stream_flush(wr);
 			line = stream_getln(rd, NULL);
 			if (line == NULL)

@@ -28,9 +28,6 @@ BUGS:
   has global variables because of yacc, but I think it should be possible
   to do it better by using YYFUNC_PROTOTYPE or something.  I think it
   should also be possible to completely get rid of the lex file.
-- Always use absolute pathnames and don't use chdir().  Depending on the
-  threading library, we may not have a current working directory for each
-  thread and it's wrong to rely on it.
 - Some code uses getpwnam() while it should use the thread-safe variant,
   getpwnam_r().  Same for getpwuid() and getgrgid().  We probably need a
   UID/GID lookup cache here.
