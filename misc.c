@@ -28,6 +28,7 @@
 
 #include <openssl/md5.h>
 
+#include <err.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -143,4 +144,25 @@ pathlast(char *path)
 	else
 		s++;
 	return (s);
+}
+
+/*
+ * Returns a buffer allocated with malloc() containing the absolute
+ * pathname to the checkout file made from the prefix, and the path
+ * of the corresponding RCS file relatively to the prefix.  If the
+ * filename is not an RCS filename, NULL will be returned.
+ */
+char *
+checkoutpath(const char *prefix, const char *file)
+{
+	char *path;
+	size_t len;
+
+	len = strlen(file);
+	if (len < 2 || file[len - 1] != 'v' || file[len - 2] != ',')
+		return (NULL);
+	asprintf(&path, "%s/%.*s", prefix, (int)len - 2, file);
+	if (path == NULL)
+		err(1, "asprintf");
+	return (path);
 }

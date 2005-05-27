@@ -37,5 +37,6 @@ int	MD5file(char *, char *);
 void	md5tostr(unsigned char *, char *);
 int	pathcmp(const char *, const char *);
 char	*pathlast(char *);
+char	*checkoutpath(const char *, const char *);
 
 #endif /* !_MISC_H_ */
