@@ -89,22 +89,22 @@ struct fattr;
 
 typedef int	fattr_support_t[FT_NUMBER];
 
-extern struct fattr *fattr_bogus;
+extern const struct fattr *fattr_bogus;
 
 struct fattr	*fattr_new(int);
 struct fattr	*fattr_fromstat(struct stat *);
 struct fattr	*fattr_frompath(const char *, int);
 struct fattr	*fattr_fromfd(int);
 struct fattr	*fattr_decode(const char *);
-struct fattr	*fattr_forcheckout(struct fattr *, mode_t);
-struct fattr	*fattr_dup(struct fattr *);
-char		*fattr_encode(struct fattr *, fattr_support_t);
-int		 fattr_type(struct fattr *);
+struct fattr	*fattr_forcheckout(const struct fattr *, mode_t);
+struct fattr	*fattr_dup(const struct fattr *);
+char		*fattr_encode(const struct fattr *, fattr_support_t);
+int		 fattr_type(const struct fattr *);
 void		 fattr_maskout(struct fattr *, int);
-void		 fattr_merge(struct fattr *, struct fattr *);
-void		 fattr_override(struct fattr *, struct fattr *, int);
+void		 fattr_merge(struct fattr *, const struct fattr *);
+void		 fattr_override(struct fattr *, const struct fattr *, int);
 int		 fattr_install(struct fattr *, const char *, const char *);
-int		 fattr_equal(struct fattr *, struct fattr *);
+int		 fattr_equal(const struct fattr *, const struct fattr *);
 void		 fattr_free(struct fattr *);
 int		 fattr_supported(int);
 

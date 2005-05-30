@@ -72,7 +72,7 @@ struct fattr {
 	ino_t		inode;
 };
 
-static struct fattr bogus = {
+static const struct fattr bogus = {
 	FA_MODTIME | FA_SIZE | FA_MODE,
 	FT_UNKNOWN,
 	1,
@@ -88,7 +88,7 @@ static struct fattr bogus = {
 	0
 };
 
-struct fattr *fattr_bogus = &bogus;
+const struct fattr *fattr_bogus = &bogus;
 
 static char		*fattr_scanattr(struct fattr *, int, const char *);
 
@@ -194,7 +194,7 @@ fattr_fromfd(int fd)
 }
 
 int
-fattr_type(struct fattr *fa)
+fattr_type(const struct fattr *fa)
 {
 
 	return (fa->type);
@@ -258,7 +258,7 @@ bad:
 }
 
 char *
-fattr_encode(struct fattr *fa, fattr_support_t support)
+fattr_encode(const struct fattr *fa, fattr_support_t support)
 {
 	struct {
 		char val[32];
@@ -409,7 +409,7 @@ fattr_encode(struct fattr *fa, fattr_support_t support)
 }
 
 struct fattr *
-fattr_dup(struct fattr *from)
+fattr_dup(const struct fattr *from)
 {
 	struct fattr *fa;
 
@@ -572,7 +572,7 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 
 /* Return a file attribute structure built from the RCS file attributes. */
 struct fattr *
-fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
+fattr_forcheckout(const struct fattr *rcsattr, mode_t mask)
 {
 	struct fattr *fa;
 
@@ -590,7 +590,7 @@ fattr_forcheckout(struct fattr *rcsattr, mode_t mask)
 
 /* Merge attributes from "from" that aren't present in "fa". */
 void
-fattr_merge(struct fattr *fa, struct fattr *from)
+fattr_merge(struct fattr *fa, const struct fattr *from)
 {
 	
 	fattr_override(fa, from, from->mask & ~fa->mask);
@@ -598,7 +598,7 @@ fattr_merge(struct fattr *fa, struct fattr *from)
 
 /* Override selected attributes of "fa" with values from "from". */
 void
-fattr_override(struct fattr *fa, struct fattr *from, int mask)
+fattr_override(struct fattr *fa, const struct fattr *from, int mask)
 {
 
 	mask &= from->mask;
@@ -749,7 +749,7 @@ bad:
  * anything, including itself.
  */
 int
-fattr_equal(struct fattr *fa1, struct fattr *fa2)
+fattr_equal(const struct fattr *fa1, const struct fattr *fa2)
 {
 	int mask;
 
