@@ -104,7 +104,7 @@ void		 fattr_maskout(struct fattr *, int);
 void		 fattr_merge(struct fattr *, struct fattr *);
 void		 fattr_override(struct fattr *, struct fattr *, int);
 int		 fattr_install(struct fattr *, const char *, const char *);
-int		 fattr_cmp(struct fattr *, struct fattr *);
+int		 fattr_equal(struct fattr *, struct fattr *);
 void		 fattr_free(struct fattr *);
 int		 fattr_supported(int);
 

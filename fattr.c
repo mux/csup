@@ -664,7 +664,7 @@ fattr_install(struct fattr *fa, const char *frompath, const char *topath)
 	old = fattr_frompath(topath, FATTR_NOFOLLOW);
 	if (old == NULL)
 		return (-1);
-	if (inplace && fattr_cmp(fa, old) == 0) {
+	if (inplace && fattr_equal(fa, old)) {
 		fattr_free(old);
 		return (0);
 	}
@@ -742,52 +742,52 @@ bad:
 }
 
 /*
- * Returns 0 if both attributes are equal, and -1 otherwise.
+ * Returns 1 if both attributes are equal, 0 otherwise.
  *
  * This function only compares attributes that are valid in both
  * files.  A file of unknown type ("FT_UNKNOWN") is unequal to
  * anything, including itself.
  */
 int
-fattr_cmp(struct fattr *fa1, struct fattr *fa2)
+fattr_equal(struct fattr *fa1, struct fattr *fa2)
 {
 	int mask;
 
 	mask = fa1->mask & fa2->mask;
 	if (fa1->type == FT_UNKNOWN || fa2->type == FT_UNKNOWN)
-		return (-1);
+		return (0);
 	if (mask & FA_MODTIME)
 		if (fa1->modtime != fa2->modtime)
-			return (-1);
+			return (0);
 	if (mask & FA_SIZE)
 		if (fa1->size != fa2->size)
-			return (-1);
+			return (0);
 	if (mask & FA_LINKTARGET)
 		if (strcmp(fa1->linktarget, fa2->linktarget) != 0)
-			return (-1);
+			return (0);
 	if (mask & FA_RDEV)
 		if (fa1->rdev != fa2->rdev)
-			return (-1);
+			return (0);
 	if (mask & FA_OWNER)
 		if (fa1->uid != fa2->uid)
-			return (-1);
+			return (0);
 	if (mask & FA_GROUP)
 		if (fa1->gid != fa2->gid)
-			return (-1);
+			return (0);
 	if (mask & FA_MODE)
 		if (fa1->mode != fa2->mode)
-			return (-1);
+			return (0);
 	if (mask & FA_FLAGS)
 		if (fa1->flags != fa2->flags)
-			return (-1);
+			return (0);
 	if (mask & FA_LINKCOUNT)
 		if (fa1->linkcount != fa2->linkcount)
-			return (-1);
+			return (0);
 	if (mask & FA_DEV)
 		if (fa1->dev != fa2->dev)
-			return (-1);
+			return (0);
 	if (mask & FA_INODE)
 		if (fa1->inode != fa2->inode)
-			return (-1);
-	return (0);
+			return (0);
+	return (1);
 }
