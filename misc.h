@@ -28,11 +28,24 @@
 #ifndef _MISC_H_
 #define _MISC_H_
 
+/* This is a GCC-specific keyword but some other compilers (namely icc)
+   understand it, and the code won't work if we can't disable padding
+   anyways. */
+#define	__packed		__attribute__((__packed__))
+
+/* We explicitely don't define this with icc because it defines __GNUC__
+   but doesn't support it. */
+#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && \
+    (__GNUC__ > 2 || __GNUC__ == 2 && __GNUC__MINOR__ >= 7)
+#define	__printflike(fmtarg, firstvararg) \
+	    __attribute__((__format__ (__printf__, fmtarg, firstvararg)))
+#endif
+
 #define	MD5_DIGEST_SIZE		33	/* Minimum size for MD5file() buffer. */
 
 #define	min(a, b)		((a) > (b) ? (b) : (a))
 
-int	lprintf(int, const char *, ...);
+int	lprintf(int, const char *, ...) __printflike(2, 3);
 int	MD5file(char *, char *);
 void	md5tostr(unsigned char *, char *);
 int	pathcmp(const char *, const char *);

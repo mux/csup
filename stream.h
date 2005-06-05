@@ -47,7 +47,8 @@ struct stream	*stream_open_file(const char *, int, ...);
 ssize_t		 stream_read(struct stream *, void *, size_t);
 ssize_t		 stream_write(struct stream *, const void *, size_t);
 char		*stream_getln(struct stream *, size_t *);
-int		 stream_printf(struct stream *, const char *, ...);
+int		 stream_printf(struct stream *, const char *, ...)
+		     __printflike(2, 3);
 int		 stream_flush(struct stream *);
 int		 stream_sync(struct stream *);
 int		 stream_truncate(struct stream *, off_t);

@@ -70,17 +70,6 @@
 
 #define	MUX_PROTOVER		0		/* Protocol version. */
 
-/*
- * Older FreeBSD versions (and other OSes) don't have __packed,
- * so in this case, define it ourself.  This is a GCC-specific
- * keyword, but since the code wouldn't work without it, we
- * define it even in the !GNUC case.  There are chances other
- * compilers will support it though.
- */
-#ifndef __packed
-#define	__packed		__attribute__((__packed__))
-#endif
-
 struct mux_header {
 	uint8_t type;
 	union {
