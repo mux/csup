@@ -42,6 +42,15 @@
 #include "fattr.h"
 #include "fattr_os.h"
 
+#ifdef __FreeBSD__
+#include <osreldate.h>
+#endif
+
+/* Define fflags_t if we're on a system that doesn't have it. */
+#if !defined(__FreeBSD_version) || __FreeBSD_version < 500030
+typedef uint32_t fflags_t;
+#endif
+
 #define	FA_MASKRADIX		16
 #define	FA_FILETYPERADIX	10
 #define	FA_MODTIMERADIX		10

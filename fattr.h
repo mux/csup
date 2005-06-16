@@ -28,17 +28,6 @@
 #ifndef _FATTR_H_
 #define _FATTR_H_
 
-#include <sys/types.h>
-
-#ifdef __FreeBSD__
-#include <osreldate.h>
-#endif
-
-/* Define fflags_t if we're on a system that doesn't have it. */
-#if !defined(__FreeBSD_version) || __FreeBSD_version < 500030
-typedef uint32_t fflags_t;
-#endif
-
 /*
  * File types.
  */
