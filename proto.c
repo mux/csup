@@ -293,9 +293,7 @@ static char *
 cvsup_unescape(char *str)
 {
 	char *c;
-	int len;
 
-	len = strlen(str);
 	while ((c = strstr(str, "\\_")) != NULL) {
 		*c = ' ';
 		while (*++c != '\0')
