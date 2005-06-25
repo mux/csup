@@ -30,9 +30,11 @@
 
 #include <errno.h>
 #include <libgen.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "config.h"
 #include "misc.h"
@@ -53,6 +55,8 @@ usage(char *argv0)
 	    "Subdirectory of \"base\" for collections (default \"sup\")");
 	lprintf(-1, USAGE_OPTFMT, "-h host",
 	    "Override supfile's \"host\" name");
+	lprintf(-1, USAGE_OPTFMT, "-l lockfile",
+	    "Lock file during update; fail if already locked");
 	lprintf(-1, USAGE_OPTFMT, "-L n",
 	    "Verbosity level (0..2, default 1)");
 	lprintf(-1, USAGE_OPTFMT, "-p port",
@@ -68,15 +72,17 @@ int
 main(int argc, char *argv[])
 {
 	struct config *config;
-	char *argv0, *base, *colldir, *host, *file;
+	char *argv0, *base, *colldir, *host, *file, *lockfile;
 	in_port_t port;
-	int c, compress, error;
+	int c, compress, error, lockfd, lflag;
 
 	port = 0;
 	compress = 0;
+	lflag = 0;
+	lockfd = 0;
 	argv0 = argv[0];
-	base = colldir = host = NULL;
-	while ((c = getopt(argc, argv, "b:c:gh:L:p:P:vzZ")) != -1) {
+	base = colldir = host = lockfile = NULL;
+	while ((c = getopt(argc, argv, "b:c:gh:l:L:p:P:vzZ")) != -1) {
 		switch (c) {
 		case 'b':
 			base = optarg;
@@ -89,6 +95,22 @@ main(int argc, char *argv[])
 			break;
 		case 'h':
 			host = optarg;
+			break;
+		case 'l':
+			lockfile = optarg;
+			lflag = 1;
+			lockfd = open(lockfile, O_EXLOCK | O_CREAT | O_NONBLOCK,
+			    0700);
+			if (lockfd == -1 && errno == EAGAIN) {
+				lprintf(-1, "\"%s\" is already locked "
+				    "by another process\n", lockfile);
+				return (1);
+			}
+			if (lockfd == -1) {
+				lprintf(-1, "Error locking \"%s\": %s\n",
+				    lockfile, strerror(errno));
+				return (1);
+			}
 			break;
 		case 'L':
 			errno = 0;
@@ -153,5 +175,7 @@ main(int argc, char *argv[])
 		return (1);
 	lprintf(1, "Connected to %s\n", config->host);
 	cvsup_init(config);
+	if (lflag)
+		close(lockfd);
 	return (0);
 }
