@@ -76,7 +76,7 @@ cvsup_connect(struct config *config)
 	char servname[8];
 	struct addrinfo *res, *ai, hints;
 	fd_set connfd;
-	int error, s;
+	int error, rv, s;
 
 	s = -1;
 	if (config->port != 0)
@@ -105,7 +105,8 @@ cvsup_connect(struct config *config)
 	for (ai = res; ai != NULL; ai = ai->ai_next) {
 		s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (s == -1) {
-			perror("Cannot create socket");
+			lprintf(-1, "Cannot create socket: %s\n",
+			    strerror(errno));
 			continue;
 		}
 		error = connect(s, ai->ai_addr, ai->ai_addrlen);
@@ -113,18 +114,16 @@ cvsup_connect(struct config *config)
 			FD_ZERO(&connfd);
 			FD_SET(s, &connfd);
 			do {
-				error = select(s + 1, &connfd, NULL, NULL,
-				    NULL);
-			} while (error == -1 && errno == EINTR);
-			if (error == 1)
+				rv = select(s + 1, &connfd, NULL, NULL, NULL);
+			} while (rv == -1 && errno == EINTR);
+			if (rv == 1)
 				error = 0;
 		}
-		if (error) {
-			close(s);
-			lprintf(0, "Cannot connect to %s: %s\n", config->host,
-			    strerror(errno));
-		} else
+		if (!error)
 			break;
+		close(s);
+		lprintf(0, "Cannot connect to %s: %s\n", config->host,
+		    strerror(errno));
 	}
 	freeaddrinfo(res);
 	config->socket = s;
