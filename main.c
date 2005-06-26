@@ -175,7 +175,9 @@ main(int argc, char *argv[])
 		return (1);
 	lprintf(1, "Connected to %s\n", config->host);
 	cvsup_init(config);
-	if (lflag)
+	if (lflag) {
+		unlink(lockfile);
 		close(lockfd);
+	}
 	return (0);
 }
