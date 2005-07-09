@@ -525,7 +525,7 @@ int
 stream_sync(struct stream *stream)
 {
 	int error;
-	
+
 	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 	if (error)
 		return (-1);

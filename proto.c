@@ -140,13 +140,13 @@ proto_greet(struct config *config)
 
 	s = config->server;
 	line = stream_getln(s, NULL);
-	tok = proto_getstr(&line); 
+	tok = proto_getstr(&line);
 	if (tok == NULL)
 		goto bad;
 	if (strcmp(tok, "OK") == 0) {
 		proto_getstr(&line);	/* XXX major number */
 		proto_getstr(&line);	/* XXX minor number */
-		tok = proto_getstr(&line); 
+		tok = proto_getstr(&line);
 	} else if (strcmp(tok, "!") == 0) {
 		lprintf(-1, "Rejected by server: %s\n", line);
 		return (-1);
@@ -171,14 +171,14 @@ proto_negproto(struct config *config)
 	stream_printf(s, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = proto_getstr(&line); 
+	cmd = proto_getstr(&line);
 	if (strcmp(cmd, "!") == 0) {
 		lprintf(-1, "Protocol negotiation failed: %s\n", line);
 		return (1);
 	} else if (strcmp(cmd, "PROTO") != 0)
 		goto bad;
-	maj = proto_getstr(&line); 
-	min = proto_getstr(&line); 
+	maj = proto_getstr(&line);
+	min = proto_getstr(&line);
 	if (min == NULL || line != NULL)
 		goto bad;
 	errno = 0;
@@ -226,7 +226,7 @@ proto_login(struct config *config)
 	stream_printf(s, "AUTHMD5 . . .\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = proto_getstr(&line); 
+	cmd = proto_getstr(&line);
 	if (strcmp(cmd, "OK") == 0)
 		return (0);
 	if (strcmp(cmd, "!") == 0 && line != NULL) {
@@ -368,7 +368,7 @@ proto_xchgcoll(struct config *config)
 				error = keyword_disable(cur->co_keyword, ident);
 				if (error)
 					goto bad;
-			} 
+			}
 		}
 		if (line == NULL)
 			goto bad;

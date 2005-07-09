@@ -49,7 +49,7 @@ usage(char *argv0)
 {
 	lprintf(-1, "Usage: %s [options] supfile [destDir]\n", basename(argv0));
 	lprintf(-1, "  Options:\n");
-	lprintf(-1, USAGE_OPTFMT, "-b base", 
+	lprintf(-1, USAGE_OPTFMT, "-b base",
 	    "Override supfile's \"base\" directory");
 	lprintf(-1, USAGE_OPTFMT, "-c collDir",
 	    "Subdirectory of \"base\" for collections (default \"sup\")");

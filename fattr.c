@@ -601,7 +601,7 @@ fattr_forcheckout(const struct fattr *rcsattr, mode_t mask)
 void
 fattr_merge(struct fattr *fa, const struct fattr *from)
 {
-	
+
 	fattr_override(fa, from, from->mask & ~fa->mask);
 }
 

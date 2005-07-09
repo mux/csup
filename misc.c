@@ -123,7 +123,7 @@ pathcmp(const char *s1, const char *s2)
 		}
 		c2 = *s2++ & 0xff;
 		if (c2 == '/') {
-			if (*s2 != '\0') 
+			if (*s2 != '\0')
 				c2 = 0x100;
 			else
 				c2 = 0;

@@ -50,7 +50,7 @@
  */
 #define	MUX_STARTUPREQ		0
 #define	MUX_STARTUPREP		1
-#define	MUX_CONNECT		2			
+#define	MUX_CONNECT		2
 #define	MUX_ACCEPT		3
 #define	MUX_RESET		4
 #define	MUX_DATA		5
@@ -448,7 +448,7 @@ chan_write(int id, const void *buf, size_t size)
 	chan = chan_get(id);
 	while (pos < size) {
 		while ((chan->state == CS_ESTABLISHED ||
-		    chan->state == CS_RDCLOSED) && 
+		    chan->state == CS_RDCLOSED) &&
 		    (avail = buf_avail(chan->sendbuf)) == 0)
 			pthread_cond_wait(&chan->wrready, &chan->lock);
 		if (chan->state != CS_ESTABLISHED &&
@@ -465,7 +465,7 @@ chan_write(int id, const void *buf, size_t size)
 	return (size);
 }
 
-/* 
+/*
  * Internal channel API.
  */
 
@@ -945,7 +945,7 @@ bad:
 /*
  * Circular buffers API.
  */
- 
+
 static struct buf *
 buf_new(size_t size)
 {

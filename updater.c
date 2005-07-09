@@ -104,7 +104,7 @@ updater(void *arg)
 			goto bad;
 		lprintf(1, "Updating collection %s/%s\n", coll->co_name,
 		    coll->co_release);
-			
+
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(rd, STREAM_FILTER_ZLIB, NULL);
 		while ((line = stream_getln(rd, NULL)) != NULL) {
