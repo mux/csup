@@ -232,7 +232,7 @@ void
 coll_setopt(int opt, char *value)
 {
 	struct coll *coll;
-	
+
 	coll = cur_coll;
 	switch (opt) {
 	case PT_BASE:

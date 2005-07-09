@@ -581,4 +581,4 @@ proto_getstr(char **s)
 		}
 	}
 	return (ret);
-}	
+}
