@@ -46,6 +46,7 @@
 #include "updater.h"
 #include "misc.h"
 #include "mux.h"
+#include "proto.h"
 #include "stream.h"
 
 /* Everything we need to update a file. */
@@ -92,9 +93,9 @@ updater(void *arg)
 			continue;
 		umask(coll->co_umask);
 		line = stream_getln(rd, NULL);
-		cmd = strsep(&line, " ");
-		collname = strsep(&line, " ");
-		release = strsep(&line, " ");
+		cmd = proto_getstr(&line);
+		collname = proto_getstr(&line);
+		release = proto_getstr(&line);
 		if (release == NULL || line != NULL)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0 ||
@@ -109,7 +110,7 @@ updater(void *arg)
 		while ((line = stream_getln(rd, NULL)) != NULL) {
 			if (strcmp(line, ".") == 0)
 				break;
-			cmd = strsep(&line, " ");
+			cmd = proto_getstr(&line);
 			if (cmd == NULL)
 				goto bad;
 			if (strcmp(cmd, "T") == 0)
@@ -154,7 +155,7 @@ updater_delete(struct coll *coll, char *line)
 	char *file, *rcsfile;
 	int error;
 
-	rcsfile = strsep(&line, " ");
+	rcsfile = proto_getstr(&line);
 	file = checkoutpath(coll->co_prefix, rcsfile);
 	if (file == NULL) {
 		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
@@ -192,15 +193,15 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	if (line2 == NULL)
 		err(1, "strdup");
 	cp = line2;
-	rcsfile = strsep(&cp, " ");
-	tag = strsep(&cp, " ");
-	strsep(&cp, " "); /* XXX - date */
-	strsep(&cp, " "); /* XXX - orig revnum */
-	strsep(&cp, " "); /* XXX - from attic */
-	strsep(&cp, " "); /* XXX - loglines */
-	expand = strsep(&cp, " ");
-	attr = strsep(&cp, " ");
-	cksum = strsep(&cp, " ");
+	rcsfile = proto_getstr(&cp);
+	tag = proto_getstr(&cp);
+	proto_getstr(&cp); /* XXX - date */
+	proto_getstr(&cp); /* XXX - orig revnum */
+	proto_getstr(&cp); /* XXX - from attic */
+	proto_getstr(&cp); /* XXX - loglines */
+	expand = proto_getstr(&cp);
+	attr = proto_getstr(&cp);
+	cksum = proto_getstr(&cp);
 	if (cksum == NULL || cp != NULL)
 		goto bad;
 	path = checkoutpath(coll->co_prefix, rcsfile);
@@ -242,7 +243,7 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		tok = strsep(&line, " ");
+		tok = proto_getstr(&line);
 		if (strcmp(tok, "D") != 0)
 			goto bad;
 		free(line3);
@@ -250,10 +251,10 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 		if (line3 == NULL)
 			err(1, "strdup");
 		cp = line3;
-		revnum = strsep(&cp, " ");
-		strsep(&cp, " "); /* XXX - diffbase */
-		revdate = strsep(&cp, " ");
-		author = strsep(&cp, " ");
+		revnum = proto_getstr(&cp);
+		proto_getstr(&cp); /* XXX - diffbase */
+		revdate = proto_getstr(&cp);
+		author = proto_getstr(&cp);
 		if (author == NULL || cp != NULL)
 			goto bad;
 		up.revnum = revnum;
@@ -334,7 +335,7 @@ updater_diff_batch(struct update *up)
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		tok = strsep(&line, " ");
+		tok = proto_getstr(&line);
 		if (tok == NULL)
 			goto bad;
 		if (strcmp(tok, "L") == 0) {
@@ -346,7 +347,7 @@ updater_diff_batch(struct update *up)
 			if (line == NULL)
 				goto bad;
 		} else if (strcmp(tok, "S") == 0) {
-			tok = strsep(&line, " ");
+			tok = proto_getstr(&line);
 			if (tok == NULL || line != NULL)
 				goto bad;
 			free(up->state);
@@ -410,13 +411,13 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 	size_t size;
 	int error, first;
 
-	rcsfile = strsep(&line, " ");
+	rcsfile = proto_getstr(&line);
 	/* I'll need those when the status file is supported. */
-	strsep(&line, " ");	/* tag */
-	strsep(&line, " ");	/* date */
-	strsep(&line, " ");	/* revnum */
-	strsep(&line, " ");	/* revdate */
-	attr = strsep(&line, " ");
+	proto_getstr(&line);	/* tag */
+	proto_getstr(&line);	/* date */
+	proto_getstr(&line);	/* revnum */
+	proto_getstr(&line);	/* revdate */
+	attr = proto_getstr(&line);
 	if (attr == NULL || line != NULL)
 		return (-1);
 
@@ -473,8 +474,8 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 	stream_close(to);
 	/* Get the checksum line. */
 	line = stream_getln(rd, NULL);
-	cmd = strsep(&line, " ");
-	cksum = strsep(&line, " ");
+	cmd = proto_getstr(&line);
+	cksum = proto_getstr(&line);
 	if (cksum == NULL || line != NULL ||
 	    strcmp(cmd, "5") != 0) {
 		goto bad;

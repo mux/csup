@@ -38,6 +38,7 @@
 #include <err.h>
 #include <errno.h>
 #include <netdb.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,16 +62,16 @@
 #define	PROTO_MIN	0
 #define	PROTO_SWVER	"CSUP_0_1"
 
-static int	cvsup_greet(struct config *);
-static int	cvsup_negproto(struct config *);
-static int	cvsup_login(struct config *);
-static int	cvsup_fileattr(struct config *);
-static int	cvsup_xchgcoll(struct config *);
-static int	cvsup_mux(struct config *);
+static int	proto_greet(struct config *);
+static int	proto_negproto(struct config *);
+static int	proto_login(struct config *);
+static int	proto_fileattr(struct config *);
+static int	proto_xchgcoll(struct config *);
+static int	proto_mux(struct config *);
 
 /* Connect to the CVSup server. */
 int
-cvsup_connect(struct config *config)
+proto_connect(struct config *config)
 {
 	/* This is large enough to hold sizeof("cvsup") or any port number. */
 	char servname[8];
@@ -132,20 +133,20 @@ cvsup_connect(struct config *config)
 
 /* Greet the server. */
 static int
-cvsup_greet(struct config *config)
+proto_greet(struct config *config)
 {
 	char *line, *tok;
 	struct stream *s;
 
 	s = config->server;
 	line = stream_getln(s, NULL);
-	tok = strsep(&line, " "); 
+	tok = proto_getstr(&line); 
 	if (tok == NULL)
 		goto bad;
 	if (strcmp(tok, "OK") == 0) {
-		tok = strsep(&line, " "); 
-		tok = strsep(&line, " "); 
-		tok = strsep(&line, " "); 
+		proto_getstr(&line);	/* XXX major number */
+		proto_getstr(&line);	/* XXX minor number */
+		tok = proto_getstr(&line); 
 	} else if (strcmp(tok, "!") == 0) {
 		lprintf(-1, "Rejected by server: %s\n", line);
 		return (-1);
@@ -160,7 +161,7 @@ bad:
 
 /* Negotiate protocol version with the server. */
 static int
-cvsup_negproto(struct config *config)
+proto_negproto(struct config *config)
 {
 	struct stream *s;
 	char *cmd, *line, *maj, *min;
@@ -170,14 +171,14 @@ cvsup_negproto(struct config *config)
 	stream_printf(s, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = strsep(&line, " "); 
+	cmd = proto_getstr(&line); 
 	if (strcmp(cmd, "!") == 0) {
 		lprintf(-1, "Protocol negotiation failed: %s\n", line);
 		return (1);
 	} else if (strcmp(cmd, "PROTO") != 0)
 		goto bad;
-	maj = strsep(&line, " "); 
-	min = strsep(&line, " "); 
+	maj = proto_getstr(&line); 
+	min = proto_getstr(&line); 
 	if (min == NULL || line != NULL)
 		goto bad;
 	errno = 0;
@@ -200,7 +201,7 @@ bad:
 }
 
 static int
-cvsup_login(struct config *config)
+proto_login(struct config *config)
 {
 	struct stream *s;
 	char host[MAXHOSTNAMELEN];
@@ -212,9 +213,9 @@ cvsup_login(struct config *config)
 	stream_printf(s, "USER %s %s\n", getlogin(), host);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = strsep(&line, " ");
-	realm = strsep(&line, " ");
-	challenge = strsep(&line, " ");
+	cmd = proto_getstr(&line);
+	realm = proto_getstr(&line);
+	challenge = proto_getstr(&line);
 	if (challenge == NULL || line != NULL)
 		goto bad;
 	if (strcmp(realm, ".") != 0 || strcmp(challenge, ".") != 0) {
@@ -225,7 +226,7 @@ cvsup_login(struct config *config)
 	stream_printf(s, "AUTHMD5 . . .\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = strsep(&line, " "); 
+	cmd = proto_getstr(&line); 
 	if (strcmp(cmd, "OK") == 0)
 		return (0);
 	if (strcmp(cmd, "!") == 0 && line != NULL) {
@@ -241,7 +242,7 @@ bad:
  * File attribute support negotiation.
  */
 static int
-cvsup_fileattr(struct config *config)
+proto_fileattr(struct config *config)
 {
 	fattr_support_t support;
 	struct stream *s;
@@ -256,7 +257,7 @@ cvsup_fileattr(struct config *config)
 	stream_printf(s, ".\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = strsep(&line, " ");
+	cmd = proto_getstr(&line);
 	if (line == NULL || strcmp(cmd, "ATTR") != 0)
 		goto bad;
 	errno = 0;
@@ -286,30 +287,15 @@ bad:
 }
 
 /*
- * Change "\_" with " " in the string.
- */
-static char *
-cvsup_unescape(char *str)
-{
-	char *c;
-
-	while ((c = strstr(str, "\\_")) != NULL) {
-		*c = ' ';
-		while (*++c != '\0')
-			*c = *(c + 1);
-	}
-	return (str);
-}
-
-/*
  * Exchange collection information.
  */
 static int
-cvsup_xchgcoll(struct config *config)
+proto_xchgcoll(struct config *config)
 {
 	struct coll *cur;
 	struct stream *s;
-	char *line, *cmd, *coll, *options, *release, *ident, *rcskey;
+	char *line, *cmd, *coll, *options;
+	char *msg, *release, *ident, *rcskey;
 	int error, opts;
 
 	s = config->server;
@@ -325,10 +311,10 @@ cvsup_xchgcoll(struct config *config)
 		line = stream_getln(s, NULL);
 		if (line == NULL)
 			goto bad;
-		cmd = strsep(&line, " ");
-		coll = strsep(&line, " ");
-		release = strsep(&line, " ");
-		options = strsep(&line, " ");
+		cmd = proto_getstr(&line);
+		coll = proto_getstr(&line);
+		release = proto_getstr(&line);
+		options = proto_getstr(&line);
 		if (options == NULL || line != NULL)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0)
@@ -347,19 +333,21 @@ cvsup_xchgcoll(struct config *config)
 		while ((line = stream_getln(s, NULL)) != NULL) {
 		 	if (strcmp(line, ".") == 0)
 				break;
-			cmd = strsep(&line, " ");
+			cmd = proto_getstr(&line);
 			if (cmd == NULL)
 				goto bad;
 			if (strcmp(cmd, "!") == 0) {
-				lprintf(-1, "Server message: %s\n",
-				    cvsup_unescape(line));
+				msg = proto_getstr(&line);
+				if (err == NULL)
+					goto bad;
+				lprintf(-1, "Server message: %s\n", msg);
 			} else if (strcmp(cmd, "PRFX") == 0) {
 				cur->co_cvsroot = strdup(line);
 				if (cur->co_cvsroot == NULL)
 					err(1, "strdup");
 			} else if (strcmp(cmd, "KEYALIAS") == 0) {
-				ident = strsep(&line, " ");
-				rcskey = strsep(&line, " ");
+				ident = proto_getstr(&line);
+				rcskey = proto_getstr(&line);
 				if (rcskey == NULL || line != NULL)
 					goto bad;
 				error = keyword_alias(cur->co_keyword, ident,
@@ -367,14 +355,14 @@ cvsup_xchgcoll(struct config *config)
 				if (error)
 					goto bad;
 			} else if (strcmp(cmd, "KEYON") == 0) {
-				ident = strsep(&line, " ");
+				ident = proto_getstr(&line);
 				if (ident == NULL || line != NULL)
 					goto bad;
 				error = keyword_enable(cur->co_keyword, ident);
 				if (error)
 					goto bad;
 			} else if (strcmp(cmd, "KEYOFF") == 0) {
-				ident = strsep(&line, " ");
+				ident = proto_getstr(&line);
 				if (ident == NULL || line != NULL)
 					goto bad;
 				error = keyword_disable(cur->co_keyword, ident);
@@ -392,7 +380,7 @@ bad:
 }
 
 static int
-cvsup_mux(struct config *config)
+proto_mux(struct config *config)
 {
 	struct stream *s, *chan0;
 	int id0, id1;
@@ -438,7 +426,7 @@ cvsup_mux(struct config *config)
  * support and collections information.
  */
 int
-cvsup_init(struct config *config)
+proto_init(struct config *config)
 {
 	struct threads *workers;
 	int error, i;
@@ -448,22 +436,22 @@ cvsup_init(struct config *config)
 	 * the socket after the stream is closed.
 	 */
 	config->server = stream_fdopen(config->socket, read, write, NULL);
-	error = cvsup_greet(config);
+	error = proto_greet(config);
 	if (error)
 		return (error);
-	error = cvsup_negproto(config);
+	error = proto_negproto(config);
 	if (error)
 		return (error);
-	error = cvsup_login(config);
+	error = proto_login(config);
 	if (error)
 		return (error);
-	error = cvsup_fileattr(config);
+	error = proto_fileattr(config);
 	if (error)
 		return (error);
-	error = cvsup_xchgcoll(config);
+	error = proto_xchgcoll(config);
 	if (error)
 		return (error);
-	error = cvsup_mux(config);
+	error = proto_mux(config);
 	workers = threads_new();
 	threads_create(workers, lister, config);
 	threads_create(workers, detailer, config);
@@ -482,3 +470,115 @@ cvsup_init(struct config *config)
 	lprintf(2, "Finished successfully\n");
 	return (error);
 }
+
+/*
+ * Very simple printf() implementation that only understands %d
+ * and %s formats.  For the %s format, some characters in the
+ * string need to be encoded.
+ */
+int
+proto_printf(struct stream *wr, const char *format, ...)
+{
+	char buf[32];
+	const char *fmt;
+	va_list ap;
+	char *cp, *s;
+	size_t len;
+	int val, ret;
+	char c;
+
+	fmt = format;
+	va_start(ap, format);
+	while ((cp = strchr(fmt, '%')) != NULL) {
+		if (cp > fmt)
+			stream_write(wr, fmt, cp - fmt);
+		if (*++cp == '\0')
+			goto done;
+		switch (*cp) {
+		case 'd':
+		case 'i':
+			val = va_arg(ap, int);
+			ret = snprintf(buf, sizeof(buf), "%d", val);
+			/* Should never happen, unless there are platforms
+			   with 128-bit ints some day... */
+			if ((unsigned)ret > sizeof(buf) + 1)
+				errx(1, "%s: increase buffer size", __func__);
+			stream_write(wr, buf, ret);
+			break;
+		case 's':
+			s = va_arg(ap, char *);
+			if (s == NULL)
+				break;
+			/* Handle characters that need escaping. */
+			do {
+				len = strcspn(s, " \t\n\\");
+				c = s[len];
+				stream_write(wr, s, len);
+				s += len + 1;
+				switch (c) {
+				case ' ':
+					stream_write(wr, "\\_", 2);
+					break;
+				case '\t':
+					stream_write(wr, "\\t", 2);
+					break;
+				case '\n':
+					stream_write(wr, "\\n", 2);
+					break;
+				case '\\':
+					stream_write(wr, "\\\\", 2);
+					break;
+				}
+			} while (c != '\0');
+			break;
+		case '%':
+			stream_write(wr, "%", 1);
+			break;
+		}
+		fmt = cp + 1;
+	}
+	if (*fmt != '\0')
+		stream_write(wr, fmt, strlen(fmt));
+done:
+	va_end(ap);
+	return (0);
+}
+
+/*
+ * Eat a token in the string.
+ */
+char *
+proto_getstr(char **s)
+{
+	char *cp, *cp2, *ret;
+
+	if (s == NULL)
+		return (NULL);
+	ret = strsep(s, " ");
+	/* Unescape the string. */
+	cp = ret;
+	while ((cp = strchr(cp, '\\')) != NULL) {
+		switch (cp[1]) {
+		case '_':
+			*cp = ' ';
+			break;
+		case 't':
+			*cp = '\t';
+			break;
+		case 'n':
+			*cp = '\n';
+			break;
+		case '\\':
+			*cp = '\\';
+			break;
+		default:
+			*cp = *(cp + 1);
+		}
+		cp2 = ++cp;
+		while (*cp2 != '\0') {
+			*cp2 = *(cp2 + 1);
+			cp2++;
+		}
+	}
+	return (ret);
+}	

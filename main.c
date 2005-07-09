@@ -170,11 +170,11 @@ main(int argc, char *argv[])
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
 	config = config_init(file, host, base, colldir, port, compress);
 	lprintf(2, "Connecting to %s\n", config->host);
-	error = cvsup_connect(config);
+	error = proto_connect(config);
 	if (error)
 		return (1);
 	lprintf(1, "Connected to %s\n", config->host);
-	cvsup_init(config);
+	proto_init(config);
 	if (lflag) {
 		unlink(lockfile);
 		close(lockfd);

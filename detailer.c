@@ -36,6 +36,7 @@
 #include "detailer.h"
 #include "misc.h"
 #include "mux.h"
+#include "proto.h"
 #include "stream.h"
 
 void *
@@ -56,14 +57,14 @@ detailer(void *arg)
 		if (coll->co_options & CO_SKIP)
 			continue;
 		line = stream_getln(rd, NULL);
-		cmd = strsep(&line, " ");
-		collname = strsep(&line, " ");
-		release = strsep(&line, " ");
+		cmd = proto_getstr(&line);
+		collname = proto_getstr(&line);
+		release = proto_getstr(&line);
 		if (release == NULL || strcmp(cmd, "COLL") != 0 ||
 		    strcmp(collname, coll->co_name) != 0 ||
 		    strcmp(release, coll->co_release) != 0)
 			goto bad;
-		stream_printf(wr, "COLL %s %s\n", coll->co_name,
+		proto_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
 		if (coll->co_options & CO_COMPRESS) {
 			stream_filter_start(rd, STREAM_FILTER_ZLIB, NULL);
@@ -73,8 +74,8 @@ detailer(void *arg)
 		if (line == NULL)
 			goto bad;
 		while (strcmp(line, ".") != 0) {
-			cmd = strsep(&line, " ");
-			file = strsep(&line, " ");
+			cmd = proto_getstr(&line);
+			file = proto_getstr(&line);
 			if (file == NULL || strcmp(cmd, "U") != 0)
 				goto bad;
 			path = checkoutpath(coll->co_prefix, file);
@@ -82,10 +83,10 @@ detailer(void *arg)
 				goto bad;
 			error = stat(path, &sb);
 			if (!error && MD5file(path, md5) == 0)
-				stream_printf(wr, "S %s %s %s %s\n", file,
+				proto_printf(wr, "S %s %s %s %s\n", file,
 				    coll->co_tag, coll->co_date, md5);
 			else
-				stream_printf(wr, "C %s %s %s\n", file,
+				proto_printf(wr, "C %s %s %s\n", file,
 				    coll->co_tag, coll->co_date);
 			free(path);
 			stream_flush(wr);
@@ -93,7 +94,7 @@ detailer(void *arg)
 			if (line == NULL)
 				goto bad;
 		}
-		stream_printf(wr, ".\n");
+		proto_printf(wr, ".\n");
 		if (coll->co_options & CO_COMPRESS) {
 			stream_filter_stop(rd);
 			stream_filter_stop(wr);
@@ -103,23 +104,23 @@ detailer(void *arg)
 	line = stream_getln(rd, NULL);
 	if (line == NULL || strcmp(line, ".") != 0)
 		goto bad;
-	stream_printf(wr, ".\n");
+	proto_printf(wr, ".\n");
 	stream_flush(wr);
 
 	/* Now send fixups if needed. */
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
-		stream_printf(wr, "COLL %s %s\n", coll->co_name,
+		proto_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
-		stream_printf(wr, ".\n");
+		proto_printf(wr, ".\n");
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_stop(wr);
 		stream_flush(wr);
 	}
-	stream_printf(wr, ".\n");
+	proto_printf(wr, ".\n");
 	stream_close(wr);
 	stream_close(rd);
 	return (NULL);

@@ -2,11 +2,6 @@ $Id$
 
 BUGS:
 
-- Correctly handle (un)escaping in tokens as described in the
-  doc/Protocol file of CVSup : \_ -> space, \t -> tab, \n -> newline,
-  \r -> carriage return and \\ -> backslash.  For now, the code is
-  *riddled* with strsep() calls, they need to be isolated and replaced
-  with a clean parsing interface that handles escaping.
 - Cleanup error handling just about everywhere.  For now, the code is
   unable to properly handle failures.  This is made complicated due to
   the multi-threaded design and because the worker threads can block in

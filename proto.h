@@ -28,7 +28,11 @@
 #ifndef _PROTO_H_
 #define _PROTO_H_
 
-int	cvsup_connect(struct config *);
-int	cvsup_init(struct config *);
+struct stream;
+
+int	 proto_connect(struct config *);
+int	 proto_init(struct config *);
+int	 proto_printf(struct stream *, const char *, ...);
+char	*proto_getstr(char **);
 
 #endif /* !_PROTO_H_ */
