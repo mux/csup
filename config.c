@@ -62,6 +62,8 @@ config_init(const char *file, char *host, char *base, char *colldir,
 {
 	struct coll *cur;
 	mode_t mask;
+	size_t slen;
+	char *prefix;
 	int error;
 
 	config = malloc(sizeof(struct config));
@@ -79,15 +81,6 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	mask = umask(0);
 	umask(mask);
 	defaults->co_umask = mask;
-	if (base != NULL)
-		defaults->co_base = strdup(base);
-	else
-		defaults->co_base = strdup("/usr/local/etc/cvsup");
-	if (defaults->co_base == NULL)
-		err(1, "strdup");
-	defaults->co_prefix = strdup(defaults->co_base);
-	if (defaults->co_prefix == NULL)
-		err(1, "strdup");
 	defaults->co_options = CO_SETMODE | CO_EXACTRCS | CO_CHECKRCS;
 
 	/* Extract a list of collections from the configuration file. */
@@ -125,6 +118,38 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			cur->co_date = strdup(".");
 			if (cur->co_date == NULL)
 				err(1, "strdup");
+		}
+		if (base != NULL) {
+			if (cur->co_base != NULL)
+				free(cur->co_base);
+			cur->co_base = strdup(base);
+			if (cur->co_base == NULL)
+				err(1, "strdup");
+ 		} else if (cur->co_base == NULL) {
+			cur->co_base = strdup("/usr/local/etc/cvsup");
+			if (cur->co_base == NULL)
+				err(1, "strdup");
+		}
+		if (cur->co_prefix == NULL) {
+			cur->co_prefix = strdup(cur->co_base);
+			if (cur->co_prefix == NULL)
+				err(1, "strdup");
+		/*
+		 * If prefix is not an absolute pathname, it is
+		 * interpreted relative to base.
+		 */
+		} else if (cur->co_prefix[0] != '/') {
+			slen = strlen(cur->co_base);
+			if (slen > 0 && cur->co_base[slen - 1] != '/')
+				asprintf(&prefix, "%s/%s", cur->co_base,
+				    cur->co_prefix);
+			else
+				asprintf(&prefix, "%s%s", cur->co_base,
+				    cur->co_prefix);
+			if (prefix == NULL)
+				err(1, "asprintf");
+			free(cur->co_prefix);
+			cur->co_prefix = prefix;
 		}
 		if (compress > 0)
 			cur->co_options |= CO_COMPRESS;
