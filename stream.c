@@ -29,8 +29,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <openssl/md5.h>
-
 #include <assert.h>
 #include <zlib.h>
 #include <err.h>
@@ -165,7 +163,6 @@ static int		 zfilter_flush(struct stream *, struct buf *,
 struct md5filter {
 	MD5_CTX ctx;
 	char *md5;
-	unsigned char md[MD5_DIGEST_LENGTH];
 };
 
 static int		 md5filter_init(struct stream *, void *);
@@ -954,8 +951,7 @@ md5filter_fini(struct stream *stream)
 	struct md5filter *mf;
 
 	mf = stream->fdata;
-	MD5_Final(mf->md, &mf->ctx);
-	md5tostr(mf->md, mf->md5);
+	MD5_Final(mf->md5, &mf->ctx);
 	free(stream->fdata);
 }
 
@@ -980,4 +976,3 @@ md5filter_flush(struct stream *stream, struct buf *buf, stream_flush_t how)
 	error = stream_flush_default(stream, buf, how);
 	return (error);
 }
-

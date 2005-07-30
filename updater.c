@@ -297,8 +297,8 @@ updater_diff(struct coll *coll, struct stream *rd, char *line)
 	updater_install(coll, fa, topath, path);
 	fattr_free(fa);
 	/* XXX - Compute MD5 while writing the file. */
-	if (MD5file(path, md5) == -1) {
-		lprintf(-1, "%s: MD5file() failed\n", __func__);
+	if (MD5_File(path, md5) == -1) {
+		lprintf(-1, "%s: MD5_File() failed\n", __func__);
 		goto bad;
 	}
 	if (strcmp(cksum, md5) != 0) {

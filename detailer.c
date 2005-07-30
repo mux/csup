@@ -82,7 +82,7 @@ detailer(void *arg)
 			if (path == NULL)
 				goto bad;
 			error = stat(path, &sb);
-			if (!error && MD5file(path, md5) == 0)
+			if (!error && MD5_File(path, md5) == 0)
 				proto_printf(wr, "S %s %s %s %s\n", file,
 				    coll->co_tag, coll->co_date, md5);
 			else

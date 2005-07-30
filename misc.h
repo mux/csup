@@ -28,6 +28,8 @@
 #ifndef _MISC_H_
 #define _MISC_H_
 
+#include <openssl/md5.h>
+
 /* This is a GCC-specific keyword but some other compilers (namely icc)
    understand it, and the code won't work if we can't disable padding
    anyways. */
@@ -45,13 +47,14 @@
 #define	__printflike(fmtarg, firstvararg)
 #endif
 
-#define	MD5_DIGEST_SIZE		33	/* Minimum size for MD5file() buffer. */
+/* Minimum size for MD5_File() and MD5_End() buffers. */
+#define	MD5_DIGEST_SIZE		33
 
 #define	min(a, b)		((a) > (b) ? (b) : (a))
 
 int	lprintf(int, const char *, ...) __printflike(2, 3);
-int	MD5file(char *, char *);
-void	md5tostr(unsigned char *, char *);
+int	MD5_File(char *, char *);
+void	MD5_End(char *, MD5_CTX *);
 int	pathcmp(const char *, const char *);
 char	*pathlast(char *);
 char	*checkoutpath(const char *, const char *);
