@@ -951,7 +951,7 @@ md5filter_fini(struct stream *stream)
 	struct md5filter *mf;
 
 	mf = stream->fdata;
-	MD5_Final(mf->md5, &mf->ctx);
+	MD5_End(mf->md5, &mf->ctx);
 	free(stream->fdata);
 }
 
