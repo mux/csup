@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2005, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,8 @@
 
 #include <openssl/md5.h>
 
+#include <sys/types.h>
+
 /* This is a GCC-specific keyword but some other compilers (namely icc)
    understand it, and the code won't work if we can't disable padding
    anyways. */
@@ -52,11 +54,18 @@
 
 #define	min(a, b)		((a) > (b) ? (b) : (a))
 
-int	lprintf(int, const char *, ...) __printflike(2, 3);
-int	MD5_File(char *, char *);
-void	MD5_End(char *, MD5_CTX *);
-int	pathcmp(const char *, const char *);
+int	 lprintf(int, const char *, ...) __printflike(2, 3);
+int	 MD5_File(char *, char *);
+void	 MD5_End(char *, MD5_CTX *);
+time_t	 rcsdatetotime(char *);
+int	 pathcmp(const char *, const char *);
+size_t	 commonpathlength(const char *, size_t, const char *, size_t);
 char	*pathlast(char *);
 char	*checkoutpath(const char *, const char *);
+char	*tempname(const char *);
+void	*xmalloc(size_t);
+void	*xrealloc(void *, size_t);
+char	*xstrdup(const char *);
+int	 xasprintf(char **, const char *, ...) __printflike(2, 3);
 
 #endif /* !_MISC_H_ */

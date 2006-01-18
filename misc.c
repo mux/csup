@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2005, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,12 +26,15 @@
  * $Id$
  */
 
+#include <sys/types.h>
 #include <openssl/md5.h>
 
 #include <err.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -108,26 +111,53 @@ MD5_End(char *md, MD5_CTX *c)
 int
 pathcmp(const char *s1, const char *s2)
 {
-	int c1, c2;
+	char c1, c2;
 
 	do {
-		c1 = *s1++ & 0xff;
-		if (c1 == '/') {
-			if (*s1 != '\0')
-				c1 = 0x100;
-			else
-				c1 = 0;
-		}
-		c2 = *s2++ & 0xff;
-		if (c2 == '/') {
-			if (*s2 != '\0')
-				c2 = 0x100;
-			else
-				c2 = 0;
-		}
+		c1 = *s1++;
+		if (c1 == '/')
+			c1 = 1;
+		c2 = *s2++;
+		if (c2 == '/')
+			c2 = 1;
 	} while (c1 == c2 && c1 != '\0');
 
 	return (c1 - c2);
+}
+
+size_t
+commonpathlength(const char *a, size_t alen, const char *b, size_t blen)
+{
+	size_t i, minlen, lastslash;
+
+	minlen = min(alen, blen);
+	lastslash = 0;
+	for (i = 0; i < minlen; i++) {
+		if (a[i] != b[i])
+			return (lastslash);
+		if (a[i] == '/') {
+			if (i == 0)	/* Include the leading slash. */
+				lastslash = 1;
+			else
+				lastslash = i;
+		}
+	}
+
+	/* One path is a prefix of the other/ */
+	if (alen > minlen) {		/* Path "b" is a prefix of "a". */
+		if (a[minlen] == '/')
+			return (minlen);
+		else
+			return (lastslash);
+	} else if (blen > minlen) {	/* Path "a" is a prefix of "b". */
+		if (b[minlen] == '/')
+			return (minlen);
+		else
+			return (lastslash);
+	}
+
+	/* The paths are identical. */
+	return (minlen);
 }
 
 char *
@@ -137,15 +167,27 @@ pathlast(char *path)
 
 	s = strrchr(path, '/');
 	if (s == NULL)
-		s = path;
-	else
-		s++;
-	return (s);
+		return (path);
+	return (++s);
+}
+
+time_t
+rcsdatetotime(char *revdate)
+{
+	struct tm tm;
+	char *cp;
+	time_t t;
+
+	cp = strptime(revdate, "%Y.%m.%d.%H.%M.%S", &tm);
+	if (cp == NULL || *cp != '\0')
+		return (-1);
+	t = timegm(&tm);
+	return (t);
 }
 
 /*
  * Returns a buffer allocated with malloc() containing the absolute
- * pathname to the checkout file made from the prefix, and the path
+ * pathname to the checkout file made from the prefix and the path
  * of the corresponding RCS file relatively to the prefix.  If the
  * filename is not an RCS filename, NULL will be returned.
  */
@@ -168,8 +210,85 @@ checkoutpath(const char *prefix, const char *file)
 	len = strlen(file);
 	if (len < 2 || file[len - 1] != 'v' || file[len - 2] != ',')
 		return (NULL);
-	asprintf(&path, "%s/%.*s", prefix, (int)len - 2, file);
-	if (path == NULL)
-		err(1, "asprintf");
+	xasprintf(&path, "%s/%.*s", prefix, (int)len - 2, file);
 	return (path);
+}
+
+/*
+ * Compute temporary pathnames.
+ * This can look a bit like overkill but we mimic CVSup's behaviour.
+ */
+#define	TEMPNAME_PREFIX		"#cvs.csup"
+
+static pthread_mutex_t tempname_mtx = PTHREAD_MUTEX_INITIALIZER;
+static pid_t tempname_pid = -1;
+static int tempname_count;
+
+char *
+tempname(const char *path)
+{
+	char *cp, *temp;
+	int count;
+
+	pthread_mutex_lock(&tempname_mtx);
+	if (tempname_pid == -1) {
+		tempname_pid = getpid();
+		tempname_count = 0;
+	}
+	count = tempname_count++;
+	pthread_mutex_unlock(&tempname_mtx);
+	cp = strrchr(path, '/');
+	if (cp == NULL)
+		xasprintf(&temp, "%s-%ld.%d", TEMPNAME_PREFIX,
+		    (long)tempname_pid, count);
+	else
+		xasprintf(&temp, "%.*s%s-%ld.%d", (int)(cp - path + 1), path,
+		    TEMPNAME_PREFIX, (long)tempname_pid, count);
+	return (temp);
+}
+
+void *
+xmalloc(size_t size)
+{
+	void *buf;
+
+	buf = malloc(size);
+	if (buf == NULL)
+		err(1, "malloc");
+	return (buf);
+}
+
+void *
+xrealloc(void *buf, size_t size)
+{
+
+	buf = realloc(buf, size);
+	if (buf == NULL)
+		err(1, "realloc");
+	return (buf);
+}
+
+char *
+xstrdup(const char *str)
+{
+	char *buf;
+
+	buf = strdup(str);
+	if (buf == NULL)
+		err(1, "strdup");
+	return (buf);
+}
+
+int
+xasprintf(char **ret, const char *format, ...)
+{
+	va_list ap;
+	int rv;
+
+	va_start(ap, format);
+	rv = vasprintf(ret, format, ap);
+	va_end(ap);
+	if (*ret == NULL)
+		err(1, "asprintf");
+	return (rv);
 }
