@@ -301,13 +301,15 @@ status_wrraw(struct status *st, struct statusrec *sr, char *line)
 	else
 		pathcomp_put(st->pc, PC_FILE, sr->sr_file);
 	if (sr->sr_type == SR_DIRDOWN || sr->sr_type == SR_DIRUP) {
-		assert(pathcomp_get(st->pc, &type, &name));
+		ret = pathcomp_get(st->pc, &type, &name);
+		assert(ret);
 		if (sr->sr_type == SR_DIRDOWN)
 			assert(type == PC_DIRDOWN);
 		else
 			assert(type == PC_DIRUP);
 	}
-	assert(!pathcomp_get(st->pc, &type, &name));
+	ret = pathcomp_get(st->pc, &type, &name);
+	assert(!ret);
 
 	switch (sr->sr_type) {
 	case SR_DIRDOWN:
