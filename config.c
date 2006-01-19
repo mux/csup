@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,7 +29,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -58,7 +57,7 @@ static const char *cfgfile;
  */
 struct config *
 config_init(const char *file, char *host, char *base, char *colldir,
-    in_port_t port, int compress)
+    uint16_t port, int compress, int truststatus)
 {
 	struct coll *cur;
 	mode_t mask;
@@ -66,15 +65,9 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	char *prefix;
 	int error;
 
-	config = malloc(sizeof(struct config));
-	if (config == NULL)
-		err(1, "malloc");
+	config = xmalloc(sizeof(struct config));
 	config->host = NULL;
 	STAILQ_INIT(&config->colls);
-	if (colldir != NULL)
-		config->colldir = colldir;
-	else
-		config->colldir = "sup";
 
 	/* Set default collection options. */
 	defaults = coll_alloc();
@@ -109,31 +102,19 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			exit(1);
 		}
 		cur->co_options |= CO_CHECKOUTMODE;
-		if (cur->co_tag == NULL) {
-			cur->co_tag = strdup(".");
-			if (cur->co_tag == NULL)
-				err(1, "strdup");
-		}
-		if (cur->co_date == NULL) {
-			cur->co_date = strdup(".");
-			if (cur->co_date == NULL)
-				err(1, "strdup");
-		}
+		if (cur->co_tag == NULL)
+			cur->co_tag = xstrdup(".");
+		if (cur->co_date == NULL)
+			cur->co_date = xstrdup(".");
 		if (base != NULL) {
 			if (cur->co_base != NULL)
 				free(cur->co_base);
-			cur->co_base = strdup(base);
-			if (cur->co_base == NULL)
-				err(1, "strdup");
+			cur->co_base = xstrdup(base);
  		} else if (cur->co_base == NULL) {
-			cur->co_base = strdup("/usr/local/etc/cvsup");
-			if (cur->co_base == NULL)
-				err(1, "strdup");
+			cur->co_base = xstrdup("/usr/local/etc/cvsup");
 		}
 		if (cur->co_prefix == NULL) {
-			cur->co_prefix = strdup(cur->co_base);
-			if (cur->co_prefix == NULL)
-				err(1, "strdup");
+			cur->co_prefix = xstrdup(cur->co_base);
 		/*
 		 * If prefix is not an absolute pathname, it is
 		 * interpreted relative to base.
@@ -141,13 +122,11 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		} else if (cur->co_prefix[0] != '/') {
 			slen = strlen(cur->co_base);
 			if (slen > 0 && cur->co_base[slen - 1] != '/')
-				asprintf(&prefix, "%s/%s", cur->co_base,
+				xasprintf(&prefix, "%s/%s", cur->co_base,
 				    cur->co_prefix);
 			else
-				asprintf(&prefix, "%s%s", cur->co_base,
+				xasprintf(&prefix, "%s%s", cur->co_base,
 				    cur->co_prefix);
-			if (prefix == NULL)
-				err(1, "asprintf");
 			free(cur->co_prefix);
 			cur->co_prefix = prefix;
 		}
@@ -155,6 +134,12 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			cur->co_options |= CO_COMPRESS;
 		else if (compress < 0)
 			cur->co_options &= ~CO_COMPRESS;
+		if (truststatus)
+			cur->co_options |= CO_TRUSTSTATUSFILE;
+		if (colldir)
+			cur->co_colldir = colldir;
+		else
+			cur->co_colldir = "sup";
 	}
 
 	/* Override host if necessary. */
@@ -201,32 +186,33 @@ coll_new(void)
 	new = coll_alloc();
 	new->co_options = defaults->co_options;
 	new->co_umask = defaults->co_umask;
-	if (defaults->co_base != NULL) {
-		new->co_base = strdup(defaults->co_base);
-		if (new->co_base == NULL)
-			err(1, "strdup");
-	}
-	if (defaults->co_date != NULL) {
-		new->co_date = strdup(defaults->co_date);
-		if (new->co_date == NULL)
-			err(1, "strdup");
-	}
-	if (defaults->co_prefix != NULL) {
-		new->co_prefix = strdup(defaults->co_prefix);
-		if (new->co_prefix == NULL)
-			err(1, "strdup");
-	}
-	if (defaults->co_release != NULL) {
-		new->co_release = strdup(defaults->co_release);
-		if (new->co_release == NULL)
-			err(1, "strdup");
-	}
-	if (defaults->co_tag != NULL) {
-		new->co_tag = strdup(defaults->co_tag);
-		if (new->co_tag == NULL)
-			err(1, "strdup");
-	}
+	if (defaults->co_base != NULL)
+		new->co_base = xstrdup(defaults->co_base);
+	if (defaults->co_date != NULL)
+		new->co_date = xstrdup(defaults->co_date);
+	if (defaults->co_prefix != NULL)
+		new->co_prefix = xstrdup(defaults->co_prefix);
+	if (defaults->co_release != NULL)
+		new->co_release = xstrdup(defaults->co_release);
+	if (defaults->co_tag != NULL)
+		new->co_tag = xstrdup(defaults->co_tag);
 	return (new);
+}
+
+char *
+coll_statuspath(struct coll *coll)
+{
+	char *path;
+
+	if (coll->co_options & CO_USERELSUFFIX) {
+		xasprintf(&path, "%s/%s/%s/checkouts.%s:%s", coll->co_base,
+		    coll->co_colldir, coll->co_name, coll->co_release,
+		    coll->co_tag);
+	} else {
+		xasprintf(&path, "%s/%s/%s/checkouts", coll->co_base,
+		    coll->co_colldir, coll->co_name);
+	}
+	return (path);
 }
 
 void
@@ -242,13 +228,22 @@ void
 coll_free(struct coll *coll)
 {
 
-	free(coll->co_base);
-	free(coll->co_date);
-	free(coll->co_prefix);
-	free(coll->co_release);
-	free(coll->co_tag);
-	free(coll->co_cvsroot);
-	free(coll->co_name);
+	if (coll == NULL)
+		return;
+	if (coll->co_base != NULL)
+		free(coll->co_base);
+	if (coll->co_base != NULL)
+		free(coll->co_date);
+	if (coll->co_base != NULL)
+		free(coll->co_prefix);
+	if (coll->co_base != NULL)
+		free(coll->co_release);
+	if (coll->co_base != NULL)
+		free(coll->co_tag);
+	if (coll->co_base != NULL)
+		free(coll->co_cvsroot);
+	if (coll->co_base != NULL)
+		free(coll->co_name);
 	keyword_free(coll->co_keyword);
 	free(coll);
 }
@@ -261,23 +256,28 @@ coll_setopt(int opt, char *value)
 	coll = cur_coll;
 	switch (opt) {
 	case PT_BASE:
-		free(coll->co_base);
+		if (coll->co_base != NULL)
+			free(coll->co_base);
 		coll->co_base = value;
 		break;
 	case PT_DATE:
-		free(coll->co_date);
+		if (coll->co_base != NULL)
+			free(coll->co_date);
 		coll->co_date = value;
 		break;
 	case PT_PREFIX:
-		free(coll->co_prefix);
+		if (coll->co_base != NULL)
+			free(coll->co_prefix);
 		coll->co_prefix = value;
 		break;
 	case PT_RELEASE:
-		free(coll->co_release);
+		if (coll->co_base != NULL)
+			free(coll->co_release);
 		coll->co_release = value;
 		break;
 	case PT_TAG:
-		free(coll->co_tag);
+		if (coll->co_base != NULL)
+			free(coll->co_tag);
 		coll->co_tag = value;
 		break;
 	case PT_UMASK:
@@ -318,9 +318,7 @@ coll_alloc(void)
 {
 	struct coll *new;
 
-	new = malloc(sizeof(struct coll));
-	if (new == NULL)
-		err(1, "malloc");
+	new = xmalloc(sizeof(struct coll));
 	memset(new, 0, sizeof(struct coll));
 	return (new);
 }

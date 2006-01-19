@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -61,6 +62,8 @@ usage(char *argv0)
 	    "Verbosity level (0..2, default 1)");
 	lprintf(-1, USAGE_OPTFMT, "-p port",
 	    "Alternate server port (default 5999)");
+	lprintf(-1, USAGE_OPTFMT, "-s",
+	    "Don't stat client files; trust the checkouts file");
 	lprintf(-1, USAGE_OPTFMT, "-v", "Print version and exit");
 	lprintf(-1, USAGE_OPTFMT, "-z", "Enable compression for all "
 	    "collections");
@@ -73,16 +76,17 @@ main(int argc, char *argv[])
 {
 	struct config *config;
 	char *argv0, *base, *colldir, *host, *file, *lockfile;
-	in_port_t port;
-	int c, compress, error, lockfd, lflag;
+	uint16_t port;
+	int c, compress, error, lockfd, lflag, truststatus;
 
 	port = 0;
 	compress = 0;
+	truststatus = 0;
 	lflag = 0;
 	lockfd = 0;
 	argv0 = argv[0];
 	base = colldir = host = lockfile = NULL;
-	while ((c = getopt(argc, argv, "b:c:gh:l:L:p:P:vzZ")) != -1) {
+	while ((c = getopt(argc, argv, "b:c:gh:l:L:p:P:svzZ")) != -1) {
 		switch (c) {
 		case 'b':
 			base = optarg;
@@ -139,6 +143,9 @@ main(int argc, char *argv[])
 				return (1);
 			}
 			break;
+		case 's':
+			truststatus = 1;
+			break;
 		case 'v':
 			lprintf(-1, "Csup version 0.1\n");
 			return (0);
@@ -168,7 +175,8 @@ main(int argc, char *argv[])
 
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
-	config = config_init(file, host, base, colldir, port, compress);
+	config = config_init(file, host, base, colldir, port, compress,
+	    truststatus);
 	lprintf(2, "Connecting to %s\n", config->host);
 	error = proto_connect(config);
 	if (error)

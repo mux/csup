@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,9 @@
 
 #include "fattr.h"
 #include "queue.h"
+
+#include <stdint.h>
+#include <time.h>
 
 /*
  * Collection options.
@@ -71,6 +74,8 @@ struct coll {
 	char *co_release;
 	char *co_tag;
 	char *co_cvsroot;
+	const char *co_colldir;
+	time_t co_scantime;		/* Set by the detailer thread. */
 	int co_options;
 	mode_t co_umask;
 	struct keyword *co_keyword;
@@ -79,23 +84,23 @@ struct coll {
 
 struct config {
 	STAILQ_HEAD(, coll) colls;
-	const char *colldir;
 	char *host;
-	in_port_t port;
+	uint16_t port;
 	int socket;
 	int id0, id1;
 	struct stream *server;
 	fattr_support_t fasupport;
 };
 
-struct config	*config_init(const char *, char *, char *, char *, in_port_t,
-		     int);
+struct config	*config_init(const char *, char *, char *, char *, uint16_t,
+		     int, int);
 int		 config_sethost(char *);
 
 struct coll	*coll_new(void);
-void		coll_add(char *);
-void		coll_free(struct coll *);
-void		coll_setdef(void);
-void		coll_setopt(int, char *);
+char		*coll_statuspath(struct coll *);
+void		 coll_add(char *);
+void		 coll_free(struct coll *);
+void		 coll_setdef(void);
+void		 coll_setopt(int, char *);
 
 #endif /* !_CONFIG_H_ */
