@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,6 +54,7 @@ int		 stream_sync(struct stream *);
 int		 stream_truncate(struct stream *, off_t);
 int		 stream_truncate_rel(struct stream *, off_t);
 int		 stream_rewind(struct stream *);
+int		 stream_eof(struct stream *);
 int		 stream_close(struct stream *);
 int		 stream_filter_start(struct stream *, stream_filter_t, void *);
 void		 stream_filter_stop(struct stream *);

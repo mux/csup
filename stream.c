@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2005, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -101,6 +101,7 @@ struct stream {
 	stream_readfn_t readfn;
 	stream_writefn_t writefn;
 	stream_closefn_t closefn;
+	int eof;
 	struct stream_filter *filter;
 	void *fdata;
 };
@@ -203,18 +204,12 @@ buf_new(size_t size)
 {
 	struct buf *buf;
 
-	buf = malloc(sizeof(struct buf));
-	if (buf == NULL)
-		err(1, "malloc");
+	buf = xmalloc(sizeof(struct buf));
 	/*
 	 * We keep one spare byte so that stream_getln() can put a '\0'
 	 * there in case the stream doesn't have an ending newline.
 	 */
-	buf->buf = malloc(size + 1);
-	if (buf->buf == NULL) {
-		free(buf);
-		err(1, "malloc");
-	}
+	buf->buf = xmalloc(size + 1);
 	buf->size = size;
 	buf->in = 0;
 	buf->off = 0;
@@ -295,9 +290,7 @@ stream_fdopen(int id, stream_readfn_t readfn, stream_writefn_t writefn,
 {
 	struct stream *stream;
 
-	stream = malloc(sizeof(struct stream));
-	if (stream == NULL)
-		err(1, "malloc");
+	stream = xmalloc(sizeof(struct stream));
 	if (readfn == NULL && writefn == NULL) {
 		errno = EINVAL;
 		return (NULL);
@@ -315,6 +308,8 @@ stream_fdopen(int id, stream_readfn_t readfn, stream_writefn_t writefn,
 	stream->writefn = writefn;
 	stream->closefn = closefn;
 	stream->filter = stream_filter_lookup(STREAM_FILTER_NULL);
+	stream->fdata = NULL;
+	stream->eof = 0;
 	return (stream);
 }
 
@@ -577,6 +572,14 @@ stream_rewind(struct stream *stream)
 	return (error);
 }
 
+/* Return EOF status. */
+int
+stream_eof(struct stream *stream)
+{
+
+	return (stream->eof);
+}
+
 /* Close a stream and free any resources held by it. */
 int
 stream_close(struct stream *stream)
@@ -611,11 +614,17 @@ stream_fill_default(struct stream *stream, struct buf *buf)
 {
 	ssize_t n;
 
+	if (stream->eof)
+		return (0);
 	assert(buf_avail(buf) > 0);
 	n = (*stream->readfn)(stream->id, buf->buf + buf->off + buf->in,
 	    buf_avail(buf));
 	if (n < 0)
 		return (-1);
+	if (n == 0) {
+		stream->eof = 1;
+		return (0);
+	}
 	buf_more(buf, n);
 	return (n);
 }
@@ -725,7 +734,7 @@ static void *
 zfilter_alloc(void __unused *opaque, unsigned int items, unsigned int size)
 {
 
-	return (malloc(items * size));
+	return (xmalloc(items * size));
 }
 
 static void
@@ -743,14 +752,10 @@ zfilter_init(struct stream *stream, void __unused *data)
 	z_stream *state;
 	int rv;
 
-	zf = malloc(sizeof(struct zfilter));
-	if (zf == NULL)
-		err(1, "malloc");
+	zf = xmalloc(sizeof(struct zfilter));
 	memset(zf, 0, sizeof(struct zfilter));
 	if (stream->rdbuf != NULL) {
-		state = malloc(sizeof(z_stream));
-		if (state == NULL)
-			err(1, "malloc");
+		state = xmalloc(sizeof(z_stream));
 		state->zalloc = zfilter_alloc;
 		state->zfree = zfilter_free;
 		state->opaque = Z_NULL;
@@ -763,9 +768,7 @@ zfilter_init(struct stream *stream, void __unused *data)
 		zf->rdstate = state;
 	}
 	if (stream->wrbuf != NULL) {
-		state = malloc(sizeof(z_stream));
-		if (state == NULL)
-			err(1, "malloc");
+		state = xmalloc(sizeof(z_stream));
 		state->zalloc = zfilter_alloc;
 		state->zfree = zfilter_free;
 		state->opaque = Z_NULL;
@@ -936,9 +939,7 @@ md5filter_init(struct stream *stream, void *data)
 {
 	struct md5filter *mf;
 
-	mf = malloc(sizeof(struct md5filter));
-	if (mf == NULL)
-		err(1, "malloc");
+	mf = xmalloc(sizeof(struct md5filter));
 	MD5_Init(&mf->ctx);
 	mf->md5 = data;
 	stream->fdata = mf;
