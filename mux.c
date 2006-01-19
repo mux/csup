@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,8 +33,8 @@
 #include <netinet/in.h>
 
 #include <assert.h>
-#include <errno.h>
 #include <err.h>
+#include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -528,9 +528,7 @@ chan_new(void)
 {
 	struct chan *chan;
 
-	chan = malloc(sizeof(struct chan));
-	if (chan == NULL)
-		err(1, "malloc");
+	chan = xmalloc(sizeof(struct chan));
 	chan->state = CS_UNUSED;
 	chan->flags = 0;
 	chan->sendbuf = buf_new(CHAN_SBSIZE);
@@ -869,10 +867,13 @@ receiver_loop(void *arg)
 				goto bad;
 			chan = chan_get(mh.mh_window.id);
 			if (chan->state == CS_ESTABLISHED ||
-			    chan->state == CS_RDCLOSED)
+			    chan->state == CS_RDCLOSED) {
 				chan->sendwin = ntohl(mh.mh_window.window);
-			chan_unlock(chan);
-			sender_wakeup();
+				chan_unlock(chan);
+				sender_wakeup();
+			} else {
+				chan_unlock(chan);
+			}
 			break;
 		case MUX_DATA:
 			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
@@ -951,15 +952,9 @@ buf_new(size_t size)
 {
 	struct buf *buf;
 
-	buf = malloc(sizeof(struct buf));
-	if (buf == NULL)
-		err(1, "malloc");
-	buf->data = malloc(size + 1);
+	buf = xmalloc(sizeof(struct buf));
+	buf->data = xmalloc(size + 1);
 	buf->size = size;
-	if (buf->data == NULL) {
-		free(buf);
-		err(1, "malloc");
-	}
 	buf->in = 0;
 	buf->out = 0;
 	return (buf);
