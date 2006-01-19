@@ -71,6 +71,7 @@ struct coll {
 	char *co_base;
 	char *co_date;
 	char *co_prefix;
+	size_t co_prefixlen;
 	char *co_release;
 	char *co_tag;
 	char *co_cvsroot;

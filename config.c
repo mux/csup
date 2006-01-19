@@ -130,6 +130,7 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			free(cur->co_prefix);
 			cur->co_prefix = prefix;
 		}
+		cur->co_prefixlen = strlen(cur->co_prefix);
 		if (compress > 0)
 			cur->co_options |= CO_COMPRESS;
 		else if (compress < 0)
