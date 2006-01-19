@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2004-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 
+#include "misc.h"
 #include "queue.h"
 #include "threads.h"
 
@@ -68,9 +69,7 @@ threads_new(void)
 {
 	struct threads *tds;
 
-	tds = malloc(sizeof(struct threads));
-	if (tds == NULL)
-		err(1, "malloc");
+	tds = xmalloc(sizeof(struct threads));
 	pthread_mutex_init(&tds->threads_mtx, NULL);
 	pthread_cond_init(&tds->thread_exited, NULL);
 	LIST_INIT(&tds->threads_running);
@@ -89,9 +88,7 @@ threads_create(struct threads *tds, void *(*start)(void *), void *data)
 	struct thread *td;
 	int error;
 
-	td = malloc(sizeof(struct thread));
-	if (td == NULL)
-		err(1, "malloc");
+	td = xmalloc(sizeof(struct thread));
 	td->threads = tds;
 	td->start = start;
 	td->data = data;
