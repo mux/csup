@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,7 @@
 
 #include "diff.h"
 #include "keyword.h"
+#include "misc.h"
 #include "queue.h"
 #include "stream.h"
 
@@ -98,9 +99,7 @@ keyword_new(void)
 {
 	struct keyword *new;
 
-	new = malloc(sizeof(struct keyword));
-	if (new == NULL)
-		err(1, "malloc");
+	new = xmalloc(sizeof(struct keyword));
 	STAILQ_INIT(&new->keywords);
 	STAILQ_INIT(&new->aliases);
 	return (new);
@@ -271,18 +270,18 @@ again:
 			*vallim = '\0';
 			newval = NULL;
 			if (diff->d_expand == EXPAND_KEY) {
-				asprintf(&newline, "%s$%s$%s", linestart,
+				xasprintf(&newline, "%s$%s$%s", linestart,
 				    keystart, vallim + 1);
 			} else if (diff->d_expand == EXPAND_VALUE) {
 				newval = tag_expand(tag, diff);
-				asprintf(&newline, "%s%s%s", linestart,
+				xasprintf(&newline, "%s%s%s", linestart,
 				    newval == NULL ? "" : newval, vallim + 1);
 			} else {
 				assert(diff->d_expand == EXPAND_DEFAULT ||
 				    diff->d_expand == EXPAND_KEYVALUE ||
 				    diff->d_expand == EXPAND_KEYVALUELOCKER);
 				newval = tag_expand(tag, diff);
-				asprintf(&newline, "%s$%s: %s $%s", linestart,
+				xasprintf(&newline, "%s$%s: %s $%s", linestart,
 				    keystart, newval == NULL ? "" : newval,
 				    vallim + 1);
 			}
@@ -290,8 +289,6 @@ again:
 				free(newval);
 			if (tmp != NULL)
 				free(tmp);
-			if (newline == NULL)
-				err(1, "asprintf");
 			/*
 			 * Continue looking for tags in the rest of the line.
 			 * We can't use vallim + 1 because it points in the
@@ -311,14 +308,8 @@ tag_new(const char *ident, rcskey_t key)
 {
 	struct tag *new;
 
-	new = malloc(sizeof(struct tag));
-	if (new == NULL)
-		err(1, "malloc");
-	new->ident = strdup(ident);
-	if (new->ident == NULL) {
-		free(new);
-		err(1, "strdup");
-	}
+	new = xmalloc(sizeof(struct tag));
+	new->ident = xstrdup(ident);
 	new->key = key;
 	return (new);
 }
@@ -359,22 +350,22 @@ tag_expand(struct tag *tag, struct diff *diff)
 
 	switch (tag->key) {
 	case RCSKEY_AUTHOR:
-		asprintf(&val, "%s", diff->d_author);
+		xasprintf(&val, "%s", diff->d_author);
 		break;
 	case RCSKEY_CVSHEADER:
-		asprintf(&val, "%s %s %s %s %s", diff->d_rcsfile,
+		xasprintf(&val, "%s %s %s %s %s", diff->d_rcsfile,
 		    diff->d_revnum, cvsdate, diff->d_author, diff->d_state);
 		break;
 	case RCSKEY_DATE:
-		asprintf(&val, "%s", cvsdate);
+		xasprintf(&val, "%s", cvsdate);
 		break;
 	case RCSKEY_HEADER:
-		asprintf(&val, "%s/%s %s %s %s %s", diff->d_cvsroot,
+		xasprintf(&val, "%s/%s %s %s %s %s", diff->d_cvsroot,
 		    diff->d_rcsfile, diff->d_revnum, cvsdate, diff->d_author,
 		    diff->d_state);
 		break;
 	case RCSKEY_ID:
-		asprintf(&val, "%s %s %s %s %s", filename, diff->d_revnum,
+		xasprintf(&val, "%s %s %s %s %s", filename, diff->d_revnum,
 		    cvsdate, diff->d_author, diff->d_state);
 		break;
 	case RCSKEY_LOCKER:
@@ -384,28 +375,27 @@ tag_expand(struct tag *tag, struct diff *diff)
 		 */
 		return (NULL);
 	case RCSKEY_LOG:
+		/* XXX */
 		printf("%s: Implement Log keyword expansion\n", __func__);
 		return (NULL);
 	case RCSKEY_NAME:
 		if (diff->d_tag != NULL)
-			asprintf(&val, "%s", diff->d_tag);
+			xasprintf(&val, "%s", diff->d_tag);
 		else
 			return (NULL);
 		break;
 	case RCSKEY_RCSFILE:
-		asprintf(&val, "%s", filename);
+		xasprintf(&val, "%s", filename);
 		break;
 	case RCSKEY_REVISION:
-		asprintf(&val, "%s", diff->d_revnum);
+		xasprintf(&val, "%s", diff->d_revnum);
 		break;
 	case RCSKEY_SOURCE:
-		asprintf(&val, "%s/%s", diff->d_cvsroot, diff->d_rcsfile);
+		xasprintf(&val, "%s/%s", diff->d_cvsroot, diff->d_rcsfile);
 		break;
 	case RCSKEY_STATE:
-		asprintf(&val, "%s", diff->d_state);
+		xasprintf(&val, "%s", diff->d_state);
 		break;
 	}
-	if (val == NULL)
-		err(1, "asprintf");
 	return (val);
 }
