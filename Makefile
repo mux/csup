@@ -5,7 +5,8 @@ BINDIR?=	/usr/local/bin
 UNAME!=		/usr/bin/uname -s
 
 PROG=	csup
-SRCS=	config.c config.h \
+SRCS=	attrstack.c attrstack.h \
+	config.c config.h \
 	detailer.c detailer.h \
 	diff.c diff.h \
 	fattr.c fattr.h fattr_os.h \
@@ -15,7 +16,9 @@ SRCS=	config.c config.h \
 	misc.c misc.h \
 	mux.c mux.h \
 	parse.h parse.y \
+	pathcomp.c pathcomp.h \
 	proto.c proto.h \
+	status.c status.h \
 	stream.c stream.h \
 	threads.c threads.h \
 	token.h token.l \

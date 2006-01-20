@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,11 +28,15 @@
 #ifndef _PROTO_H_
 #define _PROTO_H_
 
+#include <time.h>
+
 struct stream;
 
 int	 proto_connect(struct config *);
 int	 proto_init(struct config *);
 int	 proto_printf(struct stream *, const char *, ...);
-char	*proto_getstr(char **);
+char	*proto_get_ascii(char **);
+int	 proto_get_int(char **, int *);
+int	 proto_get_time(char **, time_t *);
 
 #endif /* !_PROTO_H_ */

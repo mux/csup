@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,32 +47,42 @@
 #include "misc.h"
 #include "mux.h"
 #include "proto.h"
+#include "status.h"
 #include "stream.h"
 
-/* Everything we need to update a file. */
-struct update {
+struct context {
+	/* These fields are constant during the updater run. */
 	struct coll *coll;
+	struct stream *rd;
+	struct status *st;
+
+	/* These fields are freed if necessary by context_fini(). */
+	struct statusrec sr;
 	char *author;
-	char *rcsfile;
-	char *revnum;
-	char *revdate;
 	char *state;
 	char *tag;
+	char *cksum;
 	struct stream *from;
 	struct stream *to;
-	struct stream *stream;
-	struct fattr *rcsattr;
 	int expand;
 };
+
+static void	 context_fini(struct context *);
 
 static int	 updater_makedirs(char *);
 static void	 updater_prunedirs(char *, char *);
 static char	*updater_maketmp(const char *, const char *);
-static int	 updater_checkout(struct coll *, struct stream *, char *);
-static int	 updater_delete(struct coll *, char *);
-static int	 updater_diff(struct coll *, struct stream *, char *);
-static int	 updater_diff_batch(struct update *);
-static int	 updater_diff_apply(struct update *);
+static int	 updater_docoll(struct coll *, struct stream *,
+		     struct status *);
+static int	 updater_checkout(struct context *, char *);
+static int	 updater_checkoutdead(struct context *, char *);
+static int	 updater_updatedead(struct context *, char *);
+static int	 updater_delete(struct context *, char *);
+static int	 updater_setattrs(struct context *, char *);
+static int	 updater_diff(struct context *, char *);
+static int	 updater_diff_parseln(struct context *, char *);
+static int	 updater_diff_batch(struct context *);
+static int	 updater_diff_apply(struct context *);
 static int	 updater_install(struct coll *, struct fattr *, const char *,
 		     const char *);
 
@@ -81,8 +91,9 @@ updater(void *arg)
 {
 	struct config *config;
 	struct coll *coll;
+	struct status *st;
 	struct stream *rd;
-	char *line, *cmd, *collname, *release;
+	char *line, *cmd, *errmsg, *collname, *release;
 	int error;
 
 	config = arg;
@@ -93,48 +104,40 @@ updater(void *arg)
 			continue;
 		umask(coll->co_umask);
 		line = stream_getln(rd, NULL);
-		cmd = proto_getstr(&line);
-		collname = proto_getstr(&line);
-		release = proto_getstr(&line);
+		cmd = proto_get_ascii(&line);
+		collname = proto_get_ascii(&line);
+		release = proto_get_ascii(&line);
 		if (release == NULL || line != NULL)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0 ||
 		    strcmp(collname, coll->co_name) != 0 ||
 		    strcmp(release, coll->co_release) != 0)
 			goto bad;
+
+		st = status_open(coll, coll->co_scantime, &errmsg);
+		if (st == NULL) {
+			lprintf(-1, "Updater: %s\n", errmsg);
+			stream_close(rd);
+			return (NULL);
+		}
+
 		lprintf(1, "Updating collection %s/%s\n", coll->co_name,
 		    coll->co_release);
 
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(rd, STREAM_FILTER_ZLIB, NULL);
-		while ((line = stream_getln(rd, NULL)) != NULL) {
-			if (strcmp(line, ".") == 0)
-				break;
-			cmd = proto_getstr(&line);
-			if (cmd == NULL)
-				goto bad;
-			if (strcmp(cmd, "T") == 0)
-				/* XXX */;
-			else if (strcmp(cmd, "c") == 0)
-				/* XXX */;
-			else if (strcmp(cmd, "U") == 0)
-				error = updater_diff(coll, rd, line);
-			else if (strcmp(cmd, "u") == 0)
-				error = updater_delete(coll, line);
-			else if (strcmp(cmd, "C") == 0)
-				error = updater_checkout(coll, rd, line);
-			else if (strcmp(cmd, "D") == 0)
-				error = updater_delete(coll, line);
-			else {
-				lprintf(-1, "Updater: Unknown command: "
-				    "\"%s\"\n", cmd);
-				goto bad;
-			}
-			if (error)
-				goto bad;
-		}
-		if (line == NULL)
+
+		error = updater_docoll(coll, rd, st);
+		if (error)
 			goto bad;
+
+		status_close(st, &errmsg);
+		if (errmsg != NULL) {
+			lprintf(-1, "Updater: %s\n", errmsg);
+			stream_close(rd);
+			return (NULL);
+		}
+
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_stop(rd);
 	}
@@ -150,192 +153,394 @@ bad:
 }
 
 static int
-updater_delete(struct coll *coll, char *line)
+updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 {
-	char *file, *rcsfile;
+	struct context ctx;
+	char *cmd, *line;
 	int error;
 
-	rcsfile = proto_getstr(&line);
-	file = checkoutpath(coll->co_prefix, rcsfile);
+	error = 0;
+	memset(&ctx, 0, sizeof(ctx));
+	while ((line = stream_getln(rd, NULL)) != NULL) {
+		if (strcmp(line, ".") == 0)
+			break;
+		cmd = proto_get_ascii(&line);
+		if (cmd == NULL)
+			return (-1);
+		ctx.coll = coll;
+		ctx.rd = rd;
+		ctx.st = st;
+		if (strcmp(cmd, "T") == 0)
+			error = updater_setattrs(&ctx, line);
+			//lprintf(-1, "T %s\n", line);
+		else if (strcmp(cmd, "c") == 0)
+			error = updater_checkoutdead(&ctx, line);
+		else if (strcmp(cmd, "U") == 0)
+			error = updater_diff(&ctx, line);
+		else if (strcmp(cmd, "u") == 0)
+			error = updater_updatedead(&ctx, line);
+		else if (strcmp(cmd, "C") == 0)
+			error = updater_checkout(&ctx, line);
+		else if (strcmp(cmd, "D") == 0)
+			error = updater_delete(&ctx, line);
+		else {
+			lprintf(-1, "Updater: Unknown command: "
+			    "\"%s\"\n", cmd);
+			return (-1);
+		}
+		context_fini(&ctx);
+		if (error)
+			return (-1);
+	}
+	if (line == NULL)
+		return (-1);
+	return (0);
+}
+
+/* Delete file. */
+static int
+updater_delete(struct context *ctx, char *line)
+{
+	struct coll *coll;
+	char *file, *name;
+	int error;
+
+	coll = ctx->coll;
+	name = proto_get_ascii(&line);
+	/* XXX - destDir handling */
+	file = checkoutpath(coll->co_prefix, name);
 	if (file == NULL) {
-		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
+		lprintf(-1, "Updater: Bad filename \"%s\"\n", name);
 		return (-1);
 	}
-	lprintf(1, " Delete %s\n", file + strlen(coll->co_prefix) + 1);
-	error = unlink(file);
-	if (error) {
-		free(file);
-		return (error);
+	if (coll->co_options & CO_DELETE) {
+		lprintf(1, " Delete %s\n", file + coll->co_prefixlen + 1);
+		error = unlink(file);
+		if (error) {
+			free(file);
+			return (error);
+		}
+		updater_prunedirs(coll->co_prefix, file);
+	} else {
+		lprintf(1," NoDelete %s\n", file + coll->co_prefixlen + 1);
 	}
-	updater_prunedirs(coll->co_prefix, file);
 	free(file);
+
+	error = status_delete(ctx->st, name, 0);
+	if (error) {
+		/* XXX */
+		return (-1);
+	}
 	return (0);
 }
 
 static int
-updater_diff(struct coll *coll, struct stream *rd, char *line)
+updater_setattrs(struct context *ctx, char *line)
 {
-	char md5[MD5_DIGEST_SIZE];
-	struct update up;
-	struct fattr *rcsattr, *fa;
-	char *author, *expand, *tag, *rcsfile, *revnum, *revdate, *path;
-	char *attr, *cp, *cksum, *line2, *line3, *tok, *topath;
-	int error;
+	struct statusrec sr;
+	struct fattr *fileattr, *rcsattr, *fa;
+	struct coll *coll;
+	char *attr, *name, *tag, *date, *revnum, *revdate;
+	char *path;
+	int error, rv;
 
-	line3 = NULL;
-	rcsattr = NULL;
-	path = NULL;
-	topath = NULL;
-	memset(&up, 0, sizeof(struct update));
-	up.coll = coll;
+	coll = ctx->coll;
 
-	line2 = strdup(line);
-	if (line2 == NULL)
-		err(1, "strdup");
-	cp = line2;
-	rcsfile = proto_getstr(&cp);
-	tag = proto_getstr(&cp);
-	proto_getstr(&cp); /* XXX - date */
-	proto_getstr(&cp); /* XXX - orig revnum */
-	proto_getstr(&cp); /* XXX - from attic */
-	proto_getstr(&cp); /* XXX - loglines */
-	expand = proto_getstr(&cp);
-	attr = proto_getstr(&cp);
-	cksum = proto_getstr(&cp);
-	if (cksum == NULL || cp != NULL)
-		goto bad;
-	path = checkoutpath(coll->co_prefix, rcsfile);
-	if (path == NULL) {
-		lprintf(-1, "Updater: bad filename %s\n", rcsfile);
-		goto bad;
+	name = proto_get_ascii(&line);
+	tag = proto_get_ascii(&line);
+	date = proto_get_ascii(&line);
+	revnum = proto_get_ascii(&line);
+	revdate = proto_get_ascii(&line);
+	attr = proto_get_ascii(&line);
+	if (attr == NULL || line != NULL) {
+		lprintf(-1, "Updater: Parse error\n");
+		return (-1);
 	}
-	if (strcmp(expand, ".") == 0)
-		up.expand = EXPAND_DEFAULT;
-	else if (strcmp(expand, "kv") == 0)
-		up.expand = EXPAND_KEYVALUE;
-	else if (strcmp(expand, "kvl") == 0)
-		up.expand = EXPAND_KEYVALUELOCKER;
-	else if (strcmp(expand, "k") == 0)
-		up.expand = EXPAND_KEY;
-	else if (strcmp(expand, "o") == 0)
-		up.expand = EXPAND_OLD;
-	else if (strcmp(expand, "b") == 0)
-		up.expand = EXPAND_BINARY;
-	else if (strcmp(expand, "v") == 0)
-		up.expand = EXPAND_VALUE;
-	else {
-		lprintf(-1, "Updater: invalid expansion mode \"%s\"\n",
-		    expand);
-		goto bad;
-	}
+
 	rcsattr = fattr_decode(attr);
 	if (rcsattr == NULL) {
-		lprintf(-1, "Updater: invalid file attributes \"%s\"\n",
-		    attr);
+		lprintf(-1, "Updater: Bad attributes \"%s\"\n", attr);
+		return (-1);
+	}
+
+	path = checkoutpath(coll->co_prefix, name);
+	if (path == NULL) {
+		lprintf(-1, "Updater: Bad filename \"%s\"\n", name);
+		return (-1);
+	}
+	fileattr = fattr_frompath(path, FATTR_NOFOLLOW);
+	if (fileattr == NULL) {
+		/* The file has vanished. */
+		error = status_delete(ctx->st, name, 0);
+		if (error) {
+			/* XXX */
+		}
+		free(path);
+		fattr_free(rcsattr);
+		return (0);
+	}
+	fa = fattr_forcheckout(rcsattr, coll->co_umask);
+	fattr_override(fileattr, fa, FA_MASK);
+	fattr_free(fa);
+
+	rv = fattr_install(fileattr, path, NULL);
+	if (rv == -1) {
+		/* XXX ignore if errno == ENOENT and if a different detDir
+		   was specified. */
+		/*
+		if (errno == ENOENT && XXX) {
+			lprintf(1, " SetAttrs %s\n",
+			    path + coll->co_prefixlen + 1);
+			    XXX
+		}
+		 */
+		free(path);
+		fattr_free(rcsattr);
+		fattr_free(fileattr);
+		return (-1);
+	}
+	if (rv == 1) {
+		lprintf(1, " SetAttrs %s\n",
+		    path + coll->co_prefixlen + 1);
+		fattr_free(fileattr);
+		fileattr = fattr_frompath(path, FATTR_NOFOLLOW);
+	}
+
+	fattr_maskout(fileattr, FA_COIGNORE);
+
+	sr.sr_type = SR_CHECKOUTLIVE;
+	sr.sr_file = name;
+	sr.sr_tag = tag;
+	sr.sr_date = date;
+	sr.sr_revnum = revnum;
+	sr.sr_revdate = revdate;
+	sr.sr_clientattr = fileattr;
+	sr.sr_serverattr = rcsattr;
+
+	error = status_put(ctx->st, &sr);
+	fattr_free(fileattr);
+	fattr_free(rcsattr);
+	if (error) {
+		/* XXX */
+		return (-1);
+	}
+	free(path);
+	return (0);
+}
+
+static int
+updater_diff_parseln(struct context *ctx, char *line)
+{
+	struct statusrec *sr;
+	char *cp, *name, *tag, *date;
+	char *expand, *attr, *cksum;
+
+	cp = line;
+	name = proto_get_ascii(&cp);
+	tag = proto_get_ascii(&cp);
+	date = proto_get_ascii(&cp);
+	proto_get_ascii(&cp);	/* XXX - oldRevNum */
+	proto_get_ascii(&cp);	/* XXX - fromAttic */
+	proto_get_ascii(&cp);	/* XXX - logLines */
+	expand = proto_get_ascii(&cp);
+	attr = proto_get_ascii(&cp);
+	cksum = proto_get_ascii(&cp);
+	if (cksum == NULL || cp != NULL)
+		return (-1);
+
+	sr = &ctx->sr;
+	sr->sr_type = SR_CHECKOUTLIVE;
+	sr->sr_file = xstrdup(name);
+	sr->sr_date = xstrdup(date);
+	sr->sr_tag = xstrdup(tag);
+	sr->sr_serverattr = fattr_decode(attr);
+	if (sr->sr_serverattr == NULL) {
+		lprintf(-1, "Updater: Bad attributes \"%s\"\n", attr);
+		return (-1);
+	}
+
+	if (strcmp(expand, ".") == 0)
+		ctx->expand = EXPAND_DEFAULT;
+	else if (strcmp(expand, "kv") == 0)
+		ctx->expand = EXPAND_KEYVALUE;
+	else if (strcmp(expand, "kvl") == 0)
+		ctx->expand = EXPAND_KEYVALUELOCKER;
+	else if (strcmp(expand, "k") == 0)
+		ctx->expand = EXPAND_KEY;
+	else if (strcmp(expand, "o") == 0)
+		ctx->expand = EXPAND_OLD;
+	else if (strcmp(expand, "b") == 0)
+		ctx->expand = EXPAND_BINARY;
+	else if (strcmp(expand, "v") == 0)
+		ctx->expand = EXPAND_VALUE;
+	else
+		return (-1);
+
+	ctx->tag = xstrdup(tag);
+	ctx->cksum = xstrdup(cksum);
+	return (0);
+}
+
+static void
+context_fini(struct context *ctx)
+{
+	struct statusrec *sr;
+
+	sr = &ctx->sr;
+	if (ctx->author != NULL) {
+		free(ctx->author);
+		ctx->author = NULL;
+	}
+	if (ctx->cksum != NULL) {
+		free(ctx->cksum);
+		ctx->cksum = NULL;
+	}
+	if (ctx->tag != NULL) {
+		free(ctx->tag);
+		ctx->tag = NULL;
+	}
+	if (ctx->from != NULL) {
+		stream_close(ctx->from);
+		ctx->from = NULL;
+	}
+	if (ctx->to != NULL) {
+		stream_close(ctx->to);
+		ctx->to = NULL;
+	}
+	if (sr->sr_file != NULL)
+		free(sr->sr_file);
+	if (sr->sr_tag != NULL)
+		free(sr->sr_tag);
+	if (sr->sr_date != NULL)
+		free(sr->sr_date);
+	if (sr->sr_revnum != NULL)
+		free(sr->sr_revnum);
+	if (sr->sr_revdate != NULL)
+		free(sr->sr_revdate);
+	fattr_free(sr->sr_clientattr);
+	fattr_free(sr->sr_serverattr);
+	memset(sr, 0, sizeof(*sr));
+}
+
+/* Update live checked-out file. */
+static int
+updater_diff(struct context *ctx, char *line)
+{
+	char md5[MD5_DIGEST_SIZE];
+	struct coll *coll;
+	struct statusrec *sr;
+	struct fattr *fa;
+	char *author, *path, *revnum, *revdate;
+	char *tok, *topath;
+	int error;
+
+	path = NULL;
+	topath = NULL;
+	sr = &ctx->sr;
+	coll = ctx->coll;
+
+	error = updater_diff_parseln(ctx, line);
+	if (error) {
+		lprintf(-1, "Updater: Parse error\n");
 		goto bad;
 	}
-	up.rcsattr = rcsattr;
-	up.rcsfile = rcsfile;
-	if (strcmp(tag, ".") != 0)
-		up.tag = tag;
 
-	lprintf(1, " Edit %s\n", path + strlen(coll->co_prefix) + 1);
-	while ((line = stream_getln(rd, NULL)) != NULL) {
+	path = checkoutpath(coll->co_prefix, sr->sr_file);
+	if (path == NULL) {
+		lprintf(-1, "Updater: Bad filename \"%s\"\n", sr->sr_file);
+		goto bad;
+	}
+
+	lprintf(1, " Edit %s\n", path + coll->co_prefixlen + 1);
+	while ((line = stream_getln(ctx->rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		tok = proto_getstr(&line);
+		tok = proto_get_ascii(&line);
 		if (strcmp(tok, "D") != 0)
 			goto bad;
-		free(line3);
-		line3 = strdup(line);
-		if (line3 == NULL)
-			err(1, "strdup");
-		cp = line3;
-		revnum = proto_getstr(&cp);
-		proto_getstr(&cp); /* XXX - diffbase */
-		revdate = proto_getstr(&cp);
-		author = proto_getstr(&cp);
-		if (author == NULL || cp != NULL)
+		revnum = proto_get_ascii(&line);
+		proto_get_ascii(&line); /* XXX - diffbase */
+		revdate = proto_get_ascii(&line);
+		author = proto_get_ascii(&line);
+		if (author == NULL || line != NULL)
 			goto bad;
-		up.revnum = revnum;
-		up.revdate = revdate;
-		up.author = author;
-		up.stream = rd;
-		if (up.from == NULL) {
+		if (sr->sr_revnum != NULL)
+			free(sr->sr_revnum);
+		if (sr->sr_revdate != NULL)
+			free(sr->sr_revdate);
+		if (ctx->author != NULL)
+			free(ctx->author);
+		ctx->author = xstrdup(author);
+		sr->sr_revnum = xstrdup(revnum);
+		sr->sr_revdate = xstrdup(revdate);
+		if (ctx->from == NULL) {
 			/* First patch, the "origin" file is the one we have. */
-			up.from = stream_open_file(path, O_RDONLY);
-			if (up.from == NULL)
+			ctx->from = stream_open_file(path, O_RDONLY);
+			if (ctx->from == NULL)
 				goto bad;
 		} else {
 			/* Subsequent patches. */
-			stream_close(up.from);
-			up.from = up.to;
-			stream_rewind(up.from);
-			/* XXX */
-			if (unlink(topath) == -1)
-				warn("unlink");
+			stream_close(ctx->from);
+			ctx->from = ctx->to;
+			stream_rewind(ctx->from);
+			unlink(topath);
 			free(topath);
 		}
-		topath = updater_maketmp(coll->co_prefix, up.rcsfile);
+		topath = updater_maketmp(coll->co_prefix, sr->sr_file);
 		if (topath == NULL) {
 			perror("Cannot create temporary file");
 			goto bad;
 		}
-		up.to = stream_open_file(topath, O_RDWR | O_CREAT | O_EXCL,
+		ctx->to = stream_open_file(topath,O_RDWR | O_CREAT | O_EXCL,
 		    0600);
-		if (up.to == NULL)
+		if (ctx->to == NULL)
 			goto bad;
 		lprintf(2, "  Add delta %s %s %s\n", revnum, revdate, author);
-		error = updater_diff_batch(&up);
+		error = updater_diff_batch(ctx);
 		if (error)
 			goto bad;
 	}
 	if (line == NULL)
 		goto bad;
-	fa = fattr_dup(rcsattr);
+	fa = fattr_dup(sr->sr_serverattr);
 	fattr_maskout(fa, FA_MODTIME);
 	updater_install(coll, fa, topath, path);
-	fattr_free(fa);
-	/* XXX - Compute MD5 while writing the file. */
+	sr->sr_clientattr = fa;
+	error = status_put(ctx->st, sr);
+	if (error) {
+		lprintf(-1, "Updater: status_put() failed!\n");
+		goto bad;
+	}
+
 	if (MD5_File(path, md5) == -1) {
 		lprintf(-1, "%s: MD5_File() failed\n", __func__);
 		goto bad;
 	}
-	if (strcmp(cksum, md5) != 0) {
+	if (strcmp(ctx->cksum, md5) != 0) {
 		lprintf(-1, "Updater: Bad MD5 checksum for \"%s\"\n", path);
 		goto bad;
 	}
-	stream_close(up.from);
-	stream_close(up.to);
 	free(topath);
-	fattr_free(rcsattr);
 	free(path);
-	free(line3);
-	free(line2);
 	return (0);
 bad:
-	stream_close(up.from);
-	stream_close(up.to);
 	free(topath);
-	fattr_free(rcsattr);
 	free(path);
-	free(line3);
-	free(line2);
 	return (-1);
 }
 
 static int
-updater_diff_batch(struct update *up)
+updater_diff_batch(struct context *ctx)
 {
 	struct stream *rd;
 	char *tok, *line;
 	int error;
 
-	rd = up->stream;
+	rd = ctx->rd;
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		tok = proto_getstr(&line);
+		tok = proto_get_ascii(&line);
 		if (tok == NULL)
 			goto bad;
 		if (strcmp(tok, "L") == 0) {
@@ -347,53 +552,55 @@ updater_diff_batch(struct update *up)
 			if (line == NULL)
 				goto bad;
 		} else if (strcmp(tok, "S") == 0) {
-			tok = proto_getstr(&line);
+			tok = proto_get_ascii(&line);
 			if (tok == NULL || line != NULL)
 				goto bad;
-			free(up->state);
-			up->state = strdup(tok);
-			if (up->state == NULL)
-				err(1, "strdup");
+			free(ctx->state);
+			ctx->state = xstrdup(tok);
 		} else if (strcmp(tok, "T") == 0) {
-			error = updater_diff_apply(up);
+			error = updater_diff_apply(ctx);
 			if (error) {
-				free(up->state);
-				up->state = NULL;
+				free(ctx->state);
+				ctx->state = NULL;
 				return (error);
 			}
 		}
 	}
 	if (line == NULL)
 		goto bad;
-	free(up->state);
-	up->state = NULL;
+	free(ctx->state);
+	ctx->state = NULL;
 	return (0);
 bad:
 	lprintf(-1, "Updater: Protocol error\n");
-	free(up->state);
-	up->state = NULL;
+	free(ctx->state);
+	ctx->state = NULL;
 	return (-1);
 }
 
 int
-updater_diff_apply(struct update *up)
+updater_diff_apply(struct context *ctx)
 {
 	struct diff diff;
+	struct coll *coll;
+	struct statusrec *sr;
 	int error;
 
-	/* XXX - This is stupid, both structs should be merged. */
-	diff.d_orig = up->from;
-	diff.d_to = up->to;
-	diff.d_diff = up->stream;
-	diff.d_author = up->author;
-	diff.d_cvsroot = up->coll->co_cvsroot;
-	diff.d_rcsfile = up->rcsfile;
-	diff.d_revnum = up->revnum;
-	diff.d_revdate = up->revdate;
-	diff.d_state = up->state;
-	diff.d_tag = up->tag;
-	diff.d_expand = up->expand;
-	error = diff_apply(&diff, up->coll->co_keyword);
+	sr = &ctx->sr;
+	coll = ctx->coll;
+
+	diff.d_orig = ctx->from;
+	diff.d_to = ctx->to;
+	diff.d_diff = ctx->rd;
+	diff.d_author = ctx->author;
+	diff.d_cvsroot = coll->co_cvsroot;
+	diff.d_rcsfile = sr->sr_file;
+	diff.d_revnum = sr->sr_revnum;
+	diff.d_revdate = sr->sr_revdate;
+	diff.d_state = ctx->state;
+	diff.d_tag = ctx->tag;
+	diff.d_expand = ctx->expand;
+	error = diff_apply(&diff, coll->co_keyword);
 	if (error) {
 		lprintf(-1, "Updater: Bad diff from server\n");
 		return (-1);
@@ -401,42 +608,66 @@ updater_diff_apply(struct update *up)
 	return (0);
 }
 
+/* Checkout file. */
+/* XXX check write errors */
 static int
-updater_checkout(struct coll *coll, struct stream *rd, char *line)
+updater_checkout(struct context *ctx, char *line)
 {
 	char md5[MD5_DIGEST_SIZE];
-	struct fattr *fa;
+	struct statusrec *sr;
+	struct coll *coll;
+	struct fattr *rcsattr, *fileattr;
 	struct stream *to;
-	char *attr, *cksum, *cmd, *file, *rcsfile;
+	char *attr, *cksum, *cmd, *file, *name;
+	char *tag, *date, *revnum, *revdate;
+	time_t t;
 	size_t size;
 	int error, first;
 
-	rcsfile = proto_getstr(&line);
-	/* I'll need those when the status file is supported. */
-	proto_getstr(&line);	/* tag */
-	proto_getstr(&line);	/* date */
-	proto_getstr(&line);	/* revnum */
-	proto_getstr(&line);	/* revdate */
-	attr = proto_getstr(&line);
+	coll = ctx->coll;
+	sr = &ctx->sr;
+	name = proto_get_ascii(&line);
+	tag = proto_get_ascii(&line);
+	date = proto_get_ascii(&line);
+	revnum = proto_get_ascii(&line);
+	revdate = proto_get_ascii(&line);
+	attr = proto_get_ascii(&line);
 	if (attr == NULL || line != NULL)
 		return (-1);
 
-	fa = fattr_decode(attr);
-	if (fa == NULL) {
-		lprintf(-1, "Updater: Bad attribute %s\n", attr);
+	rcsattr = fattr_decode(attr);
+	if (rcsattr == NULL) {
+		lprintf(-1, "Updater: Bad attributes %s\n", attr);
 		return (-1);
 	}
+	t = rcsdatetotime(revdate);
+	if (t == -1) {
+		/* XXX */
+		lprintf(-1, "Update: rcsdatetotime() failed!\n");
+		return (-1);
+	}
+	fileattr = fattr_new(FT_FILE, t);
+	fattr_umask(fileattr, coll->co_umask);
 
-	file = checkoutpath(coll->co_prefix, rcsfile);
+	sr->sr_type = SR_CHECKOUTLIVE;
+	sr->sr_file = xstrdup(name);
+	sr->sr_tag = xstrdup(tag);
+	sr->sr_date = xstrdup(date);
+	sr->sr_revnum = xstrdup(revnum);
+	sr->sr_revdate = xstrdup(revdate);
+	sr->sr_serverattr = rcsattr;
+	sr->sr_clientattr = fileattr;
+
+	file = checkoutpath(coll->co_prefix, name);
 	if (file == NULL) {
-		lprintf(-1, "Updater: Bad filename \"%s\"\n", rcsfile);
+		lprintf(-1, "Updater: Bad filename \"%s\"\n", name);
 		goto bad;
 	}
 
-	lprintf(1, " Checkout %s\n", file + strlen(coll->co_prefix) + 1);
+	lprintf(1, " Checkout %s\n", file + coll->co_prefixlen + 1);
 	error = updater_makedirs(file);
 	if (error) {
-		lprintf(-1, "Updater: Can't create directory hierarchy: %s\n",
+		lprintf(-1, "Updater: Cannot create directory hierarchy: %s\n",
 		    strerror(errno));
 		goto bad;
 	}
@@ -447,7 +678,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		goto bad;
 	}
 	stream_filter_start(to, STREAM_FILTER_MD5, md5);
-	line = stream_getln(rd, &size);
+	line = stream_getln(ctx->rd, &size);
 	first = 1;
 	while (line != NULL) {
 		if (line[size - 1] == '\n')
@@ -462,7 +693,7 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		if (!first)
 			stream_write(to, "\n", 1);
 		stream_write(to, line, size);
-		line = stream_getln(rd, &size);
+		line = stream_getln(ctx->rd, &size);
 		first = 0;
 	}
 	if (line == NULL) {
@@ -473,25 +704,136 @@ updater_checkout(struct coll *coll, struct stream *rd, char *line)
 		stream_write(to, "\n", 1);
 	stream_close(to);
 	/* Get the checksum line. */
-	line = stream_getln(rd, NULL);
-	cmd = proto_getstr(&line);
-	cksum = proto_getstr(&line);
-	if (cksum == NULL || line != NULL ||
-	    strcmp(cmd, "5") != 0) {
+	line = stream_getln(ctx->rd, NULL);
+	cmd = proto_get_ascii(&line);
+	cksum = proto_get_ascii(&line);
+	if (cksum == NULL || line != NULL || strcmp(cmd, "5") != 0)
 		goto bad;
-	}
 	if (strcmp(cksum, md5) != 0) {
 		lprintf(-1, "Updater: Bad MD5 checksum for \"%s\"\n", file);
 		goto bad;
 	}
-	updater_install(coll, fa, NULL, file);
-	fattr_free(fa);
+
+	updater_install(coll, fileattr, NULL, file);
+
+	/* XXX Executes */
+	/*
+	 * We weren't necessarily able to set all the file attributes to the
+	 * desired values, and any executes may have altered the attributes.
+	 * To make sure we record the actual attribute values, we fetch
+	 * them from the file.
+	 *
+	 * However, we preserve the link count as received from the
+	 * server.  This is important for preserving hard links in mirror
+	 * mode.
+	 */
+	fileattr = fattr_frompath(file, FATTR_NOFOLLOW);
+	if (fileattr == NULL) {
+		lprintf(-1, "Updater: Cannot stat \"%s\": %s\n", file,
+		    strerror(errno));
+		return (-1);
+	}
+	fattr_override(fileattr, sr->sr_clientattr, FA_LINKCOUNT);
+	fattr_free(sr->sr_clientattr);
+	sr->sr_clientattr = fileattr;
+
+	/*
+	 * To save space, don't write out the device and inode unless
+	 * the link count is greater than 1.  These attributes are used
+	 * only for detecting hard links.  If the link count is 1 then we
+	 * know there aren't any hard links.
+	 */
+	if (!(fattr_getmask(sr->sr_clientattr) & FA_LINKCOUNT) ||
+	    fattr_getlinkcount(sr->sr_clientattr) <= 1)
+		fattr_maskout(sr->sr_clientattr, FA_DEV | FA_INODE);
+
+	if (coll->co_options & CO_CHECKOUTMODE)
+		fattr_maskout(sr->sr_clientattr, FA_COIGNORE);
+
+	error = status_put(ctx->st, sr);
+	if (error) {
+		/* XXX */
+		return (-1);
+	}
+
 	free(file);
 	return (0);
 bad:
-	fattr_free(fa);
 	free(file);
 	return (-1);
+}
+
+/* Checkout dead file. */
+static int
+updater_checkoutdead(struct context *ctx, char *line)
+{
+	struct statusrec sr;
+	char *name, *tag, *date, *attr;
+	int error;
+
+	name = proto_get_ascii(&line);
+	tag = proto_get_ascii(&line);
+	date = proto_get_ascii(&line);
+	attr = proto_get_ascii(&line);
+	if (attr == NULL || line != NULL)
+		return (-1);
+
+	sr.sr_type = SR_CHECKOUTDEAD;
+	sr.sr_file = name;
+	sr.sr_tag = tag;
+	sr.sr_date = date;
+	sr.sr_serverattr = fattr_decode(attr);
+	if (sr.sr_serverattr == NULL) {
+		lprintf(-1, "Updater: Bad attributes \"%s\"\n", attr);
+		return (-1);
+	}
+
+	/*
+	 * Theoritically, the file does not exist on the client.
+	 * Just to make sure, we'll delete it here, if it exists.
+	 */
+	/* XXX implement the above. */
+
+	error = status_put(ctx->st, &sr);
+	fattr_free(sr.sr_serverattr);
+	if (error) {
+		/* XXX write error? */
+		return (-1);
+	}
+	return (0);
+}
+
+/* Update dead checked-out file. */
+static int
+updater_updatedead(struct context *ctx, char *line)
+{
+	struct statusrec sr;
+	char *name, *tag, *date, *attr;
+	int error;
+
+	name = proto_get_ascii(&line);
+	tag = proto_get_ascii(&line);
+	date = proto_get_ascii(&line);
+	attr = proto_get_ascii(&line);
+	if (attr == NULL || line != NULL)
+		return (-1);
+
+	sr.sr_type = SR_CHECKOUTDEAD;
+	sr.sr_file = name;
+	sr.sr_tag = tag;
+	sr.sr_date = date;
+	sr.sr_serverattr = fattr_decode(attr);
+	if (sr.sr_serverattr == NULL) {
+		lprintf(-1, "Updater: Bad attributes \"%s\"\n", attr);
+		return (-1);
+	}
+	error = status_put(ctx->st, &sr);
+	fattr_free(sr.sr_serverattr);
+	if (error) {
+		/* XXX write error? */
+		return (-1);
+	}
+	return (0);
 }
 
 static int
@@ -536,6 +878,7 @@ updater_prunedirs(char *base, char *file)
 		error = rmdir(file);
 		if (error) {
 			if (errno != ENOTEMPTY)
+				/* XXX */
 				err(1, "rmdir");
 			return;
 		}
@@ -545,15 +888,11 @@ updater_prunedirs(char *base, char *file)
 static char *
 updater_maketmp(const char *prefix, const char *file)
 {
-	char *cp, *tmp;
+	char *path, *tmp;
 
-	cp = strrchr(file, '/');
-	if (cp == NULL)
-		return (NULL);
-	asprintf(&tmp, "%s/%.*s/#cvs.csup-%ld", prefix, (int)(cp - file),
-	    file, (long)getpid());
-	if (tmp == NULL)
-		err(1, "asprintf");
+	xasprintf(&path, "%s/%s", prefix, file);
+	tmp = tempname(path);
+	free(path);
 	return (tmp);
 }
 
@@ -566,6 +905,6 @@ updater_install(struct coll *coll, struct fattr *fa, const char *from,
 	tmp = fattr_forcheckout(fa, coll->co_umask);
 	fattr_override(fa, tmp, FA_MASK);
 	fattr_free(tmp);
-	fattr_install(fa, from, to);
+	fattr_install(fa, to, from);
 	return (0);
 }

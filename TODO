@@ -11,8 +11,7 @@ BUGS:
   the worker threads to return an exist status and possibly an error
   message.  I probably overlooked a few more things.
 - The stream API needs some polishing.  It needs proper error numbers
-  and stream_error() and stream_eof() functions similar to the ferror()
-  and feof() functions.
+  and a stream_error() function similar to the ferror() function.
 - The keyword API which expands the CVS tags ($Foo$ etc) can't handle
   binary lines correctly, and that makes diff_write() needlessly complex,
   if my memory is entirely correct.  Also, that means if we are using
@@ -38,16 +37,12 @@ BUGS:
 
 MISSING FEATURES:
 
-- Parse, use and update status file (ongoing).
-- Consider computing the MD5 checksum when updating rather than after the
-  diff/checkout is done, it would avoid reading the whole file two times.
 - Add support for refuse files.
 - Add support for authentication.
 - Add support for shell commands sent by the server.
 - Add missing support for various CVSup options : -A, -k, -1 and -r,
-  -s (requires status file support), -d, -i, -a (requires authentication
-  support), -e and -E (requires shell commands support) and the destDir
-  parameter.
+  -d, -i, -a (requires authentication support), -e and -E (requires shell
+  commands support) and the destDir parameter.
 - Write a manual page (the CVSup one should probably be reused).
 - For now, this code should build fine on FreeBSD, NetBSD and OpenBSD.
   Linux, Solaris and Darwin support would also be nice at some point.

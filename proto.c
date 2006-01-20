@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -140,13 +140,13 @@ proto_greet(struct config *config)
 
 	s = config->server;
 	line = stream_getln(s, NULL);
-	tok = proto_getstr(&line);
+	tok = proto_get_ascii(&line);
 	if (tok == NULL)
 		goto bad;
 	if (strcmp(tok, "OK") == 0) {
-		proto_getstr(&line);	/* XXX major number */
-		proto_getstr(&line);	/* XXX minor number */
-		tok = proto_getstr(&line);
+		proto_get_ascii(&line);	/* XXX major number */
+		proto_get_ascii(&line);	/* XXX minor number */
+		tok = proto_get_ascii(&line);
 	} else if (strcmp(tok, "!") == 0) {
 		lprintf(-1, "Rejected by server: %s\n", line);
 		return (-1);
@@ -164,33 +164,26 @@ static int
 proto_negproto(struct config *config)
 {
 	struct stream *s;
-	char *cmd, *line, *maj, *min;
-	int pmaj, pmin;
+	char *cmd, *line;
+	int error, maj, min;
 
 	s = config->server;
 	stream_printf(s, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = proto_getstr(&line);
+	cmd = proto_get_ascii(&line);
 	if (strcmp(cmd, "!") == 0) {
 		lprintf(-1, "Protocol negotiation failed: %s\n", line);
 		return (1);
 	} else if (strcmp(cmd, "PROTO") != 0)
 		goto bad;
-	maj = proto_getstr(&line);
-	min = proto_getstr(&line);
-	if (min == NULL || line != NULL)
+	error = proto_get_int(&line, &maj);
+	if (!error)
+		error = proto_get_int(&line, &min);
+	if (error)
 		goto bad;
-	errno = 0;
-	pmaj = strtol(maj, NULL, 10);
-	if (errno == EINVAL)
-		goto bad;
-	errno = 0;
-	pmin = strtol(min, NULL, 10);
-	if (errno == EINVAL)
-		goto bad;
-	if (pmaj != PROTO_MAJ || pmin != PROTO_MIN) {
-		lprintf(-1, "Server protocol version %s.%s not supported "
+	if (maj != PROTO_MAJ || min != PROTO_MIN) {
+		lprintf(-1, "Server protocol version %d.%d not supported "
 		    "by client\n", maj, min);
 		return (1);
 	}
@@ -213,9 +206,9 @@ proto_login(struct config *config)
 	stream_printf(s, "USER %s %s\n", getlogin(), host);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = proto_getstr(&line);
-	realm = proto_getstr(&line);
-	challenge = proto_getstr(&line);
+	cmd = proto_get_ascii(&line);
+	realm = proto_get_ascii(&line);
+	challenge = proto_get_ascii(&line);
 	if (challenge == NULL || line != NULL)
 		goto bad;
 	if (strcmp(realm, ".") != 0 || strcmp(challenge, ".") != 0) {
@@ -226,7 +219,7 @@ proto_login(struct config *config)
 	stream_printf(s, "AUTHMD5 . . .\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = proto_getstr(&line);
+	cmd = proto_get_ascii(&line);
 	if (strcmp(cmd, "OK") == 0)
 		return (0);
 	if (strcmp(cmd, "!") == 0 && line != NULL) {
@@ -257,7 +250,7 @@ proto_fileattr(struct config *config)
 	stream_printf(s, ".\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = proto_getstr(&line);
+	cmd = proto_get_ascii(&line);
 	if (line == NULL || strcmp(cmd, "ATTR") != 0)
 		goto bad;
 	errno = 0;
@@ -311,10 +304,10 @@ proto_xchgcoll(struct config *config)
 		line = stream_getln(s, NULL);
 		if (line == NULL)
 			goto bad;
-		cmd = proto_getstr(&line);
-		coll = proto_getstr(&line);
-		release = proto_getstr(&line);
-		options = proto_getstr(&line);
+		cmd = proto_get_ascii(&line);
+		coll = proto_get_ascii(&line);
+		release = proto_get_ascii(&line);
+		options = proto_get_ascii(&line);
 		if (options == NULL || line != NULL)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0)
@@ -333,21 +326,17 @@ proto_xchgcoll(struct config *config)
 		while ((line = stream_getln(s, NULL)) != NULL) {
 		 	if (strcmp(line, ".") == 0)
 				break;
-			cmd = proto_getstr(&line);
+			cmd = proto_get_ascii(&line);
 			if (cmd == NULL)
 				goto bad;
 			if (strcmp(cmd, "!") == 0) {
-				msg = proto_getstr(&line);
-				if (err == NULL)
-					goto bad;
+				msg = proto_get_ascii(&line);
 				lprintf(-1, "Server message: %s\n", msg);
 			} else if (strcmp(cmd, "PRFX") == 0) {
-				cur->co_cvsroot = strdup(line);
-				if (cur->co_cvsroot == NULL)
-					err(1, "strdup");
+				cur->co_cvsroot = xstrdup(line);
 			} else if (strcmp(cmd, "KEYALIAS") == 0) {
-				ident = proto_getstr(&line);
-				rcskey = proto_getstr(&line);
+				ident = proto_get_ascii(&line);
+				rcskey = proto_get_ascii(&line);
 				if (rcskey == NULL || line != NULL)
 					goto bad;
 				error = keyword_alias(cur->co_keyword, ident,
@@ -355,14 +344,14 @@ proto_xchgcoll(struct config *config)
 				if (error)
 					goto bad;
 			} else if (strcmp(cmd, "KEYON") == 0) {
-				ident = proto_getstr(&line);
+				ident = proto_get_ascii(&line);
 				if (ident == NULL || line != NULL)
 					goto bad;
 				error = keyword_enable(cur->co_keyword, ident);
 				if (error)
 					goto bad;
 			} else if (strcmp(cmd, "KEYOFF") == 0) {
-				ident = proto_getstr(&line);
+				ident = proto_get_ascii(&line);
 				if (ident == NULL || line != NULL)
 					goto bad;
 				error = keyword_disable(cur->co_keyword, ident);
@@ -472,38 +461,55 @@ proto_init(struct config *config)
 }
 
 /*
- * Very simple printf() implementation that only understands %d
- * and %s formats.  For the %s format, some characters in the
- * string need to be encoded.
+ * Simple printf() implementation that understands standard format
+ * specifiers %c, %d and %s, plus two additional formats specific to
+ * csup.  The %t format is for printing time_t integers (unlike the
+ * C99 %t length modifier for ptrdiff_t).  For the %s format, some
+ * characters in the string may get escaped so we have a %S format
+ * that is actually like the standard %s format.
  */
 int
 proto_printf(struct stream *wr, const char *format, ...)
 {
-	char buf[32];
+	char buf[32];	/* Enough to print 64 bits numbers. */
+	long long longval;
 	const char *fmt;
 	va_list ap;
 	char *cp, *s;
 	size_t len;
-	int val, ret;
+	ssize_t n;
+	int ret, val;
 	char c;
 
+	n = 0;
 	fmt = format;
 	va_start(ap, format);
 	while ((cp = strchr(fmt, '%')) != NULL) {
 		if (cp > fmt)
-			stream_write(wr, fmt, cp - fmt);
+			n = stream_write(wr, fmt, cp - fmt);
+		if (n == -1)
+			return (-1);
 		if (*++cp == '\0')
 			goto done;
 		switch (*cp) {
+		case 'c':
+			c = va_arg(ap, int);
+			n = stream_write(wr, &c, 1);
+			break;
 		case 'd':
 		case 'i':
-			val = va_arg(ap, int);
+		       	val = va_arg(ap, int);
 			ret = snprintf(buf, sizeof(buf), "%d", val);
 			/* Should never happen, unless there are platforms
 			   with 128-bit ints some day... */
 			if ((unsigned)ret > sizeof(buf) + 1)
 				errx(1, "%s: increase buffer size", __func__);
-			stream_write(wr, buf, ret);
+			n = stream_write(wr, buf, ret);
+			break;
+		case 'S':
+			s = va_arg(ap, char *);
+			len = strlen(s);
+			n = stream_write(wr, s, len);
 			break;
 		case 's':
 			s = va_arg(ap, char *);
@@ -512,43 +518,59 @@ proto_printf(struct stream *wr, const char *format, ...)
 			/* Handle characters that need escaping. */
 			do {
 				len = strcspn(s, " \t\n\\");
+				n = stream_write(wr, s, len);
+				if (n == -1)
+					return (-1);
 				c = s[len];
-				stream_write(wr, s, len);
-				s += len + 1;
 				switch (c) {
 				case ' ':
-					stream_write(wr, "\\_", 2);
+					n = stream_write(wr, "\\_", 2);
 					break;
 				case '\t':
-					stream_write(wr, "\\t", 2);
+					n = stream_write(wr, "\\t", 2);
 					break;
 				case '\n':
-					stream_write(wr, "\\n", 2);
+					n = stream_write(wr, "\\n", 2);
 					break;
 				case '\\':
-					stream_write(wr, "\\\\", 2);
+					n = stream_write(wr, "\\\\", 2);
 					break;
 				}
+				if (n == -1)
+					return (-1);
+				s += len + 1;
 			} while (c != '\0');
 			break;
+		case 't':
+			longval = va_arg(ap, time_t);
+			ret = snprintf(buf, sizeof(buf), "%lld", longval);
+			if ((unsigned)ret > sizeof(buf) + 1)
+				errx(1, "%s: increase buffer size", __func__);
+			n = stream_write(wr, buf, ret);
+			break;
 		case '%':
-			stream_write(wr, "%", 1);
+			n = stream_write(wr, "%", 1);
 			break;
 		}
 		fmt = cp + 1;
 	}
-	if (*fmt != '\0')
-		stream_write(wr, fmt, strlen(fmt));
+	if (n == -1)
+		return (-1);
+	if (*fmt != '\0') {
+		n = stream_write(wr, fmt, strlen(fmt));
+		if (n == -1)
+			return (-1);
+	}
 done:
 	va_end(ap);
 	return (0);
 }
 
 /*
- * Eat a token in the string.
+ * Get an ascii token in the string.
  */
 char *
-proto_getstr(char **s)
+proto_get_ascii(char **s)
 {
 	char *cp, *cp2, *ret;
 
@@ -581,4 +603,45 @@ proto_getstr(char **s)
 		}
 	}
 	return (ret);
+}
+
+/*
+ * Get an int token.
+ */
+int
+proto_get_int(char **s, int *val)
+{
+	char *cp, *end;
+
+	cp = proto_get_ascii(s);
+	if (cp == NULL)
+		return (-1);
+	errno = 0;
+	*val = strtol(cp, &end, 10);
+	if (errno || *end != '\0')
+		return (-1);
+	return (0);
+}
+
+/*
+ * Get a time_t token.
+ *
+ * Ideally, we would use an intmax_t and strtoimax() here, but strtoll()
+ * is more portable and 64bits should be enough for a timestamp.
+ */
+int
+proto_get_time(char **s, time_t *val)
+{
+	long long tmp;
+	char *cp, *end;
+
+	cp = proto_get_ascii(s);
+	if (cp == NULL)
+		return (-1);
+	errno = 0;
+	tmp = strtoll(cp, &end, 10);
+	if (errno || *end != '\0')
+		return (-1);
+	*val = (time_t)tmp;
+	return (0);
 }

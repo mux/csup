@@ -30,7 +30,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <err.h>
 #include <errno.h>
 #include <grp.h>
 #include <pwd.h>
@@ -41,6 +40,7 @@
 
 #include "fattr.h"
 #include "fattr_os.h"
+#include "misc.h"
 
 #ifdef __FreeBSD__
 #include <osreldate.h>
@@ -109,22 +109,38 @@ fattr_supported(int type)
 }
 
 struct fattr *
-fattr_new(int type)
+fattr_new(int type, time_t modtime)
 {
 	struct fattr *new;
 
-	new = malloc(sizeof(struct fattr));
-	if (new == NULL)
-		err(1, "malloc");
+	new = xmalloc(sizeof(struct fattr));
 	memset(new, 0, sizeof(struct fattr));
 	new->type = type;
 	if (type != FT_UNKNOWN)
 		new->mask |= FA_FILETYPE;
+	if (modtime != -1) {
+		new->modtime = modtime;
+		new->mask |= FA_MODTIME;
+	}
 	if (fattr_supported(new->type) & FA_LINKCOUNT) {
 		new->mask |= FA_LINKCOUNT;
 		new->linkcount = 1;
 	}
 	return (new);
+}
+
+struct fattr *
+fattr_default(int type)
+{
+	struct fattr *fa;
+
+	fa = fattr_new(type, -1);
+	if (fa->type == FT_DIRECTORY)
+		fa->mode = 0777 | FA_PERMMASK;
+	else
+		fa->mode = 0666 | FA_PERMMASK;
+	fa->mask |= FA_MODE;
+	return (fa);
 }
 
 /* Returns a new file attribute structure based on a stat structure. */
@@ -133,7 +149,7 @@ fattr_fromstat(struct stat *sb)
 {
 	struct fattr *fa;
 
-	fa = fattr_new(FT_UNKNOWN);
+	fa = fattr_new(FT_UNKNOWN, -1);
 	if (S_ISREG(sb->st_mode))
 		fa->type = FT_FILE;
 	else if (S_ISDIR(sb->st_mode))
@@ -211,12 +227,12 @@ fattr_type(const struct fattr *fa)
 
 /* Returns a new file attribute structure from its encoded text form. */
 struct fattr *
-fattr_decode(const char *attr)
+fattr_decode(char *attr)
 {
 	struct fattr *fa;
 	char *next;
 
-	fa = fattr_new(FT_UNKNOWN);
+	fa = fattr_new(FT_UNKNOWN, -1);
 	next = fattr_scanattr(fa, FA_MASK, attr);
 	if (next == NULL || (fa->mask & ~FA_MASK) > 0)
 		goto bad;
@@ -231,6 +247,7 @@ fattr_decode(const char *attr)
 		fa->mask |= FA_FILETYPE;
 		fa->type = FT_UNKNOWN;
 	}
+	fa->mask = fa->mask & fattr_supported(fa->type);
 	if (fa->mask & FA_MODTIME)
 		next = fattr_scanattr(fa, FA_MODTIME, next);
 	if (fa->mask & FA_SIZE)
@@ -242,7 +259,7 @@ fattr_decode(const char *attr)
 	if (fa->mask & FA_OWNER)
 		next = fattr_scanattr(fa, FA_OWNER, next);
 	if (fa->mask & FA_GROUP)
-	    next = fattr_scanattr(fa, FA_GROUP, next);
+		next = fattr_scanattr(fa, FA_GROUP, next);
 	if (fa->mask & FA_MODE)
 		next = fattr_scanattr(fa, FA_MODE, next);
 	if (fa->mask & FA_FLAGS)
@@ -284,7 +301,10 @@ fattr_encode(const struct fattr *fa, fattr_support_t support)
 
 	pw = NULL;
 	gr = NULL;
-	mask = fa->mask & support[fa->type];
+	if (support == NULL)
+		mask = fa->mask;
+	else
+		mask = fa->mask & support[fa->type];
 	/* XXX - Use getpwuid_r() and getgrgid_r(). */
 	if (fa->mask & FA_OWNER) {
 		pw = getpwuid(fa->uid);
@@ -399,9 +419,7 @@ fattr_encode(const struct fattr *fa, fattr_support_t support)
 		piece++;
 	}
 
-	s = malloc(len + 1);
-	if (s == NULL)
-		err(1, "malloc");
+	s = xmalloc(len + 1);
 
 	n = piece - pieces;
 	piece = pieces;
@@ -422,7 +440,7 @@ fattr_dup(const struct fattr *from)
 {
 	struct fattr *fa;
 
-	fa = fattr_new(FT_UNKNOWN);
+	fa = fattr_new(FT_UNKNOWN, -1);
 	fattr_override(fa, from, FA_MASK);
 	return (fa);
 }
@@ -439,6 +457,14 @@ fattr_free(struct fattr *fa)
 }
 
 void
+fattr_umask(struct fattr *fa, mode_t newumask)
+{
+
+	if (fa->mask & FA_MODE)
+		fa->mode = fa->mode & ~newumask;
+}
+
+void
 fattr_maskout(struct fattr *fa, int mask)
 {
 
@@ -448,6 +474,20 @@ fattr_maskout(struct fattr *fa, int mask)
 		fa->linktarget = NULL;
 	}
 	fa->mask &= ~mask;
+}
+
+int
+fattr_getmask(const struct fattr *fa)
+{
+
+	return (fa->mask);
+}
+
+nlink_t
+fattr_getlinkcount(const struct fattr *fa)
+{
+
+	return (fa->linkcount);
 }
 
 /*
@@ -511,9 +551,7 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 			return (NULL);
 		break;
 	case FA_LINKTARGET:
-		fa->linktarget = strdup(attrstart);
-		if (fa->linktarget == NULL)
-			err(1, "strdup");
+		fa->linktarget = xstrdup(attrstart);
 		break;
 	case FA_RDEV:
 		errno = 0;
@@ -585,7 +623,7 @@ fattr_forcheckout(const struct fattr *rcsattr, mode_t mask)
 {
 	struct fattr *fa;
 
-	fa = fattr_new(FT_FILE);
+	fa = fattr_new(FT_FILE, -1);
 	if (rcsattr->mask & FA_MODE) {
 		if ((rcsattr->mode & 0111) > 0)
 			fa->mode = 0777;
@@ -620,11 +658,8 @@ fattr_override(struct fattr *fa, const struct fattr *from, int mask)
 		fa->modtime = from->modtime;
 	if (mask & FA_SIZE)
 		fa->size = from->size;
-	if (mask & FA_LINKTARGET) {
-		fa->linktarget = strdup(from->linktarget);
-		if (fa->linktarget == NULL)
-			err(1, "strdup");
-	}
+	if (mask & FA_LINKTARGET)
+		fa->linktarget = xstrdup(from->linktarget);
 	if (mask & FA_RDEV)
 		fa->rdev = from->rdev;
 	if (mask & FA_OWNER)
@@ -649,7 +684,7 @@ fattr_override(struct fattr *fa, const struct fattr *from, int mask)
  * it has been applied successfully.
  */
 int
-fattr_install(struct fattr *fa, const char *frompath, const char *topath)
+fattr_install(struct fattr *fa, const char *topath, const char *frompath)
 {
 	struct timeval tv[2];
 	struct fattr *old;
@@ -685,7 +720,7 @@ fattr_install(struct fattr *fa, const char *frompath, const char *topath)
 	 * since as far as I know that's the way things are.
 	 */
 	if ((old->mask & FA_FLAGS) && old->flags > 0) {
-		chflags(topath, 0);
+		(void)chflags(topath, 0);
 		old->flags = 0;
 	}
 
@@ -693,9 +728,11 @@ fattr_install(struct fattr *fa, const char *frompath, const char *topath)
 	if (!inplace && (fa->type == FT_DIRECTORY) !=
 	    (old->type == FT_DIRECTORY)) {
 		if (old->type == FT_DIRECTORY)
-			rmdir(topath);
+			error = rmdir(topath);
 		else
-			unlink(topath);
+			error = unlink(topath);
+		if (error)
+			goto bad;
 	}
 
 	/* Change those attributes that we can before moving the file

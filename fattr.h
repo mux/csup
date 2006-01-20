@@ -28,6 +28,11 @@
 #ifndef _FATTR_H_
 #define _FATTR_H_
 
+#include <sys/types.h>
+
+#include <fcntl.h>
+#include <time.h>
+
 /*
  * File types.
  */
@@ -80,16 +85,20 @@ typedef int	fattr_support_t[FT_NUMBER];
 
 extern const struct fattr *fattr_bogus;
 
-struct fattr	*fattr_new(int);
+struct fattr	*fattr_new(int, time_t);
+struct fattr	*fattr_default(int);
 struct fattr	*fattr_fromstat(struct stat *);
 struct fattr	*fattr_frompath(const char *, int);
 struct fattr	*fattr_fromfd(int);
-struct fattr	*fattr_decode(const char *);
+struct fattr	*fattr_decode(char *);
 struct fattr	*fattr_forcheckout(const struct fattr *, mode_t);
 struct fattr	*fattr_dup(const struct fattr *);
 char		*fattr_encode(const struct fattr *, fattr_support_t);
 int		 fattr_type(const struct fattr *);
 void		 fattr_maskout(struct fattr *, int);
+int		 fattr_getmask(const struct fattr *);
+nlink_t		 fattr_getlinkcount(const struct fattr *);
+void		 fattr_umask(struct fattr *, mode_t);
 void		 fattr_merge(struct fattr *, const struct fattr *);
 void		 fattr_override(struct fattr *, const struct fattr *, int);
 int		 fattr_install(struct fattr *, const char *, const char *);
