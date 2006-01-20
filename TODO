@@ -2,6 +2,7 @@ $Id$
 
 BUGS:
 
+- Fix every XXX in the code :-).
 - Cleanup error handling just about everywhere.  For now, the code is
   unable to properly handle failures.  This is made complicated due to
   the multi-threaded design and because the worker threads can block in
