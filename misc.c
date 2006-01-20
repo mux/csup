@@ -223,12 +223,8 @@ mkdirhier(char *path)
 	char *cp, *comp;
 	int error;
 
-	comp = path;
+	comp = path + 1;
 	while ((cp = strchr(comp, '/')) != NULL) {
-		if (cp == comp) {
-			comp++;
-			continue;
-		}
 		*cp = '\0';
 		if (access(path, F_OK) != 0) {
 			error = mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
