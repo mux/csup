@@ -1,0 +1,27 @@
+$Id$
+
+Authors
+-------
+
+CVSup was originally written in Modula-3 by John Polstra <jdp@polstra.com>.
+
+Csup is a rewrite of CVSup in C.  It has been mostly written by
+Maxime Henrion <mux@FreeBSD.org>.
+
+A few contributors have helped him in his task and they are listed here in
+alphabetical order :
+
+Olivier Houchard <cognet@FreeBSD.org>
+Ulf Lilleengen <lulf@kerneled.org>
+Christoph Mathys <cmathys@bluewin.ch>	(Google Summer of Code Project)
+
+
+Building & Installing
+---------------------
+
+Just run "make".  It should build OK on any *BSD system.  (I'll add a
+gmake Makefile some day for Linux and Solaris users).
+
+You can then run "make install" to install csup.  Be warned however that
+if the packaging system of your OS knows about csup, it would be better
+to install it from there.
