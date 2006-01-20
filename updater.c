@@ -172,7 +172,6 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 		ctx.st = st;
 		if (strcmp(cmd, "T") == 0)
 			error = updater_setattrs(&ctx, line);
-			//lprintf(-1, "T %s\n", line);
 		else if (strcmp(cmd, "c") == 0)
 			error = updater_checkoutdead(&ctx, line);
 		else if (strcmp(cmd, "U") == 0)
@@ -643,7 +642,7 @@ updater_checkout(struct context *ctx, char *line)
 	t = rcsdatetotime(revdate);
 	if (t == -1) {
 		/* XXX */
-		lprintf(-1, "Update: rcsdatetotime() failed!\n");
+		lprintf(-1, "Updater: rcsdatetotime() failed!\n");
 		return (-1);
 	}
 	fileattr = fattr_new(FT_FILE, t);
