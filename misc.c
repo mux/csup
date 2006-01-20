@@ -179,6 +179,8 @@ rcsdatetotime(char *revdate)
 	time_t t;
 
 	cp = strptime(revdate, "%Y.%m.%d.%H.%M.%S", &tm);
+	if (cp == NULL)
+		cp = strptime(revdate, "%y.%m.%d.%H.%M.%S", &tm);
 	if (cp == NULL || *cp != '\0')
 		return (-1);
 	t = timegm(&tm);
