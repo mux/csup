@@ -488,10 +488,16 @@ status_open(struct coll *coll, time_t scantime, char **errmsg)
 		xasprintf(&destpath, "%s/%s/%s/", coll->co_base,
 		    coll->co_colldir, coll->co_name);
 		st->tempfile = tempname(destpath);
+		if (mkdirhier(destpath) != 0) {
+			xasprintf(errmsg, "Cannot create directories leading "
+			    "to \"%s\": %s", destpath, strerror(errno));
+			free(destpath);
+			status_free(st);
+			return (NULL);
+		}
 		free(destpath);
 		st->wr = stream_open_file(st->tempfile,
 		    O_CREAT | O_TRUNC | O_WRONLY, 0644);
-		/* XXX Create directories leading to tempfile. */
 		if (st->wr == NULL) {
 			xasprintf(errmsg, "Cannot create \"%s\": %s",
 			    st->tempfile, strerror(errno));

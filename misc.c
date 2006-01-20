@@ -27,6 +27,7 @@
  */
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <openssl/md5.h>
 
 #include <err.h>
@@ -214,6 +215,32 @@ checkoutpath(const char *prefix, const char *file)
 		return (NULL);
 	xasprintf(&path, "%s/%.*s", prefix, (int)len - 2, file);
 	return (path);
+}
+
+int
+mkdirhier(char *path)
+{
+	char *cp, *comp;
+	int error;
+
+	comp = path;
+	while ((cp = strchr(comp, '/')) != NULL) {
+		if (cp == comp) {
+			comp++;
+			continue;
+		}
+		*cp = '\0';
+		if (access(path, F_OK) != 0) {
+			error = mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
+			if (error) {
+				*cp = '/';
+				return (-1);
+			}
+		}
+	  	*cp = '/';
+                comp = cp + 1;
+        }
+        return (0);
 }
 
 /*

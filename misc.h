@@ -62,6 +62,7 @@ int	 pathcmp(const char *, const char *);
 size_t	 commonpathlength(const char *, size_t, const char *, size_t);
 char	*pathlast(char *);
 char	*checkoutpath(const char *, const char *);
+int	 mkdirhier(char *);
 char	*tempname(const char *);
 void	*xmalloc(size_t);
 void	*xrealloc(void *, size_t);

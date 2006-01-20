@@ -69,7 +69,6 @@ struct context {
 
 static void	 context_fini(struct context *);
 
-static int	 updater_makedirs(char *);
 static void	 updater_prunedirs(char *, char *);
 static char	*updater_maketmp(const char *, const char *);
 static int	 updater_docoll(struct coll *, struct stream *,
@@ -664,7 +663,7 @@ updater_checkout(struct context *ctx, char *line)
 	}
 
 	lprintf(1, " Checkout %s\n", file + coll->co_prefixlen + 1);
-	error = updater_makedirs(file);
+	error = mkdirhier(file);
 	if (error) {
 		lprintf(-1, "Updater: Cannot create directory hierarchy: %s\n",
 		    strerror(errno));
@@ -831,31 +830,6 @@ updater_updatedead(struct context *ctx, char *line)
 	if (error) {
 		/* XXX write error? */
 		return (-1);
-	}
-	return (0);
-}
-
-static int
-updater_makedirs(char *path)
-{
-	char *cp, *comp;
-	int error;
-
-	comp = path;
-	while ((cp = strchr(comp, '/')) != NULL) {
-		if (cp != comp) {
-			*cp = '\0';
-			if (access(path, F_OK) != 0) {
-				error = mkdir(path, S_IRWXU | S_IRWXG |
-				    S_IRWXO);
-				if (error) {
-					*cp = '/';
-					return (-1);
-				}
-			}
-			*cp = '/';
-		}
-		comp = cp + 1;
 	}
 	return (0);
 }
