@@ -154,7 +154,7 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 {
 	struct context ctx;
 	struct statusrec sr;
-	char *cmd, *line, *path;
+	char *cmd, *line, *path, *msg;
 	char *name, *tag, *date, *attr;
 	int error;
 
@@ -251,6 +251,12 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 			error = status_delete(st, name, 0);
 			if (error)
 				return (-1);
+		} else if (strcmp(cmd, "!") == 0) {
+			/* Warning from server. */
+			msg = proto_get_rest(&line);
+			if (msg == NULL)
+				return (-1);
+			lprintf(-1, "Server warning: %s\n", msg);
 		} else {
 			lprintf(-1, "Updater: Unknown command: "
 			    "\"%s\"\n", cmd);
