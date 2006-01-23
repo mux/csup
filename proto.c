@@ -69,6 +69,8 @@ static int	proto_fileattr(struct config *);
 static int	proto_xchgcoll(struct config *);
 static int	proto_mux(struct config *);
 
+static void	proto_unescape(char *);
+
 /* Connect to the CVSup server. */
 int
 proto_connect(struct config *config)
@@ -135,24 +137,28 @@ proto_connect(struct config *config)
 static int
 proto_greet(struct config *config)
 {
-	char *line, *tok;
+	char *line, *cmd, *msg, *swver;
 	struct stream *s;
 
 	s = config->server;
 	line = stream_getln(s, NULL);
-	tok = proto_get_ascii(&line);
-	if (tok == NULL)
+	cmd = proto_get_ascii(&line);
+	if (cmd == NULL)
 		goto bad;
-	if (strcmp(tok, "OK") == 0) {
-		proto_get_ascii(&line);	/* XXX major number */
-		proto_get_ascii(&line);	/* XXX minor number */
-		tok = proto_get_ascii(&line);
-	} else if (strcmp(tok, "!") == 0) {
-		lprintf(-1, "Rejected by server: %s\n", line);
+	if (strcmp(cmd, "OK") == 0) {
+		(void)proto_get_ascii(&line);	/* major number */
+		(void)proto_get_ascii(&line);	/* minor number */
+		swver = proto_get_ascii(&line);
+	} else if (strcmp(cmd, "!") == 0) {
+		msg = proto_get_rest(&line);
+		if (msg == NULL)
+			goto bad;
+		lprintf(-1, "Rejected by server: %s\n", msg);
 		return (-1);
 	} else
 		goto bad;
-	lprintf(2, "Server software version: %s\n", tok != NULL ? tok : ".");
+	lprintf(2, "Server software version: %s\n",
+	    swver != NULL ? swver : ".");
 	return (0);
 bad:
 	lprintf(-1, "Invalid greeting from server\n");
@@ -164,7 +170,7 @@ static int
 proto_negproto(struct config *config)
 {
 	struct stream *s;
-	char *cmd, *line;
+	char *cmd, *line, *msg;
 	int error, maj, min;
 
 	s = config->server;
@@ -172,8 +178,11 @@ proto_negproto(struct config *config)
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
+	if (line == NULL)
+		goto bad;
 	if (strcmp(cmd, "!") == 0) {
-		lprintf(-1, "Protocol negotiation failed: %s\n", line);
+		msg = proto_get_rest(&line);
+		lprintf(-1, "Protocol negotiation failed: %s\n", msg);
 		return (1);
 	} else if (strcmp(cmd, "PROTO") != 0)
 		goto bad;
@@ -198,7 +207,7 @@ proto_login(struct config *config)
 {
 	struct stream *s;
 	char host[MAXHOSTNAMELEN];
-	char *line, *cmd, *realm, *challenge;
+	char *line, *cmd, *realm, *challenge, *msg;
 
 	s = config->server;
 	gethostname(host, sizeof(host));
@@ -222,8 +231,11 @@ proto_login(struct config *config)
 	cmd = proto_get_ascii(&line);
 	if (strcmp(cmd, "OK") == 0)
 		return (0);
-	if (strcmp(cmd, "!") == 0 && line != NULL) {
-		lprintf(-1, "Server error: %s\n", line);
+	if (strcmp(cmd, "!") == 0) {
+		msg = proto_get_rest(&line);
+		if (msg == NULL)
+			goto bad;
+		lprintf(-1, "Server error: %s\n", msg);
 		return (1);
 	}
 bad:
@@ -288,7 +300,7 @@ proto_xchgcoll(struct config *config)
 	struct coll *cur;
 	struct stream *s;
 	char *line, *cmd, *coll, *options;
-	char *msg, *release, *ident, *rcskey;
+	char *msg, *release, *ident, *rcskey, *prefix;
 	int error, opts;
 
 	s = config->server;
@@ -330,10 +342,15 @@ proto_xchgcoll(struct config *config)
 			if (cmd == NULL)
 				goto bad;
 			if (strcmp(cmd, "!") == 0) {
-				msg = proto_get_ascii(&line);
+				msg = proto_get_rest(&line);
+				if (msg == NULL)
+					goto bad;
 				lprintf(-1, "Server message: %s\n", msg);
 			} else if (strcmp(cmd, "PRFX") == 0) {
-				cur->co_cvsroot = xstrdup(line);
+				prefix = proto_get_ascii(&line);
+				if (prefix == NULL || line != NULL)
+					goto bad;
+				cur->co_cvsroot = xstrdup(prefix);
 			} else if (strcmp(cmd, "KEYALIAS") == 0) {
 				ident = proto_get_ascii(&line);
 				rcskey = proto_get_ascii(&line);
@@ -567,18 +584,14 @@ done:
 }
 
 /*
- * Get an ascii token in the string.
+ * Unescape the string.
  */
-char *
-proto_get_ascii(char **s)
+static void
+proto_unescape(char *s)
 {
-	char *cp, *cp2, *ret;
+	char *cp, *cp2;
 
-	if (s == NULL)
-		return (NULL);
-	ret = strsep(s, " ");
-	/* Unescape the string. */
-	cp = ret;
+	cp = s;
 	while ((cp = strchr(cp, '\\')) != NULL) {
 		switch (cp[1]) {
 		case '_':
@@ -602,6 +615,36 @@ proto_get_ascii(char **s)
 			cp2++;
 		}
 	}
+}
+
+/*
+ * Get an ascii token in the string.
+ */
+char *
+proto_get_ascii(char **s)
+{
+	char *ret;
+
+	if (s == NULL)
+		return (NULL);
+	ret = strsep(s, " ");
+	proto_unescape(ret);
+	return (ret);
+}
+
+/*
+ * Get the rest of the string.
+ */
+char *
+proto_get_rest(char **s)
+{
+	char *ret;
+
+	if (s == NULL)
+		return (NULL);
+	ret = *s;
+	proto_unescape(ret);
+	*s = NULL;
 	return (ret);
 }
 

@@ -123,7 +123,7 @@ bad:
 static int
 detailer_coll(struct coll *coll, struct status *st)
 {
-	char *cmd, *file, *line;
+	char *cmd, *file, *line, *msg;
 	int error;
 
 	line = stream_getln(rd, NULL);
@@ -131,18 +131,34 @@ detailer_coll(struct coll *coll, struct status *st)
 		return (-1);
 	while (strcmp(line, ".") != 0) {
 		cmd = proto_get_ascii(&line);
-		file = proto_get_ascii(&line);
-		if (file == NULL || line != NULL)
-			return (-1);
 		if (strcmp(cmd, "D") == 0) {
-			/* XXX: status file? */
+			/* Delete file. */
+			file = proto_get_ascii(&line);
+			if (file == NULL || line != NULL)
+				return (-1);
 			stream_printf(wr, "D %s\n", file);
-		} else {
-			if (strcmp(cmd, "U") != 0)
+		} else if (strcmp(cmd, "U") == 0) {
+			/* Add or update file. */
+			file = proto_get_ascii(&line);
+			if (file == NULL || line != NULL)
 				return (-1);
 			error = detailer_dofile(coll, st, file);
 			if (error)
 				return (-1);
+		} else if (strcmp(cmd, "!") == 0) {
+			/* Warning from server. */
+			msg = proto_get_rest(&line);
+			if (msg == NULL)
+				return (-1);
+			lprintf(-1, "Server warning: %s\n", msg);
+		} else {
+			if (line == NULL)
+				lprintf(-1, "Bad command from server: %s\n",
+				    cmd);
+			else
+				lprintf(-1, "Bad command from server: %s %s\n",
+				    cmd, line);
+			return (-1);
 		}
 		stream_flush(wr);
 		line = stream_getln(rd, NULL);

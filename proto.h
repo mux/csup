@@ -36,6 +36,7 @@ int	 proto_connect(struct config *);
 int	 proto_init(struct config *);
 int	 proto_printf(struct stream *, const char *, ...);
 char	*proto_get_ascii(char **);
+char	*proto_get_rest(char **);
 int	 proto_get_int(char **, int *);
 int	 proto_get_time(char **, time_t *);
 
