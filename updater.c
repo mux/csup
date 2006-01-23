@@ -738,8 +738,8 @@ updater_checkout(struct context *ctx, char *line)
 	while (line != NULL) {
 		if (line[size - 1] == '\n')
 			size--;
-	       	if (size > 0 && (memcmp(line, ".", size) == 0 ||
-		    memcmp(line, ".+", size) == 0))
+	       	if ((size == 1 && *line == '.') ||
+		    (size == 2 && memcmp(line, ".+", 2) == 0))
 			break;
 		if (size >= 2 && memcmp(line, "..", 2) == 0) {
 			size--;
@@ -755,7 +755,7 @@ updater_checkout(struct context *ctx, char *line)
 		stream_close(to);
 		goto bad;
 	}
-	if (memcmp(line, ".", size) == 0)
+	if (size == 1 && *line == '.')
 		stream_write(to, "\n", 1);
 	stream_close(to);
 	/* Get the checksum line. */
