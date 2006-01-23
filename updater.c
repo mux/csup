@@ -73,10 +73,8 @@ static void	 updater_prunedirs(char *, char *);
 static char	*updater_maketmp(const char *, const char *);
 static int	 updater_docoll(struct coll *, struct stream *,
 		     struct status *);
+static void	 updater_delete(struct coll *, char *);
 static int	 updater_checkout(struct context *, char *);
-static int	 updater_checkoutdead(struct context *, char *);
-static int	 updater_updatedead(struct context *, char *);
-static int	 updater_delete(struct context *, char *);
 static int	 updater_setattrs(struct context *, char *);
 static int	 updater_diff(struct context *, char *);
 static int	 updater_diff_parseln(struct context *, char *);
@@ -155,7 +153,9 @@ static int
 updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 {
 	struct context ctx;
-	char *cmd, *line;
+	struct statusrec sr;
+	char *cmd, *line, *path;
+	char *name, *tag, *date, *attr;
 	int error;
 
 	error = 0;
@@ -169,19 +169,89 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 		ctx.coll = coll;
 		ctx.rd = rd;
 		ctx.st = st;
-		if (strcmp(cmd, "T") == 0)
+		if (strcmp(cmd, "T") == 0) {
+			/* Update recorded information for checked-out file. */
 			error = updater_setattrs(&ctx, line);
-		else if (strcmp(cmd, "c") == 0)
-			error = updater_checkoutdead(&ctx, line);
-		else if (strcmp(cmd, "U") == 0)
+		} else if (strcmp(cmd, "c") == 0) {
+			/* Checkout dead file. */
+			name = proto_get_ascii(&line);
+			tag = proto_get_ascii(&line);
+			date = proto_get_ascii(&line);
+			attr = proto_get_ascii(&line);
+			if (attr == NULL || line != NULL)
+				return (-1);
+
+			/* Theoritically, the file does not exist on the client.
+			   Just to make sure, we'll delete it here, if it
+			   exists. */
+			path = checkoutpath(coll->co_prefix, name);
+			if (access(path, F_OK) == 0)
+				updater_delete(coll, path);
+			free(path);
+
+			sr.sr_type = SR_CHECKOUTDEAD;
+			sr.sr_file = name;
+			sr.sr_tag = tag;
+			sr.sr_date = date;
+			sr.sr_serverattr = fattr_decode(attr);
+			if (sr.sr_serverattr == NULL) {
+				lprintf(-1, "Updater: Bad attributes \"%s\"\n",
+				    attr);
+				return (-1);
+			}
+
+			error = status_put(st, &sr);
+			fattr_free(sr.sr_serverattr);
+			if (error) {
+				/* XXX write error? */
+				return (-1);
+			}
+		} else if (strcmp(cmd, "U") == 0)
+			/* Update live checked-out file. */
 			error = updater_diff(&ctx, line);
-		else if (strcmp(cmd, "u") == 0)
-			error = updater_updatedead(&ctx, line);
-		else if (strcmp(cmd, "C") == 0)
+		else if (strcmp(cmd, "u") == 0) {
+			/* Update dead checked-out file. */
+			name = proto_get_ascii(&line);
+			tag = proto_get_ascii(&line);
+			date = proto_get_ascii(&line);
+			attr = proto_get_ascii(&line);
+			if (attr == NULL || line != NULL)
+				return (-1);
+
+			path = checkoutpath(coll->co_prefix, name);
+			updater_delete(coll, path);
+			free(path);
+			sr.sr_type = SR_CHECKOUTDEAD;
+			sr.sr_file = name;
+			sr.sr_tag = tag;
+			sr.sr_date = date;
+			sr.sr_serverattr = fattr_decode(attr);
+			if (sr.sr_serverattr == NULL) {
+				lprintf(-1, "Updater: Bad attributes \"%s\"\n",
+				    attr);
+				return (-1);
+			}
+			error = status_put(st, &sr);
+			fattr_free(sr.sr_serverattr);
+			if (error) {
+				/* XXX write error? */
+				return (-1);
+			}
+		} else if (strcmp(cmd, "C") == 0) {
+			/* Checkout file. */
 			error = updater_checkout(&ctx, line);
-		else if (strcmp(cmd, "D") == 0)
-			error = updater_delete(&ctx, line);
-		else {
+		} else if (strcmp(cmd, "D") == 0) {
+			/* Delete file. */
+			name = proto_get_ascii(&line);
+			if (name == NULL || line != NULL)
+				return (-1);
+			path = checkoutpath(coll->co_prefix, name);
+			updater_delete(coll, path);
+			free(path);
+			error = status_delete(st, name, 0);
+			if (error)
+				return (-1);
+		} else {
 			lprintf(-1, "Updater: Unknown command: "
 			    "\"%s\"\n", cmd);
 			return (-1);
@@ -196,40 +266,24 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 }
 
 /* Delete file. */
-static int
-updater_delete(struct context *ctx, char *line)
+static void
+updater_delete(struct coll *coll, char *name)
 {
-	struct coll *coll;
-	char *file, *name;
 	int error;
 
-	coll = ctx->coll;
-	name = proto_get_ascii(&line);
 	/* XXX - destDir handling */
-	file = checkoutpath(coll->co_prefix, name);
-	if (file == NULL) {
-		lprintf(-1, "Updater: Bad filename \"%s\"\n", name);
-		return (-1);
-	}
+	/* XXX - delete limit handling */
 	if (coll->co_options & CO_DELETE) {
-		lprintf(1, " Delete %s\n", file + coll->co_prefixlen + 1);
-		error = unlink(file);
-		if (error) {
-			free(file);
-			return (error);
-		}
-		updater_prunedirs(coll->co_prefix, file);
+		lprintf(1, " Delete %s\n", name + coll->co_prefixlen + 1);
+		error = unlink(name);
+		if (error)
+			lprintf(-1, "Updater: Cannot delete \"%s\": %s\n",
+			    name, strerror(errno));
+		if (coll->co_options & CO_CHECKOUTMODE)
+			updater_prunedirs(coll->co_prefix, name);
 	} else {
-		lprintf(1," NoDelete %s\n", file + coll->co_prefixlen + 1);
+		lprintf(1," NoDelete %s\n", name + coll->co_prefixlen + 1);
 	}
-	free(file);
-
-	error = status_delete(ctx->st, name, 0);
-	if (error) {
-		/* XXX */
-		return (-1);
-	}
-	return (0);
 }
 
 static int
@@ -420,7 +474,6 @@ context_fini(struct context *ctx)
 	memset(sr, 0, sizeof(*sr));
 }
 
-/* Update live checked-out file. */
 static int
 updater_diff(struct context *ctx, char *line)
 {
@@ -606,7 +659,6 @@ updater_diff_apply(struct context *ctx)
 	return (0);
 }
 
-/* Checkout file. */
 /* XXX check write errors */
 static int
 updater_checkout(struct context *ctx, char *line)
@@ -640,8 +692,7 @@ updater_checkout(struct context *ctx, char *line)
 	}
 	t = rcsdatetotime(revdate);
 	if (t == -1) {
-		/* XXX */
-		lprintf(-1, "Updater: rcsdatetotime() failed!\n");
+		lprintf(-1, "Updater: Invalid RCS date: %s\n", revdate);
 		return (-1);
 	}
 	fileattr = fattr_new(FT_FILE, t);
@@ -759,79 +810,6 @@ updater_checkout(struct context *ctx, char *line)
 bad:
 	free(file);
 	return (-1);
-}
-
-/* Checkout dead file. */
-static int
-updater_checkoutdead(struct context *ctx, char *line)
-{
-	struct statusrec sr;
-	char *name, *tag, *date, *attr;
-	int error;
-
-	name = proto_get_ascii(&line);
-	tag = proto_get_ascii(&line);
-	date = proto_get_ascii(&line);
-	attr = proto_get_ascii(&line);
-	if (attr == NULL || line != NULL)
-		return (-1);
-
-	sr.sr_type = SR_CHECKOUTDEAD;
-	sr.sr_file = name;
-	sr.sr_tag = tag;
-	sr.sr_date = date;
-	sr.sr_serverattr = fattr_decode(attr);
-	if (sr.sr_serverattr == NULL) {
-		lprintf(-1, "Updater: Bad attributes \"%s\"\n", attr);
-		return (-1);
-	}
-
-	/*
-	 * Theoritically, the file does not exist on the client.
-	 * Just to make sure, we'll delete it here, if it exists.
-	 */
-	/* XXX implement the above. */
-
-	error = status_put(ctx->st, &sr);
-	fattr_free(sr.sr_serverattr);
-	if (error) {
-		/* XXX write error? */
-		return (-1);
-	}
-	return (0);
-}
-
-/* Update dead checked-out file. */
-static int
-updater_updatedead(struct context *ctx, char *line)
-{
-	struct statusrec sr;
-	char *name, *tag, *date, *attr;
-	int error;
-
-	name = proto_get_ascii(&line);
-	tag = proto_get_ascii(&line);
-	date = proto_get_ascii(&line);
-	attr = proto_get_ascii(&line);
-	if (attr == NULL || line != NULL)
-		return (-1);
-
-	sr.sr_type = SR_CHECKOUTDEAD;
-	sr.sr_file = name;
-	sr.sr_tag = tag;
-	sr.sr_date = date;
-	sr.sr_serverattr = fattr_decode(attr);
-	if (sr.sr_serverattr == NULL) {
-		lprintf(-1, "Updater: Bad attributes \"%s\"\n", attr);
-		return (-1);
-	}
-	error = status_put(ctx->st, &sr);
-	fattr_free(sr.sr_serverattr);
-	if (error) {
-		/* XXX write error? */
-		return (-1);
-	}
-	return (0);
 }
 
 /*
