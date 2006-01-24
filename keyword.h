@@ -44,7 +44,8 @@ struct keyword	*keyword_new(void);
 int		 keyword_alias(struct keyword *, char *, char *);
 int		 keyword_enable(struct keyword *, char *);
 int		 keyword_disable(struct keyword *, char *);
-char		*keyword_expand(struct keyword *, struct diff *, char *);
+int		 keyword_expand(struct keyword *, struct diff *, char *, size_t,
+		     char **, size_t *);
 void		 keyword_free(struct keyword *);
 
 #endif /* !_KEYWORD_H_ */

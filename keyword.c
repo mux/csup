@@ -79,18 +79,18 @@ static struct {
 	const char *ident;
 	rcskey_t key;
 } tag_defaults[] = {
-	{ "Author",	RCSKEY_AUTHOR, },
-	{ "CVSHeader",	RCSKEY_CVSHEADER, },
-	{ "Date",	RCSKEY_DATE, },
-	{ "Header",	RCSKEY_HEADER, },
-	{ "Id",		RCSKEY_ID, },
-	{ "Locker",	RCSKEY_LOCKER, },
-	{ "Log",	RCSKEY_LOG, },
-	{ "Name",	RCSKEY_NAME, },
-	{ "RCSfile",	RCSKEY_RCSFILE,	},
-	{ "Revision",	RCSKEY_REVISION,},
-	{ "Source",	RCSKEY_SOURCE, },
-	{ "State",	RCSKEY_STATE, },
+	{ "Author",	RCSKEY_AUTHOR },
+	{ "CVSHeader",	RCSKEY_CVSHEADER },
+	{ "Date",	RCSKEY_DATE },
+	{ "Header",	RCSKEY_HEADER },
+	{ "Id",		RCSKEY_ID },
+	{ "Locker",	RCSKEY_LOCKER },
+	{ "Log",	RCSKEY_LOG },
+	{ "Name",	RCSKEY_NAME },
+	{ "RCSfile",	RCSKEY_RCSFILE },
+	{ "Revision",	RCSKEY_REVISION },
+	{ "Source",	RCSKEY_SOURCE },
+	{ "State",	RCSKEY_STATE },
 	{ NULL,		0, }
 };
 
@@ -218,42 +218,54 @@ keyword_disable(struct keyword *keyword, char *ident)
 
 /*
  * Expand appropriate RCS keywords.  If there's no tag to expand,
- * keyword_expand() returns line, otherwise it returns a malloc()'ed
- * string that needs to be freed by the caller after use.  The
- * caller needs to compare the returned string to the line parameter
- * to determine if it has to free() the data.
+ * keyword_expand() returns 0, otherwise it returns 1 and writes a
+ * pointer to the new line in *buf and the new len in *len.  The
+ * new line is allocated with malloc() and needs to be freed by the
+ * caller after use.
  */
-char *
-keyword_expand(struct keyword *keyword, struct diff *diff, char *line)
+int
+keyword_expand(struct keyword *keyword, struct diff *diff, char *line,
+    size_t size, char **buf, size_t *len)
 {
 	struct tag *tag;
-	char *dollar, *keystart, *valstart, *vallim;
+	char *dollar, *keystart, *valstart, *vallim, *next;
 	char *linestart, *newline, *newval, *cp, *tmp;
+	size_t left, newsize, vallen;
 
 	assert(diff->d_expand != EXPAND_OLD && diff->d_expand != EXPAND_BINARY);
 	newline = NULL;
+	newsize = 0;
+	left = size;
 	linestart = cp = line;
 again:
-	dollar = strchr(cp, '$');
+	dollar = memchr(cp, '$', left);
 	if (dollar == NULL) {
-		if (newline != NULL)
-			return (newline);
-		return (line);
+		if (newline != NULL) {
+			*buf = newline;
+			*len = newsize;
+			return (1);
+		}
+		return (0);
 	}
 	keystart = dollar + 1;
-	vallim = strchr(keystart, '$');
+	left -= keystart - cp;
+	vallim = memchr(keystart, '$', left);
 	if (vallim == NULL) {
-		if (newline != NULL)
-			return (newline);
-		return (line);
+		if (newline != NULL) {
+			*buf = newline;
+			*len = newsize;
+			return (1);
+		}
+		return (0);
 	}
 	if (vallim == keystart) {
 		cp = keystart;
 		goto again;
 	}
-	valstart = strchr(keystart, ':');
+	valstart = memchr(keystart, ':', left);
 	if (valstart == keystart) {
 		cp = vallim;
+		left -= vallim - keystart;
 		goto again;
 	}
 	if (valstart == NULL || valstart > vallim)
@@ -265,25 +277,73 @@ again:
 				tmp = newline;
 			else
 				tmp = NULL;
-			*dollar = '\0';
-			*valstart = '\0';
-			*vallim = '\0';
 			newval = NULL;
 			if (diff->d_expand == EXPAND_KEY) {
-				xasprintf(&newline, "%s$%s$%s", linestart,
-				    keystart, vallim + 1);
+				newsize = dollar - linestart + 1 +
+				    valstart - keystart + 1 +
+				    size - (vallim + 1 - linestart);
+				newline = xmalloc(newsize);
+				cp = newline;
+				memcpy(cp, linestart, dollar - linestart);
+				cp += dollar - linestart;
+				*cp++ = '$';
+				memcpy(cp, keystart, valstart - keystart);
+				cp += valstart - keystart;
+				*cp++ = '$';
+				next = cp;
+				memcpy(cp, vallim + 1,
+				    size - (vallim + 1 - linestart));
 			} else if (diff->d_expand == EXPAND_VALUE) {
 				newval = tag_expand(tag, diff);
-				xasprintf(&newline, "%s%s%s", linestart,
-				    newval == NULL ? "" : newval, vallim + 1);
+				if (newval == NULL)
+					vallen = 0;
+				else
+					vallen = strlen(newval);
+				newsize = dollar - linestart +
+				    vallen +
+				    size - (vallim + 1 - linestart);
+				newline = xmalloc(newsize);
+				cp = newline;
+				memcpy(cp, linestart, dollar - linestart);
+				cp += dollar - linestart;
+				if (newval != NULL) {
+					memcpy(cp, newval, vallen);
+					cp += vallen;
+				}
+				next = cp;
+				memcpy(cp, vallim + 1,
+				    size - (vallim + 1 - linestart));
 			} else {
 				assert(diff->d_expand == EXPAND_DEFAULT ||
 				    diff->d_expand == EXPAND_KEYVALUE ||
 				    diff->d_expand == EXPAND_KEYVALUELOCKER);
 				newval = tag_expand(tag, diff);
-				xasprintf(&newline, "%s$%s: %s $%s", linestart,
-				    keystart, newval == NULL ? "" : newval,
-				    vallim + 1);
+				if (newval == NULL)
+					vallen = 0;
+				else
+					vallen = strlen(newval);
+				newsize = dollar - linestart + 1 +
+				    valstart - keystart + 2 +
+				    vallen + 2 +
+				    size - (vallim + 1 - linestart);
+				newline = xmalloc(newsize);
+				cp = newline;
+				memcpy(cp, linestart, dollar - linestart);
+				cp += dollar - linestart;
+				*cp++ = '$';
+				memcpy(cp, keystart, valstart - keystart);
+				cp += valstart - keystart;
+				*cp++ = ':';
+				*cp++ = ' ';
+				if (newval != NULL) {
+					memcpy(cp, newval, vallen);
+					cp += vallen;
+				}
+				*cp++ = ' ';
+				*cp++ = '$';
+				next = cp;
+				memcpy(cp, vallim + 1,
+				    size - (vallim + 1 - linestart));
 			}
 			if (newval != NULL)
 				free(newval);
@@ -291,15 +351,16 @@ again:
 				free(tmp);
 			/*
 			 * Continue looking for tags in the rest of the line.
-			 * We can't use vallim + 1 because it points in the
-			 * old line and not in the newly allocated one.
 			 */
-			cp = newline + (vallim - linestart - 1);
+			cp = next;
+			size = newsize;
+			left = size - (cp - newline);
 			linestart = newline;
 			goto again;
 		}
 	}
 	cp = vallim + 1;
+	left = size - (cp - linestart);
 	goto again;
 }
 

@@ -195,30 +195,15 @@ static void
 diff_write(struct editcmd *ec, void *buf, size_t size)
 {
 	char *line, *newline;
+	size_t newsize;
 
 	line = buf;
 	if (ec->diff->d_expand != EXPAND_OLD &&
-	    ec->diff->d_expand != EXPAND_BINARY) {
-		/* XXX - the keyword API doesn't support binary lines. */
-		if (line[size - 1] == '\n') {
-			line[size - 1] = '\0';
-			newline = keyword_expand(ec->keyword, ec->diff, line);
-			line[size - 1] = '\n';
-			if (newline != line)
-				stream_printf(ec->diff->d_to, "%s\n", newline);
-			else
-				stream_write(ec->diff->d_to, buf, size);
-		} else {
-			warnx("last line without NL");
-			line[size] = '\0';
-			newline = keyword_expand(ec->keyword, ec->diff, line);
-			if (newline != line)
-				stream_printf(ec->diff->d_to, "%s", newline);
-			else
-				stream_write(ec->diff->d_to, buf, size);
-		}
-		if (newline != line)
-			free(newline);
+	    ec->diff->d_expand != EXPAND_BINARY &&
+	    keyword_expand(ec->keyword, ec->diff, line, size,
+	      &newline, &newsize)) {
+		stream_write(ec->diff->d_to, newline, newsize);
+		free(newline);
 	} else
 		stream_write(ec->diff->d_to, buf, size);
 }
