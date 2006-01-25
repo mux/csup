@@ -196,14 +196,15 @@ diff_write(struct editcmd *ec, void *buf, size_t size)
 {
 	char *line, *newline;
 	size_t newsize;
+	int ret;
 
 	line = buf;
-	if (ec->diff->d_expand != EXPAND_OLD &&
-	    ec->diff->d_expand != EXPAND_BINARY &&
-	    keyword_expand(ec->keyword, ec->diff, line, size,
-	      &newline, &newsize)) {
+	ret = keyword_expand(ec->keyword, ec->diff, line, size,
+	    &newline, &newsize);
+	if (ret) {
 		stream_write(ec->diff->d_to, newline, newsize);
 		free(newline);
-	} else
+	} else {
 		stream_write(ec->diff->d_to, buf, size);
+	}
 }

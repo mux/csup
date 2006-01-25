@@ -232,7 +232,8 @@ keyword_expand(struct keyword *keyword, struct diff *diff, char *line,
 	char *linestart, *newline, *newval, *cp, *tmp;
 	size_t left, newsize, vallen;
 
-	assert(diff->d_expand != EXPAND_OLD && diff->d_expand != EXPAND_BINARY);
+	if (diff->d_expand == EXPAND_OLD || diff->d_expand == EXPAND_BINARY)
+		return (0);
 	newline = NULL;
 	newsize = 0;
 	left = size;
