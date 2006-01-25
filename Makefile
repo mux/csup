@@ -29,7 +29,7 @@ WARNS?=		6
 NOMAN=		yes
 NO_MAN=		yes
 
-# A bit of tweaking is needed to get this a Makefile working
+# A bit of tweaking is needed to get this Makefile working
 # with the bsd.prog.mk of all the *BSD OSes...
 .if (${UNAME} == "NetBSD")
 LDFLAGS+=	-pthread
