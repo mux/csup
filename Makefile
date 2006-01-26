@@ -24,7 +24,7 @@ SRCS=	attrstack.c attrstack.h \
 	token.h token.l \
 	updater.c updater.h
 
-CFLAGS+=	-I. -I${.CURDIR} -DHAVE_FFLAGS -g -pthread -DNDEBUG
+CFLAGS+=	-I. -I${.CURDIR} -g -pthread -DHAVE_FFLAGS -DNDEBUG
 WARNS?=		6
 NOMAN=		yes
 NO_MAN=		yes
