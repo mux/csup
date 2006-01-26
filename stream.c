@@ -863,9 +863,9 @@ again:
 			return (error);
 	}
 
-	state->next_in = buf->buf + buf->off;
+	state->next_in = (Bytef *)(buf->buf + buf->off);
 	state->avail_in = buf_count(buf);
-	state->next_out = zbuf->buf + zbuf->off + zbuf->in;
+	state->next_out = (Bytef *)(zbuf->buf + zbuf->off + zbuf->in);
 	state->avail_out = buf_avail(zbuf);
 	lastin = state->avail_in;
 	lastout = state->avail_out;
@@ -908,9 +908,9 @@ zfilter_fill(struct stream *stream, struct buf *buf)
 	}
 again:
 	assert(buf_count(zbuf) > 0);
-	state->next_in = zbuf->buf + zbuf->off;
+	state->next_in = (Bytef *)(zbuf->buf + zbuf->off);
 	state->avail_in = buf_count(zbuf);
-	state->next_out = buf->buf + buf->off + buf->in;
+	state->next_out = (Bytef *)(buf->buf + buf->off + buf->in);
 	state->avail_out = buf_avail(buf);
 	lastin = state->avail_in;
 	lastout = state->avail_out;
