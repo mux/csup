@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,15 +27,15 @@
  */
 
 /*
- * The file types we support and the attributes we support for each
- * one.  This is OS-dependant, but those defaults should work on most
- * UNIX systems out there.  We put this in its own header file so
- * that it's easier if we want to port that code to platforms with
- * different file types support.
+ * The file attributes we support in a BSD environment.
+ *
+ * This is similar to fattr_posix.h, except that we support the FA_FLAGS
+ * attribute when it makes sense.  The FA_FLAGS attribute is for the
+ * extended BSD file flags, see chflags(2).
  */
 fattr_support_t fattr_support = {
 	/* FT_UNKNOWN */
-	FA_MODTIME | FA_SIZE | FA_MODE,	/* XXX - Check this */
+	FA_MODTIME | FA_SIZE | FA_MODE,
 	/* FT_FILE */
 	FA_FILETYPE | FA_MODTIME | FA_SIZE | FA_OWNER | FA_GROUP | FA_MODE |
 	    FA_FLAGS | FA_LINKCOUNT | FA_INODE | FA_DEV,

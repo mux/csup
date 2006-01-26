@@ -39,8 +39,19 @@
 #include <unistd.h>
 
 #include "fattr.h"
-#include "fattr_os.h"
 #include "misc.h"
+
+/*
+ * Include the appropriate definition for the file attributes we support.
+ * There are two different files: fattr_bsd.h for BSD-like systems that
+ * support the extended file flags à la chflags() and fattr_posix.h for
+ * bare POSIX systems that don't.
+ */
+#ifdef HAVE_FFLAGS
+#include "fattr_bsd.h"
+#else
+#include "fattr_posix.h"
+#endif
 
 #ifdef __FreeBSD__
 #include <osreldate.h>
@@ -713,6 +724,7 @@ fattr_install(struct fattr *fa, const char *topath, const char *frompath)
 		return (0);
 	}
 
+#ifdef HAVE_FFLAGS
 	/*
 	 * Determine whether we need to clear the flags of the target.
 	 * This is bogus in that it assumes a value of 0 is safe and
@@ -723,6 +735,7 @@ fattr_install(struct fattr *fa, const char *topath, const char *frompath)
 		(void)chflags(topath, 0);
 		old->flags = 0;
 	}
+#endif
 
 	/* Determine whether we need to remove the target first. */
 	if (!inplace && (fa->type == FT_DIRECTORY) !=
@@ -774,12 +787,14 @@ fattr_install(struct fattr *fa, const char *topath, const char *frompath)
 			goto bad;
 	}
 
+#ifdef HAVE_FFLAGS
 	/* Set the flags. */
 	if (mask & FA_FLAGS) {
 		error = chflags(topath, fa->flags);
 		if (error)
 			goto bad;
 	}
+#endif
 	fattr_free(old);
 	return (1);
 bad:

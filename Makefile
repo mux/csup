@@ -9,7 +9,7 @@ SRCS=	attrstack.c attrstack.h \
 	config.c config.h \
 	detailer.c detailer.h \
 	diff.c diff.h \
-	fattr.c fattr.h fattr_os.h \
+	fattr.c fattr.h fattr_bsd.h \
 	keyword.c keyword.h \
 	lister.c lister.h \
 	main.c main.h \
@@ -24,7 +24,7 @@ SRCS=	attrstack.c attrstack.h \
 	token.h token.l \
 	updater.c updater.h
 
-CFLAGS+=	-I. -I${.CURDIR} -g -pthread -DNDEBUG
+CFLAGS+=	-I. -I${.CURDIR} -DHAVE_FFLAGS -g -pthread -DNDEBUG
 WARNS?=		6
 NOMAN=		yes
 NO_MAN=		yes
