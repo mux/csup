@@ -1,0 +1,39 @@
+# A simple gmake Makefile, to be used on Linux.
+# $Id$
+#
+
+SRCS=	attrstack.c config.c detailer.c diff.c fattr.c keyword.c lister.c \
+	main.c misc.c mux.c pathcomp.c parse.c proto.c status.c stream.c \
+	threads.c token.c updater.c
+OBJS=	$(SRCS:.c=.o)
+
+WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
+	-Wreturn-type -Wcast-qual -Wwrite-strings -Wswitch -Wshadow \
+	-Wcast-align -Wunused-parameter -Wchar-subscripts -Winline \
+	-Wnested-externs -Wredundant-decls -Wno-format-y2k
+CFLAGS+=	-O -pipe -D_XOPEN_SOURCE -D_GNU_SOURCE -DNDEBUG $(WARNS)
+LDFLAGS=	-lcrypto -lz -lpthread
+
+.PHONY: all clean
+
+all: csup
+
+csup: $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+config.c: parse.h
+
+token.c: token.l
+
+parse.c: parse.y
+
+parse.h: parse.c
+
+clean:
+	rm -f csup $(OBJS) parse.c parse.h token.c
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+%.c: %.y
+	$(YACC) -d -o $@ $<
