@@ -1,4 +1,4 @@
-# A simple gmake Makefile, to be used on Linux.
+# A simple gmake Makefile, to be used on Linux and Darwin.
 # $Id$
 #
 
