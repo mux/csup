@@ -2,6 +2,8 @@
 # $Id$
 #
 
+UNAME=	$(shell uname -s)
+
 SRCS=	attrstack.c config.c detailer.c diff.c fattr.c keyword.c lister.c \
 	main.c misc.c mux.c pathcomp.c parse.c proto.c status.c stream.c \
 	threads.c token.c updater.c
@@ -11,7 +13,12 @@ WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
 	-Wreturn-type -Wcast-qual -Wwrite-strings -Wswitch -Wshadow \
 	-Wcast-align -Wunused-parameter -Wchar-subscripts -Winline \
 	-Wnested-externs -Wredundant-decls -Wno-format-y2k
-CFLAGS+=	-O -pipe -D_XOPEN_SOURCE -D_GNU_SOURCE -DNDEBUG $(WARNS)
+
+CFLAGS+=	-O -pipe -D_XOPEN_SOURCE -D_GNU_SOURCE -DNDEBUG
+ifeq ($(UNAME), Darwin)
+	CFLAGS+= -DHAVE_FFLAGS
+endif
+CFLAGS+=	$(WARNS)
 LDFLAGS=	-lcrypto -lz -lpthread
 
 .PHONY: all clean
