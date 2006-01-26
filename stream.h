@@ -28,7 +28,7 @@
 #ifndef _STREAM_H_
 #define _STREAM_H_
 
-#include <sys/types.h>
+#include "misc.h"
 
 /* Stream filters. */
 typedef enum {

@@ -187,8 +187,10 @@ fattr_fromstat(struct stat *sb)
 		fa->gid = sb->st_gid;
 	if (fa->mask & FA_MODE)
 		fa->mode = sb->st_mode & (FA_SETIDMASK | FA_PERMMASK);
+#ifdef HAVE_FFLAGS
 	if (fa->mask & FA_FLAGS)
 		fa->flags = sb->st_flags;
+#endif
 	if (fa->mask & FA_LINKCOUNT)
 		fa->linkcount = sb->st_nlink;
 	if (fa->mask & FA_DEV)
