@@ -26,6 +26,8 @@
  * $Id$
  */
 
+#include <sys/file.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
@@ -76,6 +78,7 @@ main(int argc, char *argv[])
 	uint16_t port;
 	int c, compress, error, lockfd, lflag, truststatus;
 
+	error = 0;
 	port = 0;
 	compress = 0;
 	truststatus = 0;
@@ -100,18 +103,23 @@ main(int argc, char *argv[])
 		case 'l':
 			lockfile = optarg;
 			lflag = 1;
-			lockfd = open(lockfile, O_EXLOCK | O_CREAT | O_NONBLOCK,
-			    0700);
-			if (lockfd == -1 && errno == EAGAIN) {
-				lprintf(-1, "\"%s\" is already locked "
-				    "by another process\n", lockfile);
-				return (1);
+			lockfd = open(lockfile, O_CREAT | O_NONBLOCK, 0700);
+			if (lockfd != -1) {
+				error = flock(lockfd, LOCK_EX | LOCK_NB);
+				if (error == -1 && errno == EWOULDBLOCK) {
+					close(lockfd);
+					lprintf(-1, "\"%s\" is already locked "
+					    "by another process\n", lockfile);
+					return (1);
+				}
 			}
-			if (lockfd == -1) {
+			if (lockfd == -1 || error == -1) {
+				close(lockfd);
 				lprintf(-1, "Error locking \"%s\": %s\n",
 				    lockfile, strerror(errno));
 				return (1);
 			}
+			/* XXX Write PID into lockfile. */
 			break;
 		case 'L':
 			errno = 0;
@@ -182,6 +190,7 @@ main(int argc, char *argv[])
 	proto_init(config);
 	if (lflag) {
 		unlink(lockfile);
+		flock(lockfd, LOCK_UN);
 		close(lockfd);
 	}
 	return (0);
