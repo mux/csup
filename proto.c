@@ -411,7 +411,7 @@ proto_mux(struct config *config)
 		lprintf(-1, "chan_listen() failed\n");
 		return (-1);
 	}
-	chan0 = stream_fdopen(id0, chan_read, chan_write, NULL);
+	chan0 = stream_fdopen(id0, NULL, chan_write, NULL);
 	stream_printf(chan0, "CHAN %d\n", id1);
 	stream_close(chan0);
 	error = chan_accept(id1);
