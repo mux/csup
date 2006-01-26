@@ -26,9 +26,6 @@
  * $Id$
  */
 
-#include <sys/queue.h>
-#include <sys/types.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -42,6 +39,7 @@
 #include "misc.h"
 #include "pathcomp.h"
 #include "proto.h"
+#include "queue.h"
 #include "status.h"
 #include "stream.h"
 

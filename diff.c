@@ -26,8 +26,6 @@
  * $Id$
  */
 
-#include <sys/types.h>
-
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
@@ -37,6 +35,7 @@
 #include "diff.h"
 #include "keyword.h"
 #include "stream.h"
+#include "misc.h"
 
 typedef long lineno_t;
 

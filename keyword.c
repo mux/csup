@@ -26,8 +26,6 @@
  * $Id$
  */
 
-#include <sys/types.h>
-
 #include <assert.h>
 #include <err.h>
 #include <errno.h>

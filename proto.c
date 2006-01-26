@@ -27,11 +27,10 @@
  */
 
 #include <sys/param.h>
-#include <sys/queue.h>
 #include <sys/select.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #include <netinet/in.h>
 
@@ -54,6 +53,7 @@
 #include "misc.h"
 #include "mux.h"
 #include "proto.h"
+#include "queue.h"
 #include "stream.h"
 #include "threads.h"
 #include "updater.h"

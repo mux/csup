@@ -30,8 +30,8 @@
 
 #include "fattr.h"
 #include "queue.h"
+#include "misc.h"
 
-#include <stdint.h>
 #include <time.h>
 
 /*

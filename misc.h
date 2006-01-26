@@ -32,6 +32,28 @@
 
 #include <sys/types.h>
 
+/* If we're not compiling in a C99 environment, define the C99 types. */
+#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901
+
+#ifdef uint32_t
+#undef uint32_t
+#endif
+#define	uint32_t	u_int32_t
+
+#ifdef uint16_t
+#undef uint16_t
+#endif
+#define	uint16_t	u_int16_t
+
+#ifdef uint8_t
+#undef uint8_t
+#endif
+#define	uint8_t		u_int8_t
+
+#else
+#include <stdint.h>
+#endif
+
 /* This is a GCC-specific keyword but some other compilers (namely icc)
    understand it, and the code won't work if we can't disable padding
    anyways. */

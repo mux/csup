@@ -26,8 +26,6 @@
  * $Id$
  */
 
-#include <sys/types.h>
-
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
