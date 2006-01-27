@@ -2,6 +2,8 @@
 # $Id$
 #
 
+PREFIX?=/usr/local
+
 UNAME=	$(shell uname -s)
 
 SRCS=	attrstack.c config.c detailer.c diff.c fattr.c keyword.c lister.c \
@@ -14,14 +16,14 @@ WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
 	-Wcast-align -Wunused-parameter -Wchar-subscripts -Winline \
 	-Wnested-externs -Wredundant-decls -Wno-format-y2k
 
-CFLAGS+=	-O -pipe -D_XOPEN_SOURCE -D_GNU_SOURCE -DNDEBUG
+CFLAGS+=	-g -O -pipe -D_XOPEN_SOURCE -D_GNU_SOURCE -DNDEBUG
 ifeq ($(UNAME), Darwin)
 	CFLAGS+= -DHAVE_FFLAGS
 endif
 CFLAGS+=	$(WARNS)
 LDFLAGS=	-lcrypto -lz -lpthread
 
-.PHONY: all clean
+.PHONY: all clean install
 
 all: csup
 
@@ -44,3 +46,6 @@ clean:
 
 %.c: %.y
 	$(YACC) -d -o $@ $<
+
+install: csup
+	install -s -o 0 -g 0 $< $(PREFIX)/bin
