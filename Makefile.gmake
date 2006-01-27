@@ -16,12 +16,15 @@ WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
 	-Wcast-align -Wunused-parameter -Wchar-subscripts -Winline \
 	-Wnested-externs -Wredundant-decls -Wno-format-y2k
 
-CFLAGS+=	-g -O -pipe -D_XOPEN_SOURCE -D_GNU_SOURCE -DNDEBUG
-ifeq ($(UNAME), Darwin)
+CFLAGS+= -g -O -pipe -DNDEBUG
+ifeq ($(UNAME), "Linux")
+	CFLAGS+= -D_XOPEN_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
+endif
+ifeq ($(UNAME), "Darwin")
 	CFLAGS+= -DHAVE_FFLAGS
 endif
-CFLAGS+=	$(WARNS)
-LDFLAGS=	-lcrypto -lz -lpthread
+CFLAGS+= $(WARNS)
+LDFLAGS= -lcrypto -lz -lpthread
 
 .PHONY: all clean install
 
