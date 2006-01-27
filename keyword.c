@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/keyword.c,v 1.22 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <assert.h>
@@ -358,7 +358,7 @@ again:
 			goto again;
 		}
 	}
-	cp = vallim + 1;
+	cp = vallim;
 	left = size - (cp - linestart);
 	goto again;
 }
