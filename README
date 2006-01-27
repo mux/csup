@@ -19,9 +19,15 @@ Christoph Mathys <cmathys@bluewin.ch>	(Google Summer of Code Project)
 Building & Installing
 ---------------------
 
-Just run "make".  It should build OK on any *BSD system.  (I'll add a
-gmake Makefile some day for Linux and Solaris users).
+Csup should build and run fine under any *BSD OS (that includes FreeBSD,
+NetBSD, OpenBSD and DragonFlyBSD), as well as Linux and Darwin.  If you
+have a problem building from source, drop me a mail!
 
-You can then run "make install" to install csup.  Be warned however that
-if the packaging system of your OS knows about csup, it would be better
-to install it from there.
+If you're running a *BSD system, you can just run "make" followed by
+"make install".  However, if you're a Linux or Darwin user, you need to
+use the gmake-specific Makefile, so run "make -f Makefile.gmake", and
+then "make -f Makefile.gmake install" to install.
+
+Be warned however that if the packaging system of your OS knows about csup,
+it is certainly better to install it from there rather than by hand, so
+that it can then be properly deinstalled.
