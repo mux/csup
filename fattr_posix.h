@@ -31,7 +31,7 @@
  */
 fattr_support_t fattr_support = {
 	/* FT_UNKNOWN */
-	FA_MODTIME | FA_SIZE | FA_MODE,
+	0,
 	/* FT_FILE */
 	FA_FILETYPE | FA_MODTIME | FA_SIZE | FA_OWNER | FA_GROUP | FA_MODE |
 	    FA_LINKCOUNT | FA_INODE | FA_DEV,

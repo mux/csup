@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/fattr.c,v 1.26 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/time.h>
@@ -288,7 +288,7 @@ fattr_decode(char *attr)
 		next = fattr_scanattr(fa, FA_DEV, next);
 	if (fa->mask & FA_INODE)
 		next = fattr_scanattr(fa, FA_INODE, next);
-	if (next == NULL || *next != '\0')
+	if (next == NULL)
 		goto bad;
 	return (fa);
 bad:
