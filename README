@@ -1,4 +1,4 @@
-$Id$
+$FreeBSD$
 
 Authors
 -------
@@ -14,6 +14,7 @@ alphabetical order :
 Olivier Houchard <cognet@FreeBSD.org>
 Ulf Lilleengen <lulf@kerneled.org>
 Christoph Mathys <cmathys@bluewin.ch>	(Google Summer of Code Project)
+Etienne Vidal <etienne.vidal@gmail.com>
 
 
 Building & Installing
