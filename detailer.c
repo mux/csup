@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/detailer.c,v 1.34 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/detailer.c,v 1.35 2006/02/01 03:29:34 mux Exp $
  */
 
 #include <stdlib.h>
@@ -137,7 +137,7 @@ detailer_coll(struct coll *coll, struct status *st)
 			file = proto_get_ascii(&line);
 			if (file == NULL || line != NULL)
 				return (-1);
-			stream_printf(wr, "D %s\n", file);
+			proto_printf(wr, "D %s\n", file);
 		} else if (strcmp(cmd, "U") == 0) {
 			/* Add or update file. */
 			file = proto_get_ascii(&line);
@@ -166,7 +166,7 @@ detailer_coll(struct coll *coll, struct status *st)
 		if (line == NULL)
 			return (-1);
 	}
-	stream_printf(wr, ".\n");
+	proto_printf(wr, ".\n");
 	return (0);
 }
 
@@ -188,7 +188,7 @@ detailer_dofile(struct coll *coll, struct status *st, char *file)
 		   point is to tell the server to send it.  The server
 		   may figure out that the file is dead, in which case
 		   it will tell us. */
-		stream_printf(wr, "C %s %s %s\n",
+		proto_printf(wr, "C %s %s %s\n",
 		    file, coll->co_tag, coll->co_date);
 		free(path);
 		return (0);
@@ -202,7 +202,7 @@ detailer_dofile(struct coll *coll, struct status *st, char *file)
 		sr = NULL;
 	fattr_free(fa);
 	if (sr != NULL && strcmp(sr->sr_revdate, ".") != 0) {
-		stream_printf(wr, "U %s %s %s %s %s\n", file, coll->co_tag,
+		proto_printf(wr, "U %s %s %s %s %s\n", file, coll->co_tag,
 		    coll->co_date, sr->sr_revnum, sr->sr_revdate);
 		free(path);
 		return (0);
@@ -213,10 +213,10 @@ detailer_dofile(struct coll *coll, struct status *st, char *file)
 		return (-1);
 	free(path);
 	if (sr == NULL) {
-		stream_printf(wr, "S %s %s %s %s\n", file, coll->co_tag,
+		proto_printf(wr, "S %s %s %s %s\n", file, coll->co_tag,
 		    coll->co_date, md5);
 	} else {
-		stream_printf(wr, "s %s %s %s %s %s\n", file, coll->co_tag,
+		proto_printf(wr, "s %s %s %s %s %s\n", file, coll->co_tag,
 		    coll->co_date, sr->sr_revnum, md5);
 	}
 	return (0);
