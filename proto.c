@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/proto.c,v 1.53 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/param.h>
@@ -174,7 +174,7 @@ proto_negproto(struct config *config)
 	int error, maj, min;
 
 	s = config->server;
-	stream_printf(s, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
+	proto_printf(s, "PROTO %d %d %s\n", PROTO_MAJ, PROTO_MIN, PROTO_SWVER);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
@@ -212,7 +212,7 @@ proto_login(struct config *config)
 	s = config->server;
 	gethostname(host, sizeof(host));
 	host[sizeof(host) - 1] = '\0';
-	stream_printf(s, "USER %s %s\n", getlogin(), host);
+	proto_printf(s, "USER %s %s\n", getlogin(), host);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
@@ -225,7 +225,7 @@ proto_login(struct config *config)
 		    "supported by client\n");
 		return (1);
 	}
-	stream_printf(s, "AUTHMD5 . . .\n");
+	proto_printf(s, "AUTHMD5 . . .\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
@@ -256,10 +256,10 @@ proto_fileattr(struct config *config)
 
 	s = config->server;
 	lprintf(2, "Negotiating file attribute support\n");
-	stream_printf(s, "ATTR %d\n", FT_NUMBER);
+	proto_printf(s, "ATTR %d\n", FT_NUMBER);
 	for (i = 0; i < FT_NUMBER; i++)
-		stream_printf(s, "%x\n", fattr_supported(i));
-	stream_printf(s, ".\n");
+		proto_printf(s, "%x\n", fattr_supported(i));
+	proto_printf(s, ".\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
@@ -306,9 +306,9 @@ proto_xchgcoll(struct config *config)
 	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
 	STAILQ_FOREACH(cur, &config->colls, co_next)
-		stream_printf(s, "COLL %s %s %o %d\n.\n", cur->co_name,
+		proto_printf(s, "COLL %s %s %o %d\n.\n", cur->co_name,
 		    cur->co_release, cur->co_umask, cur->co_options);
-	stream_printf(s, ".\n");
+	proto_printf(s, ".\n");
 	stream_flush(s);
 	STAILQ_FOREACH(cur, &config->colls, co_next) {
 		if (cur->co_options & CO_SKIP)
@@ -394,7 +394,7 @@ proto_mux(struct config *config)
 
 	s = config->server;
 	lprintf(2, "Establishing multiplexed-mode data connection\n");
-	stream_printf(s, "MUX\n");
+	proto_printf(s, "MUX\n");
 	stream_flush(s);
 	error = mux_init(config->socket);
 	if (error) {
@@ -412,7 +412,7 @@ proto_mux(struct config *config)
 		return (-1);
 	}
 	chan0 = stream_fdopen(id0, NULL, chan_write, NULL);
-	stream_printf(chan0, "CHAN %d\n", id1);
+	proto_printf(chan0, "CHAN %d\n", id1);
 	stream_close(chan0);
 	error = chan_accept(id1);
 	if (error) {
@@ -479,11 +479,11 @@ proto_init(struct config *config)
 
 /*
  * Simple printf() implementation that understands standard format
- * specifiers %c, %d and %s, plus two additional formats specific to
- * csup.  The %t format is for printing time_t integers (unlike the
- * C99 %t length modifier for ptrdiff_t).  For the %s format, some
- * characters in the string may get escaped so we have a %S format
- * that is actually like the standard %s format.
+ * specifiers %c, %d (%i), %x, %o and %s, plus two additional formats
+ * specific to csup.  The %t format is for printing time_t integers
+ * (unlike the C99 %t length modifier for ptrdiff_t).  For the %s
+ * format, some characters in the string may get escaped so we have a
+ * %S format that is actually like the standard %s format.
  */
 int
 proto_printf(struct stream *wr, const char *format, ...)
@@ -515,8 +515,15 @@ proto_printf(struct stream *wr, const char *format, ...)
 			break;
 		case 'd':
 		case 'i':
-		       	val = va_arg(ap, int);
-			ret = snprintf(buf, sizeof(buf), "%d", val);
+		case 'x':
+		case 'o':
+			val = va_arg(ap, int);
+			if (*cp == 'x')
+				ret = snprintf(buf, sizeof(buf), "%x", val);
+			else if (*cp == 'o')
+				ret = snprintf(buf, sizeof(buf), "%o", val);
+			else
+				ret = snprintf(buf, sizeof(buf), "%d", val);
 			/* Should never happen, unless there are platforms
 			   with 128-bit ints some day... */
 			if ((unsigned)ret > sizeof(buf) + 1)
