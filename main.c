@@ -23,10 +23,11 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.24 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.25 2006/02/01 19:53:06 mux Exp $
  */
 
 #include <sys/file.h>
+#include <sys/types.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -39,6 +40,7 @@
 #include "config.h"
 #include "misc.h"
 #include "proto.h"
+#include "stream.h"
 
 #define	USAGE_OPTFMT	"    %-12s %s\n"
 
@@ -74,6 +76,7 @@ int
 main(int argc, char *argv[])
 {
 	struct config *config;
+	struct stream *lock;
 	char *argv0, *base, *colldir, *host, *file, *lockfile;
 	uint16_t port;
 	int c, compress, error, lockfd, lflag, truststatus;
@@ -103,7 +106,8 @@ main(int argc, char *argv[])
 		case 'l':
 			lockfile = optarg;
 			lflag = 1;
-			lockfd = open(lockfile, O_CREAT | O_NONBLOCK, 0700);
+			lockfd = open(lockfile,
+			    O_CREAT | O_WRONLY | O_TRUNC | O_NONBLOCK, 0700);
 			if (lockfd != -1) {
 				error = flock(lockfd, LOCK_EX | LOCK_NB);
 				if (error == -1 && errno == EWOULDBLOCK) {
@@ -119,7 +123,9 @@ main(int argc, char *argv[])
 				    lockfile, strerror(errno));
 				return (1);
 			}
-			/* XXX Write PID into lockfile. */
+			lock = stream_fdopen(lockfd, NULL, write, NULL);
+			(void)stream_printf(lock, "%10ld\n", (long)getpid());
+			stream_close(lock);
 			break;
 		case 'L':
 			errno = 0;
