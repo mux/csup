@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/main.c,v 1.24 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/file.h>
@@ -47,7 +47,7 @@ int verbose = 1;
 static void
 usage(char *argv0)
 {
-	lprintf(-1, "Usage: %s [options] supfile [destDir]\n", basename(argv0));
+	lprintf(-1, "Usage: %s [options] supfile\n", basename(argv0));
 	lprintf(-1, "  Options:\n");
 	lprintf(-1, USAGE_OPTFMT, "-b base",
 	    "Override supfile's \"base\" directory");
