@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/mux.c,v 1.54 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/param.h>
@@ -199,6 +199,7 @@ static int nchans;
 static pthread_t sender;
 static pthread_cond_t sender_newwork = PTHREAD_COND_INITIALIZER;
 static pthread_cond_t sender_started = PTHREAD_COND_INITIALIZER;
+static int sender_waiting;
 static int sender_ready;
 static struct sender_data {
 	int s;
@@ -412,17 +413,23 @@ chan_read(int id, void *buf, size_t size)
 	char *cp;
 	size_t count, n;
 
-	count = 0;	/* Quiet bogus warning from GCC. */
 	cp = buf;
 	chan = chan_get(id);
-	while ((chan->state == CS_ESTABLISHED || chan->state == CS_WRCLOSED) &&
-	    (count = buf_count(chan->recvbuf)) == 0)
+	for (;;) {
+		if (chan->state == CS_RDCLOSED || chan->state == CS_CLOSED) {
+			chan_unlock(chan);
+			return (0);
+		}
+		if (chan->state != CS_ESTABLISHED &&
+		    chan->state != CS_WRCLOSED) {
+			chan_unlock(chan);
+			errno = EBADF;
+			return (-1);
+		}
+		count = buf_count(chan->recvbuf);
+		if (count > 0)
+			break;
 		pthread_cond_wait(&chan->rdready, &chan->lock);
-	if (chan->state == CS_RDCLOSED || chan->state == CS_CLOSED)
-		return (0);
-	if (chan->state != CS_ESTABLISHED && chan->state != CS_WRCLOSED) {
-		errno = EBADF;
-		return (-1);
 	}
 	n = min(count, size);
 	buf_get(chan->recvbuf, cp, n);
@@ -443,18 +450,20 @@ chan_write(int id, const void *buf, size_t size)
 	size_t avail, n, pos;
 
 	pos = 0;
-	avail = 0;	/* Quiet bogus warning from GCC. */
 	cp = buf;
 	chan = chan_get(id);
 	while (pos < size) {
-		while ((chan->state == CS_ESTABLISHED ||
-		    chan->state == CS_RDCLOSED) &&
-		    (avail = buf_avail(chan->sendbuf)) == 0)
+		for (;;) {
+			if (chan->state != CS_ESTABLISHED &&
+			    chan->state != CS_RDCLOSED) {
+				chan_unlock(chan);
+				errno = EPIPE;
+				return (-1);
+			}
+			avail = buf_avail(chan->sendbuf);
+			if (avail > 0)
+				break;
 			pthread_cond_wait(&chan->wrready, &chan->lock);
-		if (chan->state != CS_ESTABLISHED &&
-		    chan->state != CS_RDCLOSED) {
-			errno = EPIPE;
-			return (-1);
 		}
 		n = min(avail, size - pos);
 		buf_put(chan->sendbuf, cp + pos, n);
@@ -626,10 +635,19 @@ mux_initproto(int s)
 static void
 sender_wakeup(void)
 {
+	int waiting;
 
 	pthread_mutex_lock(&mux_lock);
-	pthread_cond_signal(&sender_newwork);
+	waiting = sender_waiting;
 	pthread_mutex_unlock(&mux_lock);
+	/*
+	 * We don't care about the race here: if the sender was
+	 * waiting and is not anymore, we'll just sent a useless
+	 * signal; if he wasn't waiting then he won't go to sleep
+	 * before having sent what we want him to.
+	 */
+	if (waiting)
+		pthread_cond_signal(&sender_newwork);
 }
 
 static void *
@@ -646,6 +664,7 @@ sender_loop(void *arg)
 
 	sd = arg;
 	s = sd->s;
+	sender_waiting = 0;
 again:
 	id = sender_waitforwork(&what);
 	chan = chan_get(id);
@@ -755,8 +774,11 @@ sender_waitforwork(int *what)
 		pthread_cond_signal(&sender_started);
 		sender_ready = 1;
 	}
-	while ((id = sender_scan(what)) == -1)
+	while ((id = sender_scan(what)) == -1) {
+		sender_waiting = 1;
 		pthread_cond_wait(&sender_newwork, &mux_lock);
+	}
+	sender_waiting = 0;
 	pthread_mutex_unlock(&mux_lock);
 	return (id);
 }
