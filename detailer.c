@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/detailer.c,v 1.34 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <stdlib.h>
@@ -69,6 +69,7 @@ detailer(void *arg)
 			goto bad;
 		proto_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		stream_flush(wr);
 		if (coll->co_options & CO_COMPRESS) {
 			stream_filter_start(rd, STREAM_FILTER_ZLIB, NULL);
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
