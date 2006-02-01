@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/stream.c,v 1.47 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/types.h>
@@ -772,7 +772,7 @@ zfilter_init(struct stream *stream, void __unused *data)
 		state->zalloc = zfilter_alloc;
 		state->zfree = zfilter_free;
 		state->opaque = Z_NULL;
-		rv = deflateInit(state, Z_BEST_SPEED);
+		rv = deflateInit(state, Z_DEFAULT_COMPRESSION);
 		if (rv != Z_OK)
 			errx(1, "deflateInit: %s", state->msg);
 		buf = buf_new(buf_size(stream->wrbuf));
