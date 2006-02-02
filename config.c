@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/config.c,v 1.36 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/types.h>
@@ -57,7 +57,7 @@ static const char *cfgfile;
  */
 struct config *
 config_init(const char *file, char *host, char *base, char *colldir,
-    uint16_t port, int compress, int truststatus)
+    int compress, int truststatus)
 {
 	struct coll *cur;
 	mode_t mask;
@@ -148,7 +148,6 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		free(config->host);
 		config->host = host;
 	}
-	config->port = port;
 	coll_free(cur_coll);
 	coll_free(defaults);
 	return (config);

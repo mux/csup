@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.57 2006/02/02 19:02:42 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.58 2006/02/02 19:29:30 mux Exp $
  */
 
 #include <sys/param.h>
@@ -75,7 +75,7 @@ static void	proto_unescape(char *);
 
 /* Connect to the CVSup server. */
 int
-proto_connect(struct config *config)
+proto_connect(struct config *config, int family, uint16_t port)
 {
 	char addrbuf[128];
 	/* This is large enough to hold sizeof("cvsup") or any port number. */
@@ -86,13 +86,14 @@ proto_connect(struct config *config)
 	int error, ok, rv, s;
 
 	s = -1;
-	if (config->port != 0)
-		snprintf(servname, sizeof(servname), "%d", config->port);
+	if (port != 0)
+		snprintf(servname, sizeof(servname), "%d", port);
 	else {
 		strncpy(servname, "cvsup", sizeof(servname) - 1);
 		servname[sizeof(servname) - 1] = '\0';
 	}
 	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = family;
 	hints.ai_socktype = SOCK_STREAM;
 	error = getaddrinfo(config->host, servname, &hints, &res);
 	/*

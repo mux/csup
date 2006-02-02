@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/config.h,v 1.26 2006/01/27 17:13:49 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -86,15 +86,13 @@ struct coll {
 struct config {
 	STAILQ_HEAD(, coll) colls;
 	char *host;
-	uint16_t port;
 	int socket;
 	int id0, id1;
 	struct stream *server;
 	fattr_support_t fasupport;
 };
 
-struct config	*config_init(const char *, char *, char *, char *, uint16_t,
-		     int, int);
+struct config	*config_init(const char *, char *, char *, char *, int, int);
 int		 config_sethost(char *);
 
 struct coll	*coll_new(void);

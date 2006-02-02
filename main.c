@@ -23,11 +23,12 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.25 2006/02/01 19:53:06 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.26 2006/02/01 20:21:42 mux Exp $
  */
 
 #include <sys/file.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -51,6 +52,8 @@ usage(char *argv0)
 {
 	lprintf(-1, "Usage: %s [options] supfile\n", basename(argv0));
 	lprintf(-1, "  Options:\n");
+	lprintf(-1, USAGE_OPTFMT, "-4", "Force IPv4");
+	lprintf(-1, USAGE_OPTFMT, "-6", "Force IPv6");
 	lprintf(-1, USAGE_OPTFMT, "-b base",
 	    "Override supfile's \"base\" directory");
 	lprintf(-1, USAGE_OPTFMT, "-c collDir",
@@ -79,9 +82,11 @@ main(int argc, char *argv[])
 	struct stream *lock;
 	char *argv0, *base, *colldir, *host, *file, *lockfile;
 	uint16_t port;
-	int c, compress, error, lockfd, lflag, truststatus;
+	int family, compress, error, lockfd, lflag, truststatus;
+	int c;
 
 	error = 0;
+	family = PF_UNSPEC;
 	port = 0;
 	compress = 0;
 	truststatus = 0;
@@ -89,8 +94,14 @@ main(int argc, char *argv[])
 	lockfd = 0;
 	argv0 = argv[0];
 	base = colldir = host = lockfile = NULL;
-	while ((c = getopt(argc, argv, "b:c:gh:l:L:p:P:svzZ")) != -1) {
+	while ((c = getopt(argc, argv, "46b:c:gh:l:L:p:P:svzZ")) != -1) {
 		switch (c) {
+		case '4':
+			family = AF_INET;
+			break;
+		case '6':
+			family = AF_INET6;
+			break;
 		case 'b':
 			base = optarg;
 			break;
@@ -186,10 +197,9 @@ main(int argc, char *argv[])
 
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
-	config = config_init(file, host, base, colldir, port, compress,
-	    truststatus);
+	config = config_init(file, host, base, colldir, compress, truststatus);
 	lprintf(2, "Connecting to %s\n", config->host);
-	error = proto_connect(config);
+	error = proto_connect(config, family, port);
 	if (error)
 		return (1);
 	lprintf(1, "Connected to %s\n", config->host);
