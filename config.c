@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.36 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.37 2006/02/02 19:44:10 mux Exp $
  */
 
 #include <sys/types.h>
@@ -232,17 +232,17 @@ coll_free(struct coll *coll)
 		return;
 	if (coll->co_base != NULL)
 		free(coll->co_base);
-	if (coll->co_base != NULL)
+	if (coll->co_date != NULL)
 		free(coll->co_date);
-	if (coll->co_base != NULL)
+	if (coll->co_prefix != NULL)
 		free(coll->co_prefix);
-	if (coll->co_base != NULL)
+	if (coll->co_release != NULL)
 		free(coll->co_release);
-	if (coll->co_base != NULL)
+	if (coll->co_tag != NULL)
 		free(coll->co_tag);
-	if (coll->co_base != NULL)
+	if (coll->co_cvsroot != NULL)
 		free(coll->co_cvsroot);
-	if (coll->co_base != NULL)
+	if (coll->co_name != NULL)
 		free(coll->co_name);
 	keyword_free(coll->co_keyword);
 	free(coll);
