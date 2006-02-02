@@ -28,7 +28,7 @@ LDFLAGS= -lcrypto -lz -lpthread
 
 .PHONY: all clean install
 
-all: csup
+all: csup csup.1.gz
 
 csup: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -42,7 +42,7 @@ parse.c: parse.y
 parse.h: parse.c
 
 clean:
-	rm -f csup $(OBJS) parse.c parse.h token.c
+	rm -f csup $(OBJS) parse.c parse.h token.c csup.1.gz
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -50,5 +50,9 @@ clean:
 %.c: %.y
 	$(YACC) -d -o $@ $<
 
-install: csup
-	install -s -o 0 -g 0 $< $(PREFIX)/bin
+csup.1.gz: csup.1
+	gzip -cn $< > $@
+
+install: csup csup.1.gz
+	install -s -o 0 -g 0 csup $(PREFIX)/bin
+	install -s -o 0 -g 0 csup.1.gz $(PREFIX)/share/man/man1

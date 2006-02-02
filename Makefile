@@ -1,4 +1,4 @@
-# $FreeBSD$
+# $FreeBSD: projects/csup/Makefile,v 1.37 2006/01/27 17:13:49 mux Exp $
 
 BINDIR?=	/usr/local/bin
 
@@ -26,8 +26,6 @@ SRCS=	attrstack.c attrstack.h \
 
 CFLAGS+=	-I. -I${.CURDIR} -g -pthread -DHAVE_FFLAGS -DNDEBUG
 WARNS?=		6
-NOMAN=		yes
-NO_MAN=		yes
 
 # A bit of tweaking is needed to get this Makefile working
 # with the bsd.prog.mk of all the *BSD OSes...
