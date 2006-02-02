@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.53 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.54 2006/02/01 21:03:35 mux Exp $
  */
 
 #include <sys/param.h>
@@ -488,52 +488,48 @@ proto_init(struct config *config)
 int
 proto_printf(struct stream *wr, const char *format, ...)
 {
-	char buf[32];	/* Enough to print 64 bits numbers. */
 	long long longval;
 	const char *fmt;
 	va_list ap;
 	char *cp, *s;
 	size_t len;
 	ssize_t n;
-	int ret, val;
+	int rv, val;
 	char c;
 
 	n = 0;
+	rv = 0;
 	fmt = format;
 	va_start(ap, format);
 	while ((cp = strchr(fmt, '%')) != NULL) {
-		if (cp > fmt)
+		if (cp > fmt) {
 			n = stream_write(wr, fmt, cp - fmt);
-		if (n == -1)
-			return (-1);
+			if (n == -1)
+				return (-1);
+		}
 		if (*++cp == '\0')
 			goto done;
 		switch (*cp) {
 		case 'c':
 			c = va_arg(ap, int);
-			n = stream_write(wr, &c, 1);
+			rv = stream_printf(wr, "%c", c);
 			break;
 		case 'd':
 		case 'i':
+			val = va_arg(ap, int);
+			rv = stream_printf(wr, "%d", val);
+			break;
 		case 'x':
+			val = va_arg(ap, int);
+			rv = stream_printf(wr, "%x", val);
+			break;
 		case 'o':
 			val = va_arg(ap, int);
-			if (*cp == 'x')
-				ret = snprintf(buf, sizeof(buf), "%x", val);
-			else if (*cp == 'o')
-				ret = snprintf(buf, sizeof(buf), "%o", val);
-			else
-				ret = snprintf(buf, sizeof(buf), "%d", val);
-			/* Should never happen, unless there are platforms
-			   with 128-bit ints some day... */
-			if ((unsigned)ret > sizeof(buf) + 1)
-				errx(1, "%s: increase buffer size", __func__);
-			n = stream_write(wr, buf, ret);
+			rv = stream_printf(wr, "%o", val);
 			break;
 		case 'S':
 			s = va_arg(ap, char *);
-			len = strlen(s);
-			n = stream_write(wr, s, len);
+			rv = stream_printf(wr, "%s", s);
 			break;
 		case 's':
 			s = va_arg(ap, char *);
@@ -566,23 +562,22 @@ proto_printf(struct stream *wr, const char *format, ...)
 			} while (c != '\0');
 			break;
 		case 't':
-			longval = va_arg(ap, time_t);
-			ret = snprintf(buf, sizeof(buf), "%lld", longval);
-			if ((unsigned)ret > sizeof(buf) + 1)
-				errx(1, "%s: increase buffer size", __func__);
-			n = stream_write(wr, buf, ret);
+			longval = (long long)va_arg(ap, time_t);
+			rv = stream_printf(wr, "%lld", longval);
 			break;
 		case '%':
 			n = stream_write(wr, "%", 1);
+			if (n == -1)
+				return (-1);
 			break;
 		}
+		if (rv == -1)
+			return (-1);
 		fmt = cp + 1;
 	}
-	if (n == -1)
-		return (-1);
 	if (*fmt != '\0') {
-		n = stream_write(wr, fmt, strlen(fmt));
-		if (n == -1)
+		rv = stream_printf(wr, "%s", fmt);
+		if (rv == -1)
 			return (-1);
 	}
 done:
