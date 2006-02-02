@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.26 2006/02/01 20:21:42 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.27 2006/02/02 19:44:10 mux Exp $
  */
 
 #include <sys/file.h>
@@ -52,8 +52,8 @@ usage(char *argv0)
 {
 	lprintf(-1, "Usage: %s [options] supfile\n", basename(argv0));
 	lprintf(-1, "  Options:\n");
-	lprintf(-1, USAGE_OPTFMT, "-4", "Force IPv4");
-	lprintf(-1, USAGE_OPTFMT, "-6", "Force IPv6");
+	lprintf(-1, USAGE_OPTFMT, "-4", "Force usage of IPv4 addresses");
+	lprintf(-1, USAGE_OPTFMT, "-6", "Force usage of IPv6 addresses");
 	lprintf(-1, USAGE_OPTFMT, "-b base",
 	    "Override supfile's \"base\" directory");
 	lprintf(-1, USAGE_OPTFMT, "-c collDir",
