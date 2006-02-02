@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.54 2006/02/01 21:03:35 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.55 2006/02/02 00:05:04 mux Exp $
  */
 
 #include <sys/param.h>
@@ -69,6 +69,7 @@ static int	proto_fileattr(struct config *);
 static int	proto_xchgcoll(struct config *);
 static int	proto_mux(struct config *);
 
+static int	proto_escape(struct stream *, const char *);
 static void	proto_unescape(char *);
 
 /* Connect to the CVSup server. */
@@ -478,21 +479,77 @@ proto_init(struct config *config)
 }
 
 /*
- * Simple printf() implementation that understands standard format
- * specifiers %c, %d (%i), %x, %o and %s, plus two additional formats
- * specific to csup.  The %t format is for printing time_t integers
- * (unlike the C99 %t length modifier for ptrdiff_t).  For the %s
- * format, some characters in the string may get escaped so we have a
- * %S format that is actually like the standard %s format.
+ * Write a string into the stream, escaping characters as needed.
+ * Characters escaped:
+ *
+ * SPACE	-> "\_"
+ * TAB		->  "\t"
+ * NEWLINE	-> "\n"
+ * CR		-> "\r"
+ * \		-> "\\"
+ */
+static int
+proto_escape(struct stream *wr, const char *s)
+{
+	size_t len;
+	ssize_t n;
+	char c;
+
+	/* Handle characters that need escaping. */
+	do {
+		len = strcspn(s, " \t\r\n\\");
+		n = stream_write(wr, s, len);
+		if (n == -1)
+			return (-1);
+		c = s[len];
+		switch (c) {
+		case ' ':
+			n = stream_write(wr, "\\_", 2);
+			break;
+		case '\t':
+			n = stream_write(wr, "\\t", 2);
+			break;
+		case '\r':
+			n = stream_write(wr, "\\r", 2);
+			break;
+		case '\n':
+			n = stream_write(wr, "\\n", 2);
+			break;
+		case '\\':
+			n = stream_write(wr, "\\\\", 2);
+			break;
+		}
+		if (n == -1)
+			return (-1);
+		s += len + 1;
+	} while (c != '\0');
+	return (0);
+}
+
+/*
+ * A simple printf() implementation specifically tailored for csup.
+ * List of the supported formats:
+ *
+ * %c		Print a char.
+ * %d or %i	Print an int as decimal.
+ * %x		Print an int as hexadecimal.
+ * %o		Print an int as octal.
+ * %t		Print a time_t as decimal.
+ * %s		Print a char * escaping some characters as needed.
+ * %S		Print a char * without escaping.
+ * %f		Print an encoded struct fattr *.
+ * %F		Print an encoded struct fattr *, specifying the supported
+ * 		attributes.
  */
 int
 proto_printf(struct stream *wr, const char *format, ...)
 {
+	fattr_support_t *support;
 	long long longval;
+	struct fattr *fa;
 	const char *fmt;
 	va_list ap;
-	char *cp, *s;
-	size_t len;
+	char *cp, *s, *attr;
 	ssize_t n;
 	int rv, val;
 	char c;
@@ -535,35 +592,24 @@ proto_printf(struct stream *wr, const char *format, ...)
 			s = va_arg(ap, char *);
 			if (s == NULL)
 				break;
-			/* Handle characters that need escaping. */
-			do {
-				len = strcspn(s, " \t\n\\");
-				n = stream_write(wr, s, len);
-				if (n == -1)
-					return (-1);
-				c = s[len];
-				switch (c) {
-				case ' ':
-					n = stream_write(wr, "\\_", 2);
-					break;
-				case '\t':
-					n = stream_write(wr, "\\t", 2);
-					break;
-				case '\n':
-					n = stream_write(wr, "\\n", 2);
-					break;
-				case '\\':
-					n = stream_write(wr, "\\\\", 2);
-					break;
-				}
-				if (n == -1)
-					return (-1);
-				s += len + 1;
-			} while (c != '\0');
+			rv = proto_escape(wr, s);
 			break;
 		case 't':
 			longval = (long long)va_arg(ap, time_t);
 			rv = stream_printf(wr, "%lld", longval);
+			break;
+		case 'f':
+			fa = va_arg(ap, struct fattr *);
+			attr = fattr_encode(fa, NULL);
+			rv = proto_escape(wr, attr);
+			free(attr);
+			break;
+		case 'F':
+			fa = va_arg(ap, struct fattr *);
+			support = va_arg(ap, fattr_support_t *);
+			attr = fattr_encode(fa, *support);
+			rv = proto_escape(wr, attr);
+			free(attr);
 			break;
 		case '%':
 			n = stream_write(wr, "%", 1);
@@ -586,7 +632,7 @@ done:
 }
 
 /*
- * Unescape the string.
+ * Unescape the string, see proto_escape().
  */
 static void
 proto_unescape(char *s)
@@ -601,6 +647,9 @@ proto_unescape(char *s)
 			break;
 		case 't':
 			*cp = '\t';
+			break;
+		case 'r':
+			*cp = '\r';
 			break;
 		case 'n':
 			*cp = '\n';
