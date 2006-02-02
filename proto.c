@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.56 2006/02/02 18:29:38 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.57 2006/02/02 19:02:42 mux Exp $
  */
 
 #include <sys/param.h>
@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <err.h>
 #include <errno.h>
@@ -76,9 +77,11 @@ static void	proto_unescape(char *);
 int
 proto_connect(struct config *config)
 {
+	char addrbuf[128];
 	/* This is large enough to hold sizeof("cvsup") or any port number. */
 	char servname[8];
 	struct addrinfo *res, *ai, hints;
+	const char *addr;
 	fd_set connfd;
 	int error, ok, rv, s;
 
@@ -109,35 +112,36 @@ proto_connect(struct config *config)
 	ok = 0;
 	for (ai = res; ai != NULL; ai = ai->ai_next) {
 		s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-		if (s == -1 && errno == EPROTONOSUPPORT)
-			continue;
-		if (s == -1) {
-			lprintf(-1, "Cannot create socket: %s\n",
+		if (s != -1) {
+			error = connect(s, ai->ai_addr, ai->ai_addrlen);
+			if (error && errno == EINTR) {
+				FD_ZERO(&connfd);
+				FD_SET(s, &connfd);
+				do {
+					rv = select(s + 1, &connfd,
+					    NULL, NULL, NULL);
+				} while (rv == -1 && errno == EINTR);
+				if (rv == 1)
+					error = 0;
+			}
+			if (error)
+				close(s);
+		}
+		if (s == -1 || error) {
+			addr = inet_ntop(ai->ai_family, ai->ai_addr, addrbuf,
+			    sizeof(addrbuf));
+			if (addr == NULL)
+				err(1, "inet_ntop");
+			lprintf(0, "Cannot connect to %s: %s\n", addrbuf,
 			    strerror(errno));
 			continue;
 		}
-		error = connect(s, ai->ai_addr, ai->ai_addrlen);
-		if (error && errno == EINTR) {
-			FD_ZERO(&connfd);
-			FD_SET(s, &connfd);
-			do {
-				rv = select(s + 1, &connfd, NULL, NULL, NULL);
-			} while (rv == -1 && errno == EINTR);
-			if (rv == 1)
-				error = 0;
-		}
-		if (!error) {
-			ok = 1;
-			break;
-		}
-		close(s);
+		ok = 1;
+		break;
 	}
 	freeaddrinfo(res);
-	if (!ok) {
-		lprintf(0, "Cannot connect to %s: %s\n", config->host,
-		    strerror(errno));
+	if (!ok)
 		return (-1);
-	}
 	config->socket = s;
 	return (0);
 }
