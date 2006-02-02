@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.37 2006/02/02 19:44:10 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.38 2006/02/02 22:55:12 mux Exp $
  */
 
 #include <sys/types.h>
@@ -196,6 +196,8 @@ coll_new(void)
 		new->co_release = xstrdup(defaults->co_release);
 	if (defaults->co_tag != NULL)
 		new->co_tag = xstrdup(defaults->co_tag);
+	if (defaults->co_listsuffix != NULL)
+		new->co_listsuffix = xstrdup(defaults->co_listsuffix);
 	return (new);
 }
 
@@ -204,7 +206,10 @@ coll_statuspath(struct coll *coll)
 {
 	char *path;
 
-	if (coll->co_options & CO_USERELSUFFIX) {
+	if (coll->co_listsuffix != NULL) {
+		xasprintf(&path, "%s/%s/%s/checkouts.%s", coll->co_base,
+		    coll->co_colldir, coll->co_name, coll->co_listsuffix);
+	} else if (coll->co_options & CO_USERELSUFFIX) {
 		xasprintf(&path, "%s/%s/%s/checkouts.%s:%s", coll->co_base,
 		    coll->co_colldir, coll->co_name, coll->co_release,
 		    coll->co_tag);
@@ -244,6 +249,8 @@ coll_free(struct coll *coll)
 		free(coll->co_cvsroot);
 	if (coll->co_name != NULL)
 		free(coll->co_name);
+	if (coll->co_listsuffix != NULL)
+		free(coll->co_listsuffix);
 	keyword_free(coll->co_keyword);
 	free(coll);
 }
@@ -279,6 +286,16 @@ coll_setopt(int opt, char *value)
 		if (coll->co_base != NULL)
 			free(coll->co_tag);
 		coll->co_tag = value;
+		break;
+	case PT_LIST:
+		if (strchr(value, '/') != NULL) {
+			lprintf(-1, "Parse error in \"%s\": \"list\" suffix "
+			    "must not contain slashes\n", cfgfile);
+			exit(1);
+		}
+		if (coll->co_listsuffix != NULL)
+			free(coll->co_listsuffix);
+		coll->co_listsuffix = value;
 		break;
 	case PT_UMASK:
 		errno = 0;

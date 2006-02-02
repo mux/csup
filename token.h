@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/token.h,v 1.8 2006/01/27 17:13:50 mux Exp $
  */
 #ifndef _TOKEN_H_
 #define _TOKEN_H_
@@ -43,5 +43,6 @@ int	yyparse(void);
 #define PT_COMPRESS		7
 #define PT_DELETE		8
 #define PT_USE_REL_SUFFIX	9
+#define PT_LIST			10
 
 #endif /* !_TOKEN_H_ */

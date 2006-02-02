@@ -24,7 +24,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/token.l,v 1.15 2006/01/27 17:13:50 mux Exp $
  */
 
 #include <err.h>
@@ -55,6 +55,7 @@ prefix			{ yylval.i = PT_PREFIX; return NAME; }
 release			{ yylval.i = PT_RELEASE; return NAME; }
 tag			{ yylval.i = PT_TAG; return NAME; }
 umask			{ yylval.i = PT_UMASK; return NAME; }
+list			{ yylval.i = PT_LIST; return NAME; }
 =			{ return EQUAL; }
 compress		{ yylval.i = PT_COMPRESS; return BOOLEAN; }
 delete			{ yylval.i = PT_DELETE; return BOOLEAN; }
