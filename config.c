@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.38 2006/02/02 22:55:12 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.39 2006/02/02 23:15:03 mux Exp $
  */
 
 #include <sys/types.h>
@@ -268,22 +268,22 @@ coll_setopt(int opt, char *value)
 		coll->co_base = value;
 		break;
 	case PT_DATE:
-		if (coll->co_base != NULL)
+		if (coll->co_date != NULL)
 			free(coll->co_date);
 		coll->co_date = value;
 		break;
 	case PT_PREFIX:
-		if (coll->co_base != NULL)
+		if (coll->co_prefix != NULL)
 			free(coll->co_prefix);
 		coll->co_prefix = value;
 		break;
 	case PT_RELEASE:
-		if (coll->co_base != NULL)
+		if (coll->co_release != NULL)
 			free(coll->co_release);
 		coll->co_release = value;
 		break;
 	case PT_TAG:
-		if (coll->co_base != NULL)
+		if (coll->co_tag != NULL)
 			free(coll->co_tag);
 		coll->co_tag = value;
 		break;
