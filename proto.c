@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.55 2006/02/02 00:05:04 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.56 2006/02/02 18:29:38 mux Exp $
  */
 
 #include <sys/param.h>
@@ -80,7 +80,7 @@ proto_connect(struct config *config)
 	char servname[8];
 	struct addrinfo *res, *ai, hints;
 	fd_set connfd;
-	int error, rv, s;
+	int error, ok, rv, s;
 
 	s = -1;
 	if (config->port != 0)
@@ -106,8 +106,11 @@ proto_connect(struct config *config)
 		    gai_strerror(error));
 		return (-1);
 	}
+	ok = 0;
 	for (ai = res; ai != NULL; ai = ai->ai_next) {
 		s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+		if (s == -1 && errno == EPROTONOSUPPORT)
+			continue;
 		if (s == -1) {
 			lprintf(-1, "Cannot create socket: %s\n",
 			    strerror(errno));
@@ -123,15 +126,20 @@ proto_connect(struct config *config)
 			if (rv == 1)
 				error = 0;
 		}
-		if (!error)
+		if (!error) {
+			ok = 1;
 			break;
+		}
 		close(s);
-		lprintf(0, "Cannot connect to %s: %s\n", config->host,
-		    strerror(errno));
 	}
 	freeaddrinfo(res);
+	if (!ok) {
+		lprintf(0, "Cannot connect to %s: %s\n", config->host,
+		    strerror(errno));
+		return (-1);
+	}
 	config->socket = s;
-	return (error);
+	return (0);
 }
 
 /* Greet the server. */
