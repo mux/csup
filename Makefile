@@ -1,6 +1,7 @@
-# $FreeBSD: projects/csup/Makefile,v 1.37 2006/01/27 17:13:49 mux Exp $
+# $FreeBSD: projects/csup/Makefile,v 1.38 2006/02/02 00:02:11 mux Exp $
 
 BINDIR?=	/usr/local/bin
+MANDIR?=	/usr/local/man/man
 
 UNAME!=		/usr/bin/uname -s
 
