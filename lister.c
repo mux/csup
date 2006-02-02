@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/lister.c,v 1.18 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <assert.h>
@@ -38,6 +38,7 @@
 #include "lister.h"
 #include "misc.h"
 #include "mux.h"
+#include "proto.h"
 #include "status.h"
 #include "stream.h"
 
@@ -75,8 +76,9 @@ lister(void *arg)
 			stream_close(wr);
 			return (NULL);
 		}
-		stream_printf(wr, "COLL %s %s\n", coll->co_name,
+		proto_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		stream_flush(wr);
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
 		error = lister_coll(config, wr, coll, st);
@@ -90,7 +92,7 @@ lister(void *arg)
 		stream_flush(wr);
 		status_close(st, NULL);
 	}
-	stream_printf(wr, ".\n");
+	proto_printf(wr, ".\n");
 	stream_close(wr);
 	return (NULL);
 }
@@ -145,7 +147,7 @@ lister_coll(struct config *config, struct stream *wr, struct coll *coll,
 	}
 	if (!status_eof(st) || depth != 0)
 		goto bad;
-	stream_printf(wr, ".\n");
+	proto_printf(wr, ".\n");
 	attrstack_free(as);
 	return (0);
 bad:
@@ -203,7 +205,7 @@ lister_dodirdown(struct config *config, struct stream *wr, struct coll *coll,
 
 	/* It really is a directory. */
 	attrstack_push(as, fa);
-	stream_printf(wr, "D %s\n", pathlast(sr->sr_file));
+	proto_printf(wr, "D %s\n", pathlast(sr->sr_file));
 	return (0);
 }
 
@@ -226,7 +228,7 @@ lister_dodirup(struct config *config, struct stream *wr, struct coll *coll,
 		attrs = fattr_encode(fa, config->fasupport);
 	else
 		attrs = fattr_encode(fattr_bogus, config->fasupport);
-	stream_printf(wr, "U %s\n", attrs);
+	proto_printf(wr, "U %s\n", attrs);
 	free(attrs);
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE))
 		fattr_free(fa);
@@ -269,7 +271,7 @@ lister_dofile(struct config *config, struct stream *wr, struct coll *coll,
 		goto bad;
 	}
 	attrs = fattr_encode(sfa, config->fasupport);
-	stream_printf(wr, "F %s %s\n", pathlast(sr->sr_file), attrs);
+	proto_printf(wr, "F %s %s\n", pathlast(sr->sr_file), attrs);
 	free(attrs);
 	fattr_free(fa2);
 	fattr_free(rfa);
@@ -310,7 +312,7 @@ lister_dodead(struct config *config, struct stream *wr, struct coll *coll,
 		attrs = fattr_encode(fattr_bogus, config->fasupport);
 	else
 		attrs = fattr_encode(sr->sr_serverattr, config->fasupport);
-	stream_printf(wr, "f %s %s\n", pathlast(sr->sr_file), attrs);
+	proto_printf(wr, "f %s %s\n", pathlast(sr->sr_file), attrs);
 	free(attrs);
 	return (0);
 bad:
@@ -324,6 +326,6 @@ lister_sendbogus(struct config *config, struct stream *wr, struct statusrec *sr)
 	char *attrs;
 
 	attrs = fattr_encode(fattr_bogus, config->fasupport);
-	stream_printf(wr, "F %s %s\n", pathlast(sr->sr_file), attrs);
+	proto_printf(wr, "F %s %s\n", pathlast(sr->sr_file), attrs);
 	free(attrs);
 }
