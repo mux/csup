@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.59 2006/02/02 19:44:10 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.60 2006/02/03 05:45:02 mux Exp $
  */
 
 #include <sys/param.h>
@@ -700,6 +700,8 @@ proto_get_ascii(char **s)
 	if (s == NULL)
 		return (NULL);
 	ret = strsep(s, " ");
+	if (ret == NULL)
+		return (NULL);
 	proto_unescape(ret);
 	return (ret);
 }
