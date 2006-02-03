@@ -556,8 +556,9 @@ status_open(struct coll *coll, time_t scantime, char **errmsg)
  * all the entries read from the status file while looking for the
  * given name are deleted.
  */
-struct statusrec *
-status_get(struct status *st, char *name, int isdirup, int deleteto)
+int
+status_get(struct status *st, char *name, int isdirup, int deleteto,
+    struct statusrec **psr)
 {
 	struct statusrec key;
 	struct statusrec *sr;
@@ -565,11 +566,16 @@ status_get(struct status *st, char *name, int isdirup, int deleteto)
 	int c, error;
 
 	if (st->eof)
-		return (NULL);
+		return (0);
 
 	if (name == NULL) {
 		sr = status_rd(st);
-		return (sr);
+		if (st->errmsg != NULL)
+			return (-1);
+		if (sr == NULL)
+			return (0);
+		*psr = sr;
+		return (1);
 	}
 
 	if (st->current != NULL) {
@@ -577,8 +583,10 @@ status_get(struct status *st, char *name, int isdirup, int deleteto)
 		st->current = NULL;
 	} else {
 		sr = status_rd(st);
+		if (st->errmsg != NULL)
+			return (-1);
 		if (sr == NULL)
-			return (NULL);
+			return (0);
 	}
 
 	key.sr_file = name;
@@ -592,20 +600,22 @@ status_get(struct status *st, char *name, int isdirup, int deleteto)
 		if (st->wr != NULL && !deleteto) {
 			error = status_wr(st, sr);
 			if (error)
-				return (NULL);
+				return (-1);
 		}
 		/* Loop until we find the good entry. */
 		for (;;) {
 			sr = status_rdraw(st, &line);
+			if (st->errmsg != NULL)
+				return (-1);
 			if (sr == NULL)
-				return (NULL);
+				return (0);
 			c = statusrec_cmp(sr, &key);
 			if (c >= 0)
 				break;
 			if (st->wr != NULL && !deleteto) {
 				error = status_wrraw(st, sr, line);
 				if (error)
-					return (NULL);
+					return (-1);
 			}
 		}
 		error = statusrec_cook(sr, line);
@@ -613,13 +623,14 @@ status_get(struct status *st, char *name, int isdirup, int deleteto)
 			xasprintf(&st->errmsg, "Error in \"%s\" line %d: "
 			    "Could not parse status record", st->path,
 			    st->linenum);
-			return (NULL);
+			return (-1);
 		}
 	}
 	st->current = sr;
 	if (c != 0)
-		return (NULL);
-	return (sr);
+		return (0);
+	*psr = sr;
+	return (1);
 }
 
 /*
@@ -631,12 +642,12 @@ int
 status_put(struct status *st, struct statusrec *sr)
 {
 	struct statusrec *old;
-	int error;
+	int error, ret;
 
-	old = status_get(st, sr->sr_file, sr->sr_type == SR_DIRUP, 0);
-	if (old == NULL && st->errmsg != NULL)
+	ret = status_get(st, sr->sr_file, sr->sr_type == SR_DIRUP, 0, &old);
+	if (ret == -1)
 		return (-1);
-	if (old != NULL) {
+	if (ret) {
 		if (old->sr_type == SR_DIRDOWN) {
 			/* DirUp should never match DirDown */
 			assert(old->sr_type != SR_DIRUP);
@@ -645,8 +656,10 @@ status_put(struct status *st, struct statusrec *sr)
 				/* We are replacing a directory with a file.
 				   Delete all entries inside the directory we
 				   are replacing. */
-				old = status_get(st, sr->sr_file, 1, 1);
-				assert(old != NULL);
+				ret = status_get(st, sr->sr_file, 1, 1, &old);
+				if (ret == -1)
+					return (-1);
+				assert(ret);
 			}
 		} else
 			st->current = NULL;
@@ -665,11 +678,12 @@ int
 status_delete(struct status *st, char *name, int isdirup)
 {
 	struct statusrec *sr;
+	int ret;
 
-	sr = status_get(st, name, isdirup, 0);
-	if (sr == NULL && st->errmsg != NULL)
+	ret = status_get(st, name, isdirup, 0, &sr);
+	if (ret == -1)
 		return (-1);
-	if (sr != NULL) {
+	if (ret) {
 		st->current = NULL;
 		st->dirty = 1;
 	}

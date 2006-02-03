@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.20 2006/02/03 15:47:13 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.21 2006/02/03 18:23:34 mux Exp $
  */
 
 #include <assert.h>
@@ -104,12 +104,12 @@ lister_coll(struct config *config, struct stream *wr, struct coll *coll,
 	struct attrstack *as;
 	struct statusrec *sr;
 	struct fattr *fa;
-	int depth, error, prunedepth;
+	int depth, error, ret, prunedepth;
 
 	depth = 0;
 	prunedepth = INT_MAX;
 	as = attrstack_new();
-	while ((sr = status_get(st, NULL, 0, 0)) != NULL) {
+	while ((ret = status_get(st, NULL, 0, 0, &sr)) == 1) {
 		switch (sr->sr_type) {
 		case SR_DIRDOWN:
 			depth++;
@@ -144,11 +144,12 @@ lister_coll(struct config *config, struct stream *wr, struct coll *coll,
 			goto bad;
 		}
 	}
-	if (!status_eof(st)) {
+	if (ret == -1) {
 		lprintf(-1, "Lister: %s.  Delete it and try again.\n",
 		    status_errmsg(st));
 		goto bad;
 	}
+	assert(status_eof(st));
 	assert(depth == 0);
 	proto_printf(wr, ".\n");
 	attrstack_free(as);

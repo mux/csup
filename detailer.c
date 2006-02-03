@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/detailer.c,v 1.35 2006/02/01 03:29:34 mux Exp $
+ * $FreeBSD: projects/csup/detailer.c,v 1.36 2006/02/01 21:05:41 mux Exp $
  */
 
 #include <stdlib.h>
@@ -84,7 +84,7 @@ detailer(void *arg)
 		error = detailer_coll(coll, st);
 		status_close(st, NULL);
 		if (error)
-			goto bad;
+			return (NULL);
 		if (coll->co_options & CO_COMPRESS) {
 			stream_filter_stop(rd);
 			stream_filter_stop(wr);
@@ -177,7 +177,7 @@ detailer_dofile(struct coll *coll, struct status *st, char *file)
 	struct fattr *fa;
 	struct statusrec *sr;
 	char *path;
-	int error;
+	int error, ret;
 
 	path = checkoutpath(coll->co_prefix, file);
 	if (path == NULL)
@@ -193,7 +193,14 @@ detailer_dofile(struct coll *coll, struct status *st, char *file)
 		free(path);
 		return (0);
 	}
-	sr = status_get(st, file, 0, 0);
+	ret = status_get(st, file, 0, 0, &sr);
+	if (ret == -1) {
+		lprintf(-1, "Detailer: %s\n", status_errmsg(st));
+		free(path);
+		return (-1);
+	}
+	if (ret == 0)
+		sr = NULL;
 
 	/* If our recorded information doesn't match the file that the
 	   client has, then ignore the recorded information. */

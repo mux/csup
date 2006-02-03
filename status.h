@@ -60,12 +60,13 @@ struct statusrec {
 	struct fattr	*sr_clientattr;
 };
 
-struct status		*status_open(struct coll *, time_t, char **);
-struct statusrec	*status_get(struct status *, char *, int, int);
-int			 status_put(struct status *, struct statusrec *);
-int			 status_eof(struct status *);
-char			*status_errmsg(struct status *);
-int			 status_delete(struct status *, char *, int);
-void			 status_close(struct status *, char **);
+struct status	*status_open(struct coll *, time_t, char **);
+int		 status_get(struct status *, char *, int, int,
+		     struct statusrec **);
+int		 status_put(struct status *, struct statusrec *);
+int		 status_eof(struct status *);
+char		*status_errmsg(struct status *);
+int		 status_delete(struct status *, char *, int);
+void		 status_close(struct status *, char **);
 
 #endif /* !_STATUS_H_ */
