@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.19 2006/02/02 00:13:58 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.20 2006/02/03 15:47:13 mux Exp $
  */
 
 #include <assert.h>
@@ -144,14 +144,16 @@ lister_coll(struct config *config, struct stream *wr, struct coll *coll,
 			goto bad;
 		}
 	}
-	if (!status_eof(st) || depth != 0)
+	if (!status_eof(st)) {
+		lprintf(-1, "Lister: %s.  Delete it and try again.\n",
+		    status_errmsg(st));
 		goto bad;
+	}
+	assert(depth == 0);
 	proto_printf(wr, ".\n");
 	attrstack_free(as);
 	return (0);
 bad:
-	lprintf(-1, "Lister: Bad status file for collection \"%s\".  "
-	    "Delete it and try again.\n", coll->co_name);
 	while (depth-- > 0) {
 		fa = attrstack_pop(as);
 		fattr_free(fa);

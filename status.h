@@ -64,6 +64,7 @@ struct status		*status_open(struct coll *, time_t, char **);
 struct statusrec	*status_get(struct status *, char *, int, int);
 int			 status_put(struct status *, struct statusrec *);
 int			 status_eof(struct status *);
+char			*status_errmsg(struct status *);
 int			 status_delete(struct status *, char *, int);
 void			 status_close(struct status *, char **);
 
