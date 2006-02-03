@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.27 2006/01/30 17:36:13 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.28 2006/02/03 01:10:50 mux Exp $
  */
 
 #include <sys/time.h>
@@ -108,6 +108,34 @@ static const struct fattr bogus = {
 	0
 };
 
+static struct fattr *defaults[FT_NUMBER];
+
+void
+fattr_init(void)
+{
+	struct fattr *fa;
+	int i;
+
+	for (i = 0; i < FT_NUMBER; i++) {
+		fa = fattr_new(i, -1);
+		if (i == FT_DIRECTORY)
+			fa->mode = 0777;
+		else
+			fa->mode = 0666;
+		fa->mask |= FA_MODE;
+		defaults[i] = fa;
+	}
+}
+
+void
+fattr_fini(void)
+{
+	int i;
+
+	for (i = 0; i < FT_NUMBER; i++)
+		fattr_free(defaults[i]);
+}
+
 const struct fattr *fattr_bogus = &bogus;
 
 static char		*fattr_scanattr(struct fattr *, int, const char *);
@@ -138,20 +166,6 @@ fattr_new(int type, time_t modtime)
 		new->linkcount = 1;
 	}
 	return (new);
-}
-
-struct fattr *
-fattr_default(int type)
-{
-	struct fattr *fa;
-
-	fa = fattr_new(type, -1);
-	if (fa->type == FT_DIRECTORY)
-		fa->mode = 0777 | FA_PERMMASK;
-	else
-		fa->mode = 0666 | FA_PERMMASK;
-	fa->mask |= FA_MODE;
-	return (fa);
 }
 
 /* Returns a new file attribute structure based on a stat structure. */
@@ -654,6 +668,14 @@ fattr_merge(struct fattr *fa, const struct fattr *from)
 {
 
 	fattr_override(fa, from, from->mask & ~fa->mask);
+}
+
+/* Merge default attributes. */
+void
+fattr_mergedefault(struct fattr *fa)
+{
+
+	fattr_merge(fa, defaults[fa->type]);
 }
 
 /* Override selected attributes of "fa" with values from "from". */

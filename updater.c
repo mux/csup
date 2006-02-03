@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/updater.c,v 1.65 2006/01/27 17:13:50 mux Exp $
  */
 
 #include <sys/types.h>
@@ -672,7 +672,7 @@ updater_checkout(struct context *ctx, char *line)
 	char md5[MD5_DIGEST_SIZE];
 	struct statusrec *sr;
 	struct coll *coll;
-	struct fattr *rcsattr, *fileattr;
+	struct fattr *rcsattr, *fileattr, *tmp;
 	struct stream *to;
 	char *attr, *cksum, *cmd, *file, *name;
 	char *tag, *date, *revnum, *revdate;
@@ -702,6 +702,12 @@ updater_checkout(struct context *ctx, char *line)
 		return (-1);
 	}
 	fileattr = fattr_new(FT_FILE, t);
+
+	tmp = fattr_forcheckout(rcsattr, coll->co_umask);
+	fattr_override(fileattr, tmp, FA_MASK);
+	fattr_free(tmp);
+
+	fattr_mergedefault(fileattr);
 	fattr_umask(fileattr, coll->co_umask);
 
 	sr->sr_type = SR_CHECKOUTLIVE;
@@ -769,7 +775,7 @@ updater_checkout(struct context *ctx, char *line)
 		goto bad;
 	}
 
-	updater_install(coll, fileattr, NULL, file);
+	fattr_install(fileattr, file, NULL);
 
 	/* XXX Executes */
 	/*

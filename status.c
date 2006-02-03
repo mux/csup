@@ -502,7 +502,8 @@ status_open(struct coll *coll, time_t scantime, char **errmsg)
 			status_free(st);
 			return (NULL);
 		}
-		fa = fattr_default(FT_FILE);
+		fa = fattr_new(FT_FILE, -1);
+		fattr_mergedefault(fa);
 		fattr_umask(fa, coll->co_umask);
 		rv = fattr_install(fa, st->tempfile, NULL);
 		fattr_free(fa);

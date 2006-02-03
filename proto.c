@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.58 2006/02/02 19:29:30 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.59 2006/02/02 19:44:10 mux Exp $
  */
 
 #include <sys/param.h>
@@ -472,6 +472,13 @@ proto_init(struct config *config)
 	if (error)
 		return (error);
 	error = proto_mux(config);
+	if (error)
+		return (error);
+
+	/* Initialize the fattr API.  Hopefully this is not needed
+	   earlier, since it's only for fattr_mergedefault(). */
+	fattr_init();
+
 	workers = threads_new();
 	threads_create(workers, lister, config);
 	threads_create(workers, detailer, config);
@@ -488,6 +495,7 @@ proto_init(struct config *config)
 	chan_wait(config->id1);
 	mux_fini();
 	lprintf(2, "Finished successfully\n");
+	fattr_fini();
 	return (error);
 }
 
