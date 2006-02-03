@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.26 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.27 2006/01/30 17:36:13 mux Exp $
  */
 
 #include <sys/time.h>
@@ -336,59 +336,59 @@ fattr_encode(const struct fattr *fa, fattr_support_t support)
 	len = 0;
 	piece = pieces;
 	vallen = snprintf(piece->val, sizeof(piece->val), "%x", mask);
-	len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-	    vallen + 1;
+	len += snprintf(piece->len, sizeof(piece->len), "%lld",
+	    (long long)vallen) + vallen + 1;
 	piece++;
 	if (mask & FA_FILETYPE) {
 		vallen = snprintf(piece->val, sizeof(piece->val),
 		    "%d", fa->type);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_MODTIME) {
 		vallen = snprintf(piece->val, sizeof(piece->val),
 		    "%lld", (long long)fa->modtime);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_SIZE) {
 		vallen = snprintf(piece->val, sizeof(piece->val),
 		    "%lld", (long long)fa->size);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_LINKTARGET) {
 		vallen = strlen(fa->linktarget);
 		piece->extval = 1;
 		piece->ext = fa->linktarget;
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_RDEV) {
 		vallen = snprintf(piece->val, sizeof(piece->val),
 		    "%lld", (long long)fa->rdev);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_OWNER) {
 		vallen = strlen(pw->pw_name);
 		piece->extval = 1;
 		piece->ext = pw->pw_name;
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_GROUP) {
 		vallen = strlen(gr->gr_name);
 		piece->extval = 1;
 		piece->ext = gr->gr_name;
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_MODE) {
@@ -399,36 +399,36 @@ fattr_encode(const struct fattr *fa, fattr_support_t support)
 		mode = fa->mode & modemask;
 		vallen = snprintf(piece->val, sizeof(piece->val),
 		    "%o", mode);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_FLAGS) {
 		vallen = snprintf(piece->val, sizeof(piece->val), "%llx",
 		    (long long)fa->flags);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_LINKCOUNT) {
 		vallen = snprintf(piece->val, sizeof(piece->val), "%lld",
 		    (long long)fa->linkcount);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_DEV) {
 		vallen = snprintf(piece->val, sizeof(piece->val), "%lld",
 		    (long long)fa->dev);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_INODE) {
 		vallen = snprintf(piece->val, sizeof(piece->val), "%lld",
 		    (long long)fa->inode);
-		len += snprintf(piece->len, sizeof(piece->len), "%zd", vallen) +
-		    vallen + 1;
+		len += snprintf(piece->len, sizeof(piece->len), "%lld",
+		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 
