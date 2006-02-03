@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.18 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.19 2006/02/02 00:13:58 mux Exp $
  */
 
 #include <assert.h>
@@ -82,15 +82,14 @@ lister(void *arg)
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
 		error = lister_coll(config, wr, coll, st);
+		status_close(st, NULL);
 		if (error) {
-			status_close(st, NULL);
 			stream_close(wr);
 			return (NULL);
 		}
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_stop(wr);
 		stream_flush(wr);
-		status_close(st, NULL);
 	}
 	proto_printf(wr, ".\n");
 	stream_close(wr);
@@ -214,8 +213,8 @@ static int
 lister_dodirup(struct config *config, struct stream *wr, struct coll *coll,
     struct statusrec *sr, struct attrstack *as)
 {
+	const struct fattr *sendattr;
 	struct fattr *fa, *fa2;
-	char *attrs;
 
 	fa = attrstack_pop(as);
 	if (coll->co_options & CO_TRUSTSTATUSFILE) {
@@ -225,14 +224,15 @@ lister_dodirup(struct config *config, struct stream *wr, struct coll *coll,
 
 	fa2 = sr->sr_clientattr;
 	if (fattr_equal(fa, fa2))
-		attrs = fattr_encode(fa, config->fasupport);
+		sendattr = fa;
 	else
-		attrs = fattr_encode(fattr_bogus, config->fasupport);
-	proto_printf(wr, "U %s\n", attrs);
-	free(attrs);
+		sendattr = fattr_bogus;
+	proto_printf(wr, "U %F\n", sendattr, config->fasupport);
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE))
 		fattr_free(fa);
-	stream_flush(wr);	/* XXX - CVSup flushes here.*/
+	/* XXX CVSup flushes here for some reason with a comment saying
+	   "Be smarter".  We don't flush when listing other file types. */
+	stream_flush(wr);
 	return (0);
 }
 
@@ -242,7 +242,7 @@ lister_dofile(struct config *config, struct stream *wr, struct coll *coll,
     struct statusrec *sr)
 {
 	struct fattr *fa, *fa2, *cfa, *sfa, *rfa;
-	char *attrs, *path;
+	char *path;
 	int error;
 
 	fa = NULL;
@@ -270,9 +270,8 @@ lister_dofile(struct config *config, struct stream *wr, struct coll *coll,
 		fattr_free(rfa);
 		goto bad;
 	}
-	attrs = fattr_encode(sfa, config->fasupport);
-	proto_printf(wr, "F %s %s\n", pathlast(sr->sr_file), attrs);
-	free(attrs);
+	proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), sfa,
+	    config->fasupport);
 	fattr_free(fa2);
 	fattr_free(rfa);
 	return (0);
@@ -286,13 +285,16 @@ static int
 lister_dodead(struct config *config, struct stream *wr, struct coll *coll,
     struct statusrec *sr)
 {
+	const struct fattr *sendattr;
 	struct fattr *fa;
-	char *attrs, *path;
+	char *path;
 
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE)) {
 		path = checkoutpath(coll->co_prefix, sr->sr_file);
-		if (path == NULL)
-			goto bad;
+		if (path == NULL) {
+			/* XXX I think checkoutpath() errors are fatal. */
+			return (-1);
+		}
 		fa = fattr_frompath(path, FATTR_NOFOLLOW);
 		free(path);
 		if (fa != NULL && fattr_type(fa) != FT_DIRECTORY) {
@@ -303,29 +305,25 @@ lister_dodead(struct config *config, struct stream *wr, struct coll *coll,
 			 * sent the correct version.
 			 */
 			fattr_free(fa);
-			goto bad;
+			lister_sendbogus(config, wr, sr);
+			return (-1);
 		}
 		fattr_free(fa);
 	}
 	if (strcmp(coll->co_tag, sr->sr_tag) != 0 ||
 	    strcmp(coll->co_date, sr->sr_date) != 0)
-		attrs = fattr_encode(fattr_bogus, config->fasupport);
+		sendattr = fattr_bogus;
 	else
-		attrs = fattr_encode(sr->sr_serverattr, config->fasupport);
-	proto_printf(wr, "f %s %s\n", pathlast(sr->sr_file), attrs);
-	free(attrs);
+		sendattr = sr->sr_serverattr;
+	proto_printf(wr, "f %s %F\n", pathlast(sr->sr_file), sendattr,
+	    config->fasupport);
 	return (0);
-bad:
-	lister_sendbogus(config, wr, sr);
-	return (-1);
 }
 
 static void
 lister_sendbogus(struct config *config, struct stream *wr, struct statusrec *sr)
 {
-	char *attrs;
 
-	attrs = fattr_encode(fattr_bogus, config->fasupport);
-	proto_printf(wr, "F %s %s\n", pathlast(sr->sr_file), attrs);
-	free(attrs);
+	proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), fattr_bogus,
+	    config->fasupport);
 }

@@ -219,7 +219,8 @@ static int
 status_wr(struct status *st, struct statusrec *sr)
 {
 	struct pathcomp *pc;
-	char *clientattr, *serverattr, *attr, *name;
+	const struct fattr *fa;
+	char *name;
 	int error, type, usedirupattr;
 
 	pc = st->pc;
@@ -239,12 +240,11 @@ status_wr(struct status *st, struct statusrec *sr)
 			error = proto_printf(st->wr, "D %s\n", name);
 		} else if (type == PC_DIRUP) {
 			if (usedirupattr)
-				attr = fattr_encode(sr->sr_clientattr, NULL);
+				fa = sr->sr_clientattr;
 			else
-				attr = fattr_encode(fattr_bogus, NULL);
+				fa = fattr_bogus;
 			usedirupattr = 0;
-			error = proto_printf(st->wr, "U %s %s\n", name, attr);
-			free(attr);
+			error = proto_printf(st->wr, "U %s %f\n", name, fa);
 		}
 		if (error)
 			return (-1);
@@ -256,19 +256,13 @@ status_wr(struct status *st, struct statusrec *sr)
 		/* Already emitted above. */
 		break;
 	case SR_CHECKOUTLIVE:
-		clientattr = fattr_encode(sr->sr_clientattr, NULL);
-		serverattr = fattr_encode(sr->sr_serverattr, NULL);
-		error = proto_printf(st->wr, "C %s %s %s %s %s %s %s\n",
-		    sr->sr_file, sr->sr_tag, sr->sr_date, serverattr,
-		    sr->sr_revnum, sr->sr_revdate, clientattr);
-		free(clientattr);
-		free(serverattr);
+		error = proto_printf(st->wr, "C %s %s %s %f %s %s %f\n",
+		    sr->sr_file, sr->sr_tag, sr->sr_date, sr->sr_serverattr,
+		    sr->sr_revnum, sr->sr_revdate, sr->sr_clientattr);
 		break;
 	case SR_CHECKOUTDEAD:
-		serverattr = fattr_encode(sr->sr_serverattr, NULL);
-		error = proto_printf(st->wr, "c %s %s %s %s\n", sr->sr_file,
-		    sr->sr_tag, sr->sr_date, serverattr);
-		free(serverattr);
+		error = proto_printf(st->wr, "c %s %s %s %f\n", sr->sr_file,
+		    sr->sr_tag, sr->sr_date, sr->sr_serverattr);
 		break;
 	}
 	if (error)
@@ -672,7 +666,7 @@ void
 status_close(struct status *st, char **errmsg)
 {
 	struct statusrec *sr;
-	char *line, *name, *attr;
+	char *line, *name;
 	int error, type;
 
 	if (st->wr != NULL) {
@@ -700,12 +694,11 @@ status_close(struct status *st, char **errmsg)
 
 			/* Close off all the open directories. */
 			pathcomp_finish(st->pc);
-			attr = fattr_encode(fattr_bogus, NULL);
 			while (pathcomp_get(st->pc, &type, &name)) {
 				assert(type == PC_DIRUP);
-				proto_printf(st->wr, "U %s %s\n", name, attr);
+				proto_printf(st->wr, "U %s %f\n", name,
+				    fattr_bogus);
 			}
-			free(attr);
 
 			/* Rename tempfile. */
 			error = rename(st->tempfile, st->path);
