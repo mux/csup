@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.20 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.21 2006/02/03 16:23:03 mux Exp $
  */
 
 #include <sys/types.h>
@@ -223,7 +223,7 @@ mkdirhier(char *path, mode_t mask)
 {
 	struct fattr *fa;
 	char *cp, *comp;
-	int error;
+	int error, rv;
 
 	fa = fattr_new(FT_DIRECTORY, -1);
 	fattr_mergedefault(fa);
@@ -232,8 +232,11 @@ mkdirhier(char *path, mode_t mask)
 	while ((cp = strchr(comp, '/')) != NULL) {
 		*cp = '\0';
 		if (access(path, F_OK) != 0) {
+			rv = 0;
 			error = fattr_makenode(fa, path);
-			if (error) {
+			if (!error)
+				rv = fattr_install(fa, path, NULL);
+			if (error || rv == -1) {
 				*cp = '/';
 				return (-1);
 			}
