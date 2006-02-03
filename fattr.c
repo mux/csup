@@ -23,13 +23,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.28 2006/02/03 01:10:50 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.29 2006/02/03 05:45:01 mux Exp $
  */
 
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <assert.h>
 #include <errno.h>
 #include <grp.h>
 #include <pwd.h>
@@ -711,6 +712,28 @@ fattr_override(struct fattr *fa, const struct fattr *from, int mask)
 		fa->dev = from->dev;
 	if (mask & FA_INODE)
 		fa->inode = from->inode;
+}
+
+/* Create a node. */
+int
+fattr_makenode(const struct fattr *fa, const char *path)
+{
+	mode_t modemask, mode;
+	int error;
+
+	if (fa->mask & FA_OWNER && fa->mask & FA_GROUP)
+		modemask = FA_SETIDMASK | FA_PERMMASK;
+	else
+		modemask = FA_PERMMASK;
+
+	/* We only implement fattr_makenode() for dirs for now. */
+	assert(fa->type == FT_DIRECTROY);
+	if (fa->mask & FA_MODE)
+		mode = fa->mode & modemask;
+	else
+		mode = 0700;
+	error = mkdir(path, mode);
+	return (error);
 }
 
 /*

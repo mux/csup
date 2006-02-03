@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/misc.c,v 1.20 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/types.h>
@@ -39,6 +39,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "fattr.h"
 #include "main.h"
 #include "misc.h"
 
@@ -218,16 +219,20 @@ checkoutpath(const char *prefix, const char *file)
 }
 
 int
-mkdirhier(char *path)
+mkdirhier(char *path, mode_t mask)
 {
+	struct fattr *fa;
 	char *cp, *comp;
 	int error;
 
+	fa = fattr_new(FT_DIRECTORY, -1);
+	fattr_mergedefault(fa);
+	fattr_umask(fa, mask);
 	comp = path + 1;
 	while ((cp = strchr(comp, '/')) != NULL) {
 		*cp = '\0';
 		if (access(path, F_OK) != 0) {
-			error = mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
+			error = fattr_makenode(fa, path);
 			if (error) {
 				*cp = '/';
 				return (-1);

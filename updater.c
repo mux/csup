@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.65 2006/01/27 17:13:50 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.66 2006/02/03 05:45:02 mux Exp $
  */
 
 #include <sys/types.h>
@@ -726,7 +726,7 @@ updater_checkout(struct context *ctx, char *line)
 	}
 
 	lprintf(1, " Checkout %s\n", file + coll->co_prefixlen + 1);
-	error = mkdirhier(file);
+	error = mkdirhier(file, coll->co_umask);
 	if (error) {
 		lprintf(-1, "Updater: Cannot create directory hierarchy: %s\n",
 		    strerror(errno));

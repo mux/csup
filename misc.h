@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/misc.h,v 1.19 2006/01/27 17:13:49 mux Exp $
  */
 #ifndef _MISC_H_
 #define _MISC_H_
@@ -84,7 +84,7 @@ int	 pathcmp(const char *, const char *);
 size_t	 commonpathlength(const char *, size_t, const char *, size_t);
 char	*pathlast(char *);
 char	*checkoutpath(const char *, const char *);
-int	 mkdirhier(char *);
+int	 mkdirhier(char *, mode_t);
 char	*tempname(const char *);
 void	*xmalloc(size_t);
 void	*xrealloc(void *, size_t);

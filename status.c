@@ -480,7 +480,7 @@ status_open(struct coll *coll, time_t scantime, char **errmsg)
 		xasprintf(&destpath, "%s/%s/%s/", coll->co_base,
 		    coll->co_colldir, coll->co_name);
 		st->tempfile = tempname(destpath);
-		if (mkdirhier(destpath) != 0) {
+		if (mkdirhier(destpath, coll->co_umask) != 0) {
 			xasprintf(errmsg, "Cannot create directories leading "
 			    "to \"%s\": %s", destpath, strerror(errno));
 			free(destpath);
