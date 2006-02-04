@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.66 2006/02/03 05:45:02 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.67 2006/02/03 16:23:03 mux Exp $
  */
 
 #include <sys/types.h>
@@ -76,12 +76,12 @@ static int	 updater_docoll(struct coll *, struct stream *,
 static void	 updater_delete(struct coll *, char *);
 static int	 updater_checkout(struct context *, char *);
 static int	 updater_setattrs(struct context *, char *);
+static int	 updater_updatefile(struct coll *, struct status *,
+		     struct statusrec *, const char *, const char *);
 static int	 updater_diff(struct context *, char *);
 static int	 updater_diff_parseln(struct context *, char *);
 static int	 updater_diff_batch(struct context *);
 static int	 updater_diff_apply(struct context *);
-static int	 updater_install(struct coll *, struct fattr *, const char *,
-		     const char *);
 
 void *
 updater(void *arg)
@@ -203,7 +203,7 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 			error = status_put(st, &sr);
 			fattr_free(sr.sr_serverattr);
 			if (error) {
-				/* XXX write error? */
+				lprintf(-1, "Updater: %s\n", status_errmsg(st));
 				return (-1);
 			}
 		} else if (strcmp(cmd, "U") == 0)
@@ -234,7 +234,7 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 			error = status_put(st, &sr);
 			fattr_free(sr.sr_serverattr);
 			if (error) {
-				/* XXX write error? */
+				lprintf(-1, "Updater: %s\n", status_errmsg(st));
 				return (-1);
 			}
 		} else if (strcmp(cmd, "C") == 0) {
@@ -249,8 +249,10 @@ updater_docoll(struct coll *coll, struct stream *rd, struct status *st)
 			updater_delete(coll, path);
 			free(path);
 			error = status_delete(st, name, 0);
-			if (error)
+			if (error) {
+				lprintf(-1, "Updater: %s\n", status_errmsg(st));
 				return (-1);
+			}
 		} else if (strcmp(cmd, "!") == 0) {
 			/* Warning from server. */
 			msg = proto_get_rest(&line);
@@ -323,6 +325,7 @@ updater_setattrs(struct context *ctx, char *line)
 
 	path = checkoutpath(coll->co_prefix, name);
 	if (path == NULL) {
+		fattr_free(rcsattr);
 		lprintf(-1, "Updater: Bad filename \"%s\"\n", name);
 		return (-1);
 	}
@@ -330,11 +333,12 @@ updater_setattrs(struct context *ctx, char *line)
 	if (fileattr == NULL) {
 		/* The file has vanished. */
 		error = status_delete(ctx->st, name, 0);
-		if (error) {
-			/* XXX */
-		}
 		free(path);
 		fattr_free(rcsattr);
+		if (error) {
+			lprintf(-1, "Updater: %s\n", status_errmsg(ctx->st));
+			return (-1);
+		}
 		return (0);
 	}
 	fa = fattr_forcheckout(rcsattr, coll->co_umask);
@@ -378,11 +382,65 @@ updater_setattrs(struct context *ctx, char *line)
 	error = status_put(ctx->st, &sr);
 	fattr_free(fileattr);
 	fattr_free(rcsattr);
+	free(path);
 	if (error) {
-		/* XXX */
+		lprintf(-1, "Updater: %s\n", status_errmsg(ctx->st));
 		return (-1);
 	}
-	free(path);
+	return (0);
+}
+
+static int
+updater_updatefile(struct coll *coll, struct status *st, struct statusrec *sr,
+    const char *to, const char *from)
+{
+	struct fattr *fileattr;
+	int error, rv;
+
+	fattr_umask(sr->sr_clientattr, coll->co_umask);
+	rv = fattr_install(sr->sr_clientattr, to, from);
+	if (rv == -1)
+		return (-1);
+
+	/* XXX Executes */
+	/*
+	 * We weren't necessarily able to set all the file attributes to the
+	 * desired values, and any executes may have altered the attributes.
+	 * To make sure we record the actual attribute values, we fetch
+	 * them from the file.
+	 *
+	 * However, we preserve the link count as received from the
+	 * server.  This is important for preserving hard links in mirror
+	 * mode.
+	 */
+	fileattr = fattr_frompath(to, FATTR_NOFOLLOW);
+	if (fileattr == NULL) {
+		lprintf(-1, "Updater: Cannot stat \"%s\": %s\n", to,
+		    strerror(errno));
+		return (-1);
+	}
+	fattr_override(fileattr, sr->sr_clientattr, FA_LINKCOUNT);
+	fattr_free(sr->sr_clientattr);
+	sr->sr_clientattr = fileattr;
+
+	/*
+	 * To save space, don't write out the device and inode unless
+	 * the link count is greater than 1.  These attributes are used
+	 * only for detecting hard links.  If the link count is 1 then we
+	 * know there aren't any hard links.
+	 */
+	if (!(fattr_getmask(sr->sr_clientattr) & FA_LINKCOUNT) ||
+	    fattr_getlinkcount(sr->sr_clientattr) <= 1)
+		fattr_maskout(sr->sr_clientattr, FA_DEV | FA_INODE);
+
+	if (coll->co_options & CO_CHECKOUTMODE)
+		fattr_maskout(sr->sr_clientattr, FA_COIGNORE);
+
+	error = status_put(st, sr);
+	if (error) {
+		lprintf(-1, "Updater: %s\n", status_errmsg(st));
+		return (-1);
+	}
 	return (0);
 }
 
@@ -486,7 +544,7 @@ updater_diff(struct context *ctx, char *line)
 	char md5[MD5_DIGEST_SIZE];
 	struct coll *coll;
 	struct statusrec *sr;
-	struct fattr *fa;
+	struct fattr *fa, *tmp;
 	char *author, *path, *revnum, *revdate;
 	char *tok, *topath;
 	int error;
@@ -559,15 +617,17 @@ updater_diff(struct context *ctx, char *line)
 	}
 	if (line == NULL)
 		goto bad;
-	fa = fattr_dup(sr->sr_serverattr);
+
+	fa = fattr_frompath(path, FATTR_FOLLOW);
+	tmp = fattr_forcheckout(sr->sr_serverattr, coll->co_umask);
+	fattr_override(fa, tmp, FA_MASK);
+	fattr_free(tmp);
 	fattr_maskout(fa, FA_MODTIME);
-	updater_install(coll, fa, topath, path);
 	sr->sr_clientattr = fa;
-	error = status_put(ctx->st, sr);
-	if (error) {
-		lprintf(-1, "Updater: status_put() failed!\n");
-		goto bad;
-	}
+
+	error = updater_updatefile(coll, ctx->st, sr, path, topath);
+	if (error)
+	    goto bad;
 
 	if (MD5_File(path, md5) == -1) {
 		lprintf(-1, "%s: MD5_File() failed\n", __func__);
@@ -708,7 +768,6 @@ updater_checkout(struct context *ctx, char *line)
 	fattr_free(tmp);
 
 	fattr_mergedefault(fileattr);
-	fattr_umask(fileattr, coll->co_umask);
 
 	sr->sr_type = SR_CHECKOUTLIVE;
 	sr->sr_file = xstrdup(name);
@@ -775,48 +834,9 @@ updater_checkout(struct context *ctx, char *line)
 		goto bad;
 	}
 
-	fattr_install(fileattr, file, NULL);
-
-	/* XXX Executes */
-	/*
-	 * We weren't necessarily able to set all the file attributes to the
-	 * desired values, and any executes may have altered the attributes.
-	 * To make sure we record the actual attribute values, we fetch
-	 * them from the file.
-	 *
-	 * However, we preserve the link count as received from the
-	 * server.  This is important for preserving hard links in mirror
-	 * mode.
-	 */
-	fileattr = fattr_frompath(file, FATTR_NOFOLLOW);
-	if (fileattr == NULL) {
-		lprintf(-1, "Updater: Cannot stat \"%s\": %s\n", file,
-		    strerror(errno));
-		return (-1);
-	}
-	fattr_override(fileattr, sr->sr_clientattr, FA_LINKCOUNT);
-	fattr_free(sr->sr_clientattr);
-	sr->sr_clientattr = fileattr;
-
-	/*
-	 * To save space, don't write out the device and inode unless
-	 * the link count is greater than 1.  These attributes are used
-	 * only for detecting hard links.  If the link count is 1 then we
-	 * know there aren't any hard links.
-	 */
-	if (!(fattr_getmask(sr->sr_clientattr) & FA_LINKCOUNT) ||
-	    fattr_getlinkcount(sr->sr_clientattr) <= 1)
-		fattr_maskout(sr->sr_clientattr, FA_DEV | FA_INODE);
-
-	if (coll->co_options & CO_CHECKOUTMODE)
-		fattr_maskout(sr->sr_clientattr, FA_COIGNORE);
-
-	error = status_put(ctx->st, sr);
-	if (error) {
-		/* XXX */
-		return (-1);
-	}
-
+	error = updater_updatefile(coll, ctx->st, sr, file, NULL);
+	if (error)
+		goto bad;
 	free(file);
 	return (0);
 bad:
@@ -857,17 +877,4 @@ updater_maketmp(const char *prefix, const char *file)
 	tmp = tempname(path);
 	free(path);
 	return (tmp);
-}
-
-static int
-updater_install(struct coll *coll, struct fattr *fa, const char *from,
-    const char *to)
-{
-	struct fattr *tmp;
-
-	tmp = fattr_forcheckout(fa, coll->co_umask);
-	fattr_override(fa, tmp, FA_MASK);
-	fattr_free(tmp);
-	fattr_install(fa, to, from);
-	return (0);
 }
