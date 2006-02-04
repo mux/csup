@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.60 2006/02/03 05:45:02 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.61 2006/02/03 18:09:39 mux Exp $
  */
 
 #include <sys/param.h>
@@ -457,21 +457,16 @@ proto_init(struct config *config)
 	 */
 	config->server = stream_fdopen(config->socket, read, write, NULL);
 	error = proto_greet(config);
-	if (error)
-		return (error);
-	error = proto_negproto(config);
-	if (error)
-		return (error);
-	error = proto_login(config);
-	if (error)
-		return (error);
-	error = proto_fileattr(config);
-	if (error)
-		return (error);
-	error = proto_xchgcoll(config);
-	if (error)
-		return (error);
-	error = proto_mux(config);
+	if (!error)
+		error = proto_negproto(config);
+	if (!error)
+		error = proto_login(config);
+	if (!error)
+		error = proto_fileattr(config);
+	if (!error)
+		error = proto_xchgcoll(config);
+	if (!error)
+		error = proto_mux(config);
 	if (error)
 		return (error);
 
