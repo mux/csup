@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.29 2006/02/03 05:45:01 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.30 2006/02/03 16:23:03 mux Exp $
  */
 
 #include <sys/time.h>
@@ -220,7 +220,7 @@ fattr_frompath(const char *path, int nofollow)
 {
 	struct fattr *fa;
 	struct stat sb;
-	int error;
+	int error, len;
 
 	if (nofollow)
 		error = lstat(path, &sb);
@@ -229,6 +229,22 @@ fattr_frompath(const char *path, int nofollow)
 	if (error)
 		return (NULL);
 	fa = fattr_fromstat(&sb);
+	if (fa->mask & FA_LINKTARGET) {
+		char buf[1024];
+
+		len = readlink(path, buf, sizeof(buf));
+		if (len == -1) {
+			fattr_free(fa);
+			return (NULL);
+		}
+		if ((unsigned)len > sizeof(buf) - 1) {
+			fattr_free(fa);
+			errno = ENAMETOOLONG;
+			return (NULL);
+		}
+		buf[len] = '\0';
+		fa->linktarget = xstrdup(buf);
+	}
 	return (fa);
 }
 
@@ -836,11 +852,8 @@ fattr_install(struct fattr *fa, const char *topath, const char *frompath)
 
 #ifdef HAVE_FFLAGS
 	/* Set the flags. */
-	if (mask & FA_FLAGS) {
-		error = chflags(topath, fa->flags);
-		if (error)
-			goto bad;
-	}
+	if (mask & FA_FLAGS)
+		(void)chflags(topath, fa->flags);
 #endif
 	fattr_free(old);
 	return (1);
