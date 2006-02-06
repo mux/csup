@@ -22,23 +22,24 @@
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
 .\" $Id$
-.\" $FreeBSD: projects/csup/csup.1,v 1.1 2006/02/01 23:48:22 mux Exp $
+.\" $FreeBSD: projects/csup/csup.1,v 1.2 2006/02/04 20:07:22 mux Exp $
 .\"
 .Dd February 1, 2006
 .Os FreeBSD
 .Dt CSUP 1
 .Sh NAME
-.Nm Csup
+.Nm csup
 .Nd network distribution package for CVS repositories
 .Sh SYNOPSIS
-.Nm csup
-.Op Fl svzZ
+.Nm
+.Op Fl 146svzZ
 .Op Fl b Ar base
 .Op Fl c Ar collDir
 .Op Fl h Ar host
 .Op Fl l Ar lockfile
 .Op Fl L Ar verbosity
 .Op Fl p Ar port
+.Op Fl r Ar maxRetries
 .Ar supfile
 .Sh DESCRIPTION
 .Nm
@@ -85,6 +86,23 @@ can use existing
 The following options are supported by
 .Nm :
 .Bl -tag -width Fl
+.It Fl 1
+Disables automatic retries when transient failures occur.
+Without this option, a transient failure such as a dropped network
+connection causes
+.Nm
+to retry repeatedly, using randomized exponential backoff to space the
+retries.
+This option is equivalent to
+.Fl r Cm 0 .
+.It Fl 4
+Forces
+.Nm
+to use IPv4 addresses only.
+.It Fl 6
+Forces
+.Nm
+to use IPv6 addresses only.
 .It Fl b Ar base
 Specifies the base directory under which
 .Nm
@@ -136,6 +154,18 @@ Sets the TCP port to which
 .Nm
 attempts to connect on the server host.
 The default port is 5999.
+.It Fl r Ar maxRetries
+Limits the number of automatic retries that will be attempted when
+transient errors such as lost network connections are encountered.
+By default,
+.Nm
+will retry indefinitely until an update is successfully completed.
+The retries are spaced using randomized exponential backoff.
+Note that
+.Fl r Cm 0
+is equivalent to the
+.Fl 1
+option.
 .It Fl s
 Suppresses the check of each client file's status against what is
 recorded in the list file.  Instead, the list file is assumed to be
@@ -485,7 +515,7 @@ inconsistent with the actual client files,
 falls back upon a less efficient method of identifying the client's
 files and performing its updates.
 Depending on
-.Nm Csup Ns No 's
+.Nm csup Ns No 's
 mode of operation, the fallback method employs time stamps, checksums, or
 analysis of RCS files.
 .Pp
@@ -526,13 +556,14 @@ regardless of the release, tag, or
 .Cm use-rel-suffix
 keyword.
 .El
-.Sh Csup AND FIREWALLS
+.Sh csup AND FIREWALLS
 In its default mode,
 .Nm
 will work through any firewall which permits outbound connections to
 port 5999 of the server host.
-.Sh USING Csup WITH SOCKS
-Csup can be used through a SOCKS proxy server with the standard
+.Sh USING csup WITH SOCKS
+.Nm
+can be used through a SOCKS proxy server with the standard
 .Nm runsocks
 command.
 Your
@@ -618,7 +649,8 @@ is the author of
 .Sh LEGALITIES
 CVSup is a registered trademark of John D. Polstra.
 .Pp
-Csup is released under BSD license.
+.Nm
+is released under a 2-clauses BSD license.
 .Sh BUGS
 An RCS file is not recognized as such unless its name ends with
 .Ql \&,v .

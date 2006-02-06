@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.27 2006/02/02 19:44:10 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.28 2006/02/02 19:53:13 mux Exp $
  */
 
 #include <sys/file.h>
@@ -50,8 +50,11 @@ int verbose = 1;
 static void
 usage(char *argv0)
 {
+
 	lprintf(-1, "Usage: %s [options] supfile\n", basename(argv0));
 	lprintf(-1, "  Options:\n");
+	lprintf(-1, USAGE_OPTFMT, "-1", "Don't retry automatically on failure "
+	    "(same as \"-r 0\")");
 	lprintf(-1, USAGE_OPTFMT, "-4", "Force usage of IPv4 addresses");
 	lprintf(-1, USAGE_OPTFMT, "-6", "Force usage of IPv6 addresses");
 	lprintf(-1, USAGE_OPTFMT, "-b base",
@@ -66,6 +69,8 @@ usage(char *argv0)
 	    "Verbosity level (0..2, default 1)");
 	lprintf(-1, USAGE_OPTFMT, "-p port",
 	    "Alternate server port (default 5999)");
+	lprintf(-1, USAGE_OPTFMT, "-r n",
+	    "Maximum retries on transient errors (default unlimited)");
 	lprintf(-1, USAGE_OPTFMT, "-s",
 	    "Don't stat client files; trust the checkouts file");
 	lprintf(-1, USAGE_OPTFMT, "-v", "Print version and exit");
@@ -78,12 +83,15 @@ usage(char *argv0)
 int
 main(int argc, char *argv[])
 {
+	struct tm tm;
+	struct backoff_timer *timer;
 	struct config *config;
 	struct stream *lock;
 	char *argv0, *base, *colldir, *host, *file, *lockfile;
 	uint16_t port;
 	int family, compress, error, lockfd, lflag, truststatus;
-	int c;
+	int c, i, retries;
+	time_t nexttry;
 
 	error = 0;
 	family = PF_UNSPEC;
@@ -92,10 +100,15 @@ main(int argc, char *argv[])
 	truststatus = 0;
 	lflag = 0;
 	lockfd = 0;
+	nexttry = 0;
+	retries = -1;
 	argv0 = argv[0];
 	base = colldir = host = lockfile = NULL;
-	while ((c = getopt(argc, argv, "46b:c:gh:l:L:p:P:svzZ")) != -1) {
+	while ((c = getopt(argc, argv, "146b:c:gh:l:L:p:P:r:svzZ")) != -1) {
 		switch (c) {
+		case '1':
+			retries = 0;
+			break;
 		case '4':
 			family = AF_INET;
 			break;
@@ -165,6 +178,15 @@ main(int argc, char *argv[])
 				return (1);
 			}
 			break;
+		case 'r':
+			errno = 0;
+			retries = strtol(optarg, NULL, 0);
+			if (errno == EINVAL || retries < 0) {
+				lprintf(-1, "Invalid retry limit\n");
+				usage(argv0);
+				return (1);
+			}
+			break;
 		case 's':
 			truststatus = 1;
 			break;
@@ -199,11 +221,28 @@ main(int argc, char *argv[])
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
 	config = config_init(file, host, base, colldir, compress, truststatus);
 	lprintf(2, "Connecting to %s\n", config->host);
-	error = proto_connect(config, family, port);
-	if (error)
-		return (1);
-	lprintf(1, "Connected to %s\n", config->host);
-	proto_init(config);
+
+	i = 0;
+	timer = bt_new(300, 7200, 2.0, 0.1);
+	for (;;) {
+		error = proto_connect(config, family, port);
+		if (!error) {
+			lprintf(1, "Connected to %s\n", config->host);
+			error = proto_init(config);
+			if (!error)
+				break;
+		}
+		if (retries >= 0 && i >= retries)
+			break;
+		nexttry = time(0) + bt_get(timer);
+		localtime_r(&nexttry, &tm);
+		lprintf(1, "Will retry at %02d:%02d:%02d\n",
+		    tm.tm_hour, tm.tm_min, tm.tm_sec);
+		bt_pause(timer);
+		lprintf(1, "Retrying\n");
+		i++;
+	}
+	bt_free(timer);
 	if (lflag) {
 		unlink(lockfile);
 		flock(lockfd, LOCK_UN);

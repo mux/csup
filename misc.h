@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.h,v 1.19 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/misc.h,v 1.20 2006/02/03 16:23:03 mux Exp $
  */
 #ifndef _MISC_H_
 #define _MISC_H_
@@ -76,6 +76,8 @@
 
 #define	min(a, b)		((a) > (b) ? (b) : (a))
 
+struct backoff_timer;
+
 int	 lprintf(int, const char *, ...) __printflike(2, 3);
 int	 MD5_File(char *, char *);
 void	 MD5_End(char *, MD5_CTX *);
@@ -91,4 +93,8 @@ void	*xrealloc(void *, size_t);
 char	*xstrdup(const char *);
 int	 xasprintf(char **, const char *, ...) __printflike(2, 3);
 
+struct backoff_timer	*bt_new(time_t, time_t, float, float);
+time_t			 bt_get(struct backoff_timer *);
+void			 bt_pause(struct backoff_timer *);
+void			 bt_free(struct backoff_timer *);
 #endif /* !_MISC_H_ */

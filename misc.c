@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.21 2006/02/03 16:23:03 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.22 2006/02/03 17:22:34 mux Exp $
  */
 
 #include <sys/types.h>
@@ -37,11 +37,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "fattr.h"
 #include "main.h"
 #include "misc.h"
+
+struct backoff_timer {
+	time_t min;
+	time_t max;
+	time_t interval;
+	float backoff;
+	float jitter;
+};
+
+static void	bt_update(struct backoff_timer *);
+static void	bt_addjitter(struct backoff_timer *);
 
 int
 lprintf(int level, const char *fmt, ...)
@@ -324,4 +336,65 @@ xasprintf(char **ret, const char *format, ...)
 	if (*ret == NULL)
 		err(1, "asprintf");
 	return (rv);
+}
+
+/* Creates a backoff timer. */
+struct backoff_timer *
+bt_new(time_t min, time_t max, float backoff, float jitter)
+{
+	struct backoff_timer *bt;
+
+	bt = xmalloc(sizeof(struct backoff_timer));
+	bt->min = min;
+	bt->max = max;
+	bt->backoff = backoff;
+	bt->jitter = jitter;
+	bt->interval = min;
+	bt_addjitter(bt);
+	srandom(time(0));
+	return (bt);
+}
+
+/* Updates the backoff timer. */
+static void
+bt_update(struct backoff_timer *bt)
+{
+
+	bt->interval = (time_t)min(bt->interval * bt->backoff, bt->max);
+	bt_addjitter(bt);
+}
+
+/* Adds some jitter. */
+static void
+bt_addjitter(struct backoff_timer *bt)
+{
+	long mag;
+
+	mag = (long)(bt->jitter * bt->interval);
+	/* We want a random number between -mag and mag. */
+	bt->interval += (time_t)(random() % (2 * mag) - mag);
+}
+
+/* Returns the current timer value. */
+time_t
+bt_get(struct backoff_timer *bt)
+{
+
+	return (bt->interval);
+}
+
+/* Times out for bt->interval seconds. */
+void
+bt_pause(struct backoff_timer *bt)
+{
+
+	sleep(bt->interval);
+	bt_update(bt);
+}
+
+void
+bt_free(struct backoff_timer *bt)
+{
+
+	free(bt);
 }
