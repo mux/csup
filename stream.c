@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/stream.c,v 1.47 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/stream.c,v 1.48 2006/02/01 23:11:46 mux Exp $
  */
 
 #include <sys/types.h>
@@ -791,7 +791,6 @@ zfilter_fini(struct stream *stream)
 	struct buf *zbuf;
 	z_stream *state;
 	ssize_t n;
-	int error;
 
 	zf = stream->fdata;
 	if (zf->rdbuf != NULL) {
@@ -816,12 +815,13 @@ zfilter_fini(struct stream *stream)
 		zbuf = zf->wrbuf;
 		/*
 		 * Compress the remaining bytes in the buffer, if any,
-		 * and emit an EOF marker as appropriate.
+		 * and emit an EOF marker as appropriate.  We ignore
+		 * the error because we can't do anything about it at
+		 * this point, and it can happen if we're getting
+		 * disconnected.
 		 */
-		error = zfilter_flush(stream, stream->wrbuf,
+		(void)zfilter_flush(stream, stream->wrbuf,
 		    STREAM_FLUSH_CLOSING);
-		if (error)
-			errx(1, "Can't flush last bytes. (%d)", error);
 		deflateEnd(state);
 		free(state);
 		buf_free(stream->wrbuf);
