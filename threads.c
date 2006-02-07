@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/threads.c,v 1.4 2006/01/27 17:13:50 mux Exp $
  */
 
 #include <assert.h>
@@ -61,7 +61,28 @@ struct threads {
 	STAILQ_HEAD(, thread) threads_dead;
 };
 
-static void *thread_start(void *);	/* Common entry point for threads. */
+static void	*thread_start(void *);	/* Common entry point for threads. */
+
+static void	 threads_lock(struct threads *);
+static void	 threads_unlock(struct threads *);
+
+static void
+threads_lock(struct threads *tds)
+{
+	int error;
+
+	error = pthread_mutex_lock(&tds->threads_mtx);
+	assert(!error);
+}
+
+static void
+threads_unlock(struct threads *tds)
+{
+	int error;
+
+	error = pthread_mutex_unlock(&tds->threads_mtx);
+	assert(!error);
+}
 
 /* Create a new set of threads. */
 struct threads *
@@ -92,7 +113,7 @@ threads_create(struct threads *tds, void *(*start)(void *), void *data)
 	td->threads = tds;
 	td->start = start;
 	td->data = data;
-	pthread_mutex_lock(&tds->threads_mtx);
+	threads_lock(tds);
 	error = pthread_create(&td->thread, NULL, thread_start, td);
 	if (error) {
 		pthread_mutex_unlock(&tds->threads_mtx);
@@ -100,7 +121,7 @@ threads_create(struct threads *tds, void *(*start)(void *), void *data)
 		return (NULL);
 	}
 	LIST_INSERT_HEAD(&tds->threads_running, td, runlist);
-	pthread_mutex_unlock(&tds->threads_mtx);
+	threads_unlock(tds);
 	return (td);
 }
 
@@ -110,14 +131,14 @@ threads_wait(struct threads *tds)
 {
 	struct thread *td;
 
-	pthread_mutex_lock(&tds->threads_mtx);
+	threads_lock(tds);
 	while (STAILQ_EMPTY(&tds->threads_dead)) {
 		assert(!LIST_EMPTY(&tds->threads_running));
 		pthread_cond_wait(&tds->thread_exited, &tds->threads_mtx);
 	}
 	td = STAILQ_FIRST(&tds->threads_dead);
 	STAILQ_REMOVE_HEAD(&tds->threads_dead, deadlist);
-	pthread_mutex_unlock(&tds->threads_mtx);
+	threads_unlock(tds);
 	free(td);
 	return (td);
 }
@@ -148,10 +169,10 @@ thread_start(void *data)
 	td = data;
 	tds = td->threads;
 	td->start(td->data);
-	pthread_mutex_lock(&tds->threads_mtx);
+	threads_lock(tds);
 	LIST_REMOVE(td, runlist);
 	STAILQ_INSERT_TAIL(&tds->threads_dead, td, deadlist);
 	pthread_cond_signal(&tds->thread_exited);
-	pthread_mutex_unlock(&tds->threads_mtx);
+	threads_unlock(tds);
 	return (NULL);
 }

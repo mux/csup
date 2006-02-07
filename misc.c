@@ -23,13 +23,14 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.22 2006/02/03 17:22:34 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.23 2006/02/06 01:44:23 mux Exp $
  */
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <openssl/md5.h>
 
+#include <assert.h>
 #include <err.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -273,15 +274,17 @@ char *
 tempname(const char *path)
 {
 	char *cp, *temp;
-	int count;
+	int count, error;
 
-	pthread_mutex_lock(&tempname_mtx);
+	error = pthread_mutex_lock(&tempname_mtx);
+	assert(!error);
 	if (tempname_pid == -1) {
 		tempname_pid = getpid();
 		tempname_count = 0;
 	}
 	count = tempname_count++;
-	pthread_mutex_unlock(&tempname_mtx);
+	error = pthread_mutex_unlock(&tempname_mtx);
+	assert(!error);
 	cp = strrchr(path, '/');
 	if (cp == NULL)
 		xasprintf(&temp, "%s-%ld.%d", TEMPNAME_PREFIX,
