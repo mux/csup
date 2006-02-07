@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.56 2006/02/07 04:00:30 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.57 2006/02/07 16:15:37 mux Exp $
  */
 
 #include <sys/param.h>
@@ -672,7 +672,7 @@ mux_shutdown(int error)
 	const char *name;
 	pthread_t self;
 	void *val;
-	int i;
+	int i, ret;
 
 	mux_lock();
 	for (i = 0; i < MUX_MAXCHAN; i++) {
@@ -691,12 +691,14 @@ mux_shutdown(int error)
 	mux_unlock();
 	self = pthread_self();
 	if (!pthread_equal(self, receiver)) {
-		pthread_cancel(receiver);
+		ret = pthread_cancel(receiver);
+		assert(!ret);
 		pthread_join(receiver, &val);
 		assert(val == PTHREAD_CANCELED);
 	}
 	if (!pthread_equal(self, sender)) {
-		pthread_cancel(sender);
+		ret = pthread_cancel(sender);
+		assert(!ret);
 		pthread_join(sender, &val);
 		assert(val == PTHREAD_CANCELED);
 	}
