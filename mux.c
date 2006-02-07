@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.55 2006/02/01 05:53:19 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.56 2006/02/07 04:00:30 mux Exp $
  */
 
 #include <sys/param.h>
@@ -670,6 +670,7 @@ mux_shutdown(int error)
 {
 	struct chan *chan;
 	const char *name;
+	pthread_t self;
 	void *val;
 	int i;
 
@@ -688,12 +689,13 @@ mux_shutdown(int error)
 		}
 	}
 	mux_unlock();
-	if (!pthread_equal(pthread_self(), receiver)) {
+	self = pthread_self();
+	if (!pthread_equal(self, receiver)) {
 		pthread_cancel(receiver);
 		pthread_join(receiver, &val);
 		assert(val == PTHREAD_CANCELED);
 	}
-	if (!pthread_equal(pthread_self(), sender)) {
+	if (!pthread_equal(self, sender)) {
 		pthread_cancel(sender);
 		pthread_join(sender, &val);
 		assert(val == PTHREAD_CANCELED);
@@ -703,11 +705,11 @@ mux_shutdown(int error)
 	if (!error)
 		return;
 
-	if (pthread_equal(pthread_self(), sender)) {
+	if (pthread_equal(self, sender)) {
 		name = "Sender";
 	} else {
 		/* Only the sender and receiver threads report errors. */
-		assert(pthread_equal(pthread_self(), receiver));
+		assert(pthread_equal(self, receiver));
 		name = "Receiver";
 	}
 	if (error == -1)
