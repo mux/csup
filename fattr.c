@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.30 2006/02/03 16:23:03 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.31 2006/02/05 22:26:55 mux Exp $
  */
 
 #include <sys/time.h>
@@ -743,7 +743,7 @@ fattr_makenode(const struct fattr *fa, const char *path)
 		modemask = FA_PERMMASK;
 
 	/* We only implement fattr_makenode() for dirs for now. */
-	assert(fa->type == FT_DIRECTROY);
+	assert(fa->type == FT_DIRECTORY);
 	if (fa->mask & FA_MODE)
 		mode = fa->mode & modemask;
 	else
