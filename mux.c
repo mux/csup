@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.57 2006/02/07 16:15:37 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.58 2006/02/07 16:38:21 mux Exp $
  */
 
 #include <sys/param.h>
@@ -326,8 +326,7 @@ mux_fini(void)
 	struct chan *chan;
 	int i;
 
-	if (!mux_closed)
-		mux_shutdown(0);
+	mux_shutdown(0);
 	for (i = 0; i < nchans; i++) {
 		chan = chans[i];
 		if (chan != NULL)
@@ -675,6 +674,11 @@ mux_shutdown(int error)
 	int i, ret;
 
 	mux_lock();
+	if (mux_closed) {
+		mux_unlock();
+		return;
+	}
+	mux_closed = 1;
 	for (i = 0; i < MUX_MAXCHAN; i++) {
 		if (chans[i] != NULL) {
 			chan = chans[i];
@@ -703,7 +707,6 @@ mux_shutdown(int error)
 		assert(val == PTHREAD_CANCELED);
 	}
 
-	mux_closed = 1;
 	if (!error)
 		return;
 
