@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/stream.c,v 1.48 2006/02/01 23:11:46 mux Exp $
+ * $FreeBSD: projects/csup/stream.c,v 1.49 2006/02/07 03:31:44 mux Exp $
  */
 
 #include <sys/types.h>
@@ -224,7 +224,6 @@ buf_new(size_t size)
 static void
 buf_grow(struct buf *buf, size_t need)
 {
-	char *tmp;
 
 	if (need == 0)
 		buf->size = buf->size * 2 + 1; /* Account for the spare byte. */
@@ -233,10 +232,7 @@ buf_grow(struct buf *buf, size_t need)
 		while (buf->size < need)
 			buf->size = buf->size * 2 + 1;
 	}
-	tmp = realloc(buf->buf, buf->size + 1);
-	if (tmp == NULL)
-		err(1, "realloc");
-	buf->buf = tmp;
+	buf->buf = xrealloc(buf->buf, buf->size + 1);
 }
 
 /* Make more room in the buffer if needed. */

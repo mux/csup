@@ -23,11 +23,10 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/threads.c,v 1.4 2006/01/27 17:13:50 mux Exp $
+ * $FreeBSD: projects/csup/threads.c,v 1.5 2006/02/07 04:00:30 mux Exp $
  */
 
 #include <assert.h>
-#include <err.h>
 #include <pthread.h>
 #include <stdlib.h>
 

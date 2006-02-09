@@ -27,7 +27,6 @@
  */
 
 #include <assert.h>
-#include <err.h>
 #include <stdlib.h>
 
 #include "attrstack.h"
@@ -65,12 +64,11 @@ attrstack_pop(struct attrstack *as)
 void
 attrstack_push(struct attrstack *as, struct fattr *fa)
 {
-	struct fattr **new;
 
 	if (as->cur >= as->size) {
 		as->size *= 2;
-		new = xrealloc(as->stack, sizeof(struct fattr *) * as->size);
-		as->stack = new;
+		as->stack = xrealloc(as->stack,
+		    sizeof(struct fattr *) * as->size);
 	}
 	as->stack[as->cur++] = fa;
 }
