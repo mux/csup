@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/stream.c,v 1.49 2006/02/07 03:31:44 mux Exp $
+ * $FreeBSD: projects/csup/stream.c,v 1.50 2006/02/09 22:24:09 mux Exp $
  */
 
 #include <sys/types.h>
@@ -95,29 +95,30 @@ struct buf {
 };
 
 struct stream {
-	int id;
+	void *cookie;
+	int fd;
 	struct buf *rdbuf;
 	struct buf *wrbuf;
-	stream_readfn_t readfn;
-	stream_writefn_t writefn;
-	stream_closefn_t closefn;
+	stream_readfn_t *readfn;
+	stream_writefn_t *writefn;
+	stream_closefn_t *closefn;
 	int eof;
 	struct stream_filter *filter;
 	void *fdata;
 };
 
-typedef int	(*stream_filter_initfn_t)(struct stream *, void *);
-typedef void	(*stream_filter_finifn_t)(struct stream *);
-typedef int	(*stream_filter_flushfn_t)(struct stream *, struct buf *,
+typedef int	stream_filter_initfn_t(struct stream *, void *);
+typedef void	stream_filter_finifn_t(struct stream *);
+typedef int	stream_filter_flushfn_t(struct stream *, struct buf *,
 		    stream_flush_t);
-typedef ssize_t	(*stream_filter_fillfn_t)(struct stream *, struct buf *);
+typedef ssize_t	stream_filter_fillfn_t(struct stream *, struct buf *);
 
 struct stream_filter {
 	stream_filter_t id;
-	stream_filter_initfn_t initfn;
-	stream_filter_finifn_t finifn;
-	stream_filter_fillfn_t fillfn;
-	stream_filter_flushfn_t flushfn;
+	stream_filter_initfn_t *initfn;
+	stream_filter_finifn_t *finifn;
+	stream_filter_fillfn_t *fillfn;
+	stream_filter_flushfn_t *flushfn;
 };
 
 /* Low-level buffer API. */
@@ -279,10 +280,9 @@ buf_free(struct buf *buf)
 	free(buf);
 }
 
-/* Associate a file descriptor with a stream. */
-struct stream *
-stream_fdopen(int id, stream_readfn_t readfn, stream_writefn_t writefn,
-    stream_closefn_t closefn)
+static struct stream *
+stream_new(stream_readfn_t *readfn, stream_writefn_t *writefn,
+    stream_closefn_t *closefn)
 {
 	struct stream *stream;
 
@@ -299,7 +299,8 @@ stream_fdopen(int id, stream_readfn_t readfn, stream_writefn_t writefn,
 		stream->wrbuf = buf_new(STREAM_BUFSIZ);
 	else
 		stream->wrbuf = NULL;
-	stream->id = id;
+	stream->cookie = NULL;
+	stream->fd = -1;
 	stream->readfn = readfn;
 	stream->writefn = writefn;
 	stream->closefn = closefn;
@@ -309,11 +310,38 @@ stream_fdopen(int id, stream_readfn_t readfn, stream_writefn_t writefn,
 	return (stream);
 }
 
+/* Create a new stream associated with a void *. */
+struct stream *
+stream_open(void *cookie, stream_readfn_t *readfn, stream_writefn_t *writefn,
+    stream_closefn_t *closefn)
+{
+	struct stream *stream;
+
+	stream = stream_new(readfn, writefn, closefn);
+	stream->cookie = cookie;
+	return (stream);
+}
+
+/* Associate a file descriptor with a stream. */
+struct stream *
+stream_open_fd(int fd, stream_readfn_t *readfn, stream_writefn_t *writefn,
+    stream_closefn_t *closefn)
+{
+	struct stream *stream;
+
+	stream = stream_new(readfn, writefn, closefn);
+	stream->cookie = &stream->fd;
+	stream->fd = fd;
+	return (stream);
+}
+
 /* Like open() but returns a stream. */
 struct stream *
 stream_open_file(const char *path, int flags, ...)
 {
 	struct stream *stream;
+	stream_readfn_t *readfn;
+	stream_writefn_t *writefn;
 	va_list ap;
 	mode_t mode;
 	int fd;
@@ -331,10 +359,65 @@ stream_open_file(const char *path, int flags, ...)
 	va_end(ap);
 	if (fd == -1)
 		return (NULL);
-	stream = stream_fdopen(fd, read, write, close);
+
+	if (flags & O_RDONLY) {
+		readfn = stream_read_fd;
+		writefn = NULL;
+	} else if (flags & O_WRONLY) {
+		readfn = NULL;
+		writefn = stream_write_fd;
+	} else {
+		assert(flags & O_RDWR);
+		readfn = stream_read_fd;
+		writefn = stream_write_fd;
+	}
+	stream = stream_open_fd(fd, readfn, writefn, stream_close_fd);
 	if (stream == NULL)
 		close(fd);
 	return (stream);
+}
+
+/* Return the file descriptor associated with this stream, or -1. */
+int
+stream_fileno(struct stream *stream)
+{
+
+	return (stream->fd);
+}
+
+/* Convenience read function for file descriptors. */
+ssize_t
+stream_read_fd(void *cookie, void *buf, size_t size)
+{
+	ssize_t nbytes;
+	int fd;
+
+	fd = *(int *)cookie;
+	nbytes = read(fd, buf, size);
+	return (nbytes);
+}
+
+/* Convenience write function for file descriptors. */
+ssize_t
+stream_write_fd(void *cookie, const void *buf, size_t size)
+{
+	ssize_t nbytes;
+	int fd;
+
+	fd = *(int *)cookie;
+	nbytes = write(fd, buf, size);
+	return (nbytes);
+}
+
+/* Convenience close function for file descriptors. */
+int
+stream_close_fd(void *cookie)
+{
+	int fd, ret;
+
+	fd = *(int *)cookie;
+	ret = close(fd);
+	return (ret);
 }
 
 /* Read some bytes from the stream. */
@@ -498,8 +581,8 @@ stream_flush_default(struct stream *stream, struct buf *buf,
 
 	while (buf_count(buf) > 0) {
 		do {
-			n = (*stream->writefn)(stream->id, buf->buf + buf->off,
-			    buf_count(buf));
+			n = (*stream->writefn)(stream->cookie,
+			    buf->buf + buf->off, buf_count(buf));
 		} while (n == -1 && errno == EINTR);
 		if (n <= 0)
 			return (-1);
@@ -514,10 +597,14 @@ stream_sync(struct stream *stream)
 {
 	int error;
 
+	if (stream->fd == -1) {
+		errno = EINVAL;
+		return (-1);
+	}
 	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 	if (error)
 		return (-1);
-	error = fsync(stream->id);
+	error = fsync(stream->fd);
 	return (error);
 }
 
@@ -527,10 +614,14 @@ stream_truncate(struct stream *stream, off_t size)
 {
 	int error;
 
+	if (stream->fd == -1) {
+		errno = EINVAL;
+		return (-1);
+	}
 	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 	if (error)
 		return (-1);
-	error = ftruncate(stream->id, size);
+	error = ftruncate(stream->fd, size);
 	return (error);
 }
 
@@ -541,10 +632,14 @@ stream_truncate_rel(struct stream *stream, off_t off)
 	struct stat sb;
 	int error;
 
+	if (stream->fd == -1) {
+		errno = EINVAL;
+		return (-1);
+	}
 	error = stream_flush_int(stream, STREAM_FLUSH_NORMAL);
 	if (error)
 		return (-1);
-	error = fstat(stream->id, &sb);
+	error = fstat(stream->fd, &sb);
 	if (error)
 		return (-1);
 	error = stream_truncate(stream, sb.st_size + off);
@@ -557,6 +652,10 @@ stream_rewind(struct stream *stream)
 {
 	int error;
 
+	if (stream->fd == -1) {
+		errno = EINVAL;
+		return (-1);
+	}
 	if (stream->rdbuf != NULL)
 		buf_less(stream->rdbuf, buf_count(stream->rdbuf));
 	if (stream->wrbuf != NULL) {
@@ -564,7 +663,7 @@ stream_rewind(struct stream *stream)
 		if (error)
 			return (error);
 	}
-	error = lseek(stream->id, 0, SEEK_SET);
+	error = lseek(stream->fd, 0, SEEK_SET);
 	return (error);
 }
 
@@ -595,7 +694,7 @@ stream_close(struct stream *stream)
 		 * but we have no choice, because wether it had worked or
 		 * not, we need to close the file descriptor.
 		 */
-		error = (*stream->closefn)(stream->id);
+		error = (*stream->closefn)(stream->cookie);
 	if (stream->rdbuf != NULL)
 		buf_free(stream->rdbuf);
 	if (stream->wrbuf != NULL)
@@ -613,7 +712,7 @@ stream_fill_default(struct stream *stream, struct buf *buf)
 	if (stream->eof)
 		return (0);
 	assert(buf_avail(buf) > 0);
-	n = (*stream->readfn)(stream->id, buf->buf + buf->off + buf->in,
+	n = (*stream->readfn)(stream->cookie, buf->buf + buf->off + buf->in,
 	    buf_avail(buf));
 	if (n < 0)
 		return (-1);

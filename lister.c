@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.21 2006/02/03 18:23:34 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.22 2006/02/03 18:49:23 mux Exp $
  */
 
 #include <assert.h>
@@ -66,7 +66,8 @@ lister(void *arg)
 	int error;
 
 	config = arg;
-	wr = stream_fdopen(config->id0, NULL, chan_write, NULL);
+	wr = stream_open(config->chan0,
+	    NULL, (stream_writefn_t *)chan_write, NULL);
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;

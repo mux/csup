@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.61 2006/02/03 18:09:39 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.62 2006/02/04 17:47:39 mux Exp $
  */
 
 #include <sys/param.h>
@@ -402,41 +402,37 @@ bad:
 static int
 proto_mux(struct config *config)
 {
-	struct stream *s, *chan0;
-	int id0, id1;
+	struct stream *s, *wr;
+	struct chan *chan0, *chan1;
+	int id;
 	int error;
 
 	s = config->server;
 	lprintf(2, "Establishing multiplexed-mode data connection\n");
 	proto_printf(s, "MUX\n");
 	stream_flush(s);
-	error = mux_init(config->socket);
+	error = mux_init(config->socket, &chan0);
 	if (error) {
 		lprintf(-1, "mux_init() failed\n");
 		return (error);
 	}
-	id0 = chan_open();
-	if (id0 == -1) {
-		lprintf(-1, "chan_open() failed\n");
-		return (-1);
-	}
-	id1 = chan_listen();
-	if (id1 == -1) {
+	id = chan_listen();
+	if (id == -1) {
 		lprintf(-1, "chan_listen() failed\n");
 		return (-1);
 	}
-	chan0 = stream_fdopen(id0, NULL, chan_write, NULL);
-	proto_printf(chan0, "CHAN %d\n", id1);
-	stream_close(chan0);
-	error = chan_accept(id1);
-	if (error) {
+	wr = stream_open(chan0, NULL, (stream_writefn_t *)chan_write, NULL);
+	proto_printf(wr, "CHAN %d\n", id);
+	stream_close(wr);
+	chan1 = chan_accept(id);
+	if (chan1 == NULL) {
 		/* XXX - Sync error message with CVSup. */
-		lprintf(-1, "Accept failed for channel %d\n", id1);
+		lprintf(-1, "Accept failed for channel %d\n", id);
 		return (-1);
 	}
 	stream_close(config->server);
-	config->id0 = id0;
-	config->id1 = id1;
+	config->chan0 = chan0;
+	config->chan1 = chan1;
 	return (0);
 }
 
@@ -455,7 +451,8 @@ proto_init(struct config *config)
 	 * We pass NULL for the close() function because we'll reuse
 	 * the socket after the stream is closed.
 	 */
-	config->server = stream_fdopen(config->socket, read, write, NULL);
+	config->server = stream_open_fd(config->socket, stream_read_fd,
+	    stream_write_fd, NULL);
 	error = proto_greet(config);
 	if (!error)
 		error = proto_negproto(config);
@@ -484,10 +481,10 @@ proto_init(struct config *config)
 		threads_wait(workers);
 	threads_free(workers);
 	lprintf(2, "Shutting down connection to server\n");
-	chan_close(config->id0);
-	chan_close(config->id1);
-	chan_wait(config->id0);
-	chan_wait(config->id1);
+	chan_close(config->chan0);
+	chan_close(config->chan1);
+	chan_wait(config->chan0);
+	chan_wait(config->chan1);
 	mux_fini();
 	lprintf(2, "Finished successfully\n");
 	fattr_fini();

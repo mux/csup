@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.h,v 1.27 2006/02/02 19:44:10 mux Exp $
+ * $FreeBSD: projects/csup/config.h,v 1.28 2006/02/02 23:16:15 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -88,7 +88,8 @@ struct config {
 	STAILQ_HEAD(, coll) colls;
 	char *host;
 	int socket;
-	int id0, id1;
+	struct chan *chan0;
+	struct chan *chan1;
 	struct stream *server;
 	fattr_support_t fasupport;
 };

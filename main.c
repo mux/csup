@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.29 2006/02/06 01:44:23 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.30 2006/02/10 04:00:43 mux Exp $
  */
 
 #include <sys/file.h>
@@ -143,12 +143,14 @@ main(int argc, char *argv[])
 				}
 			}
 			if (lockfd == -1 || error == -1) {
-				close(lockfd);
+				if (lockfd != -1)
+					close(lockfd);
 				lprintf(-1, "Error locking \"%s\": %s\n",
 				    lockfile, strerror(errno));
 				return (1);
 			}
-			lock = stream_fdopen(lockfd, NULL, write, NULL);
+			lock = stream_open_fd(lockfd,
+			    NULL, stream_write_fd, NULL);
 			(void)stream_printf(lock, "%10ld\n", (long)getpid());
 			stream_close(lock);
 			break;

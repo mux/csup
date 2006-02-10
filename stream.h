@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/stream.h,v 1.20 2006/01/27 17:13:50 mux Exp $
  */
 #ifndef _STREAM_H_
 #define _STREAM_H_
@@ -39,13 +39,21 @@ typedef enum {
 
 struct stream;
 
-typedef ssize_t	(*stream_readfn_t)(int, void *, size_t);
-typedef ssize_t	(*stream_writefn_t)(int, const void *, size_t);
-typedef int	(*stream_closefn_t)(int);
+typedef ssize_t	stream_readfn_t(void *, void *, size_t);
+typedef ssize_t	stream_writefn_t(void *, const void *, size_t);
+typedef int	stream_closefn_t(void *);
 
-struct stream	*stream_fdopen(int, stream_readfn_t, stream_writefn_t,
-		     stream_closefn_t);
+/* Convenience functions for handling file descriptors. */
+stream_readfn_t		stream_read_fd;
+stream_writefn_t	stream_write_fd;
+stream_closefn_t	stream_close_fd;
+
+struct stream	*stream_open(void *, stream_readfn_t *, stream_writefn_t *,
+		     stream_closefn_t *);
+struct stream	*stream_open_fd(int, stream_readfn_t *, stream_writefn_t *,
+		     stream_closefn_t *);
 struct stream	*stream_open_file(const char *, int, ...);
+int		 stream_fileno(struct stream *);
 ssize_t		 stream_read(struct stream *, void *, size_t);
 ssize_t		 stream_write(struct stream *, const void *, size_t);
 char		*stream_getln(struct stream *, size_t *);

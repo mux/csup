@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.67 2006/02/03 16:23:03 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.68 2006/02/04 02:04:55 mux Exp $
  */
 
 #include <sys/types.h>
@@ -94,7 +94,8 @@ updater(void *arg)
 	int error;
 
 	config = arg;
-	rd = stream_fdopen(config->id1, chan_read, NULL, NULL);
+	rd = stream_open(config->chan1,
+	    (stream_readfn_t *)chan_read, NULL, NULL);
 	error = 0;
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)

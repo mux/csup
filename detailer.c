@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/detailer.c,v 1.36 2006/02/01 21:05:41 mux Exp $
+ * $FreeBSD: projects/csup/detailer.c,v 1.37 2006/02/03 18:49:23 mux Exp $
  */
 
 #include <stdlib.h>
@@ -53,8 +53,10 @@ detailer(void *arg)
 	int error;
 
 	config = arg;
-	rd = stream_fdopen(config->id0, chan_read, NULL, NULL);
-	wr = stream_fdopen(config->id1, NULL, chan_write, NULL);
+	rd = stream_open(config->chan0,
+	    (stream_readfn_t *)chan_read, NULL, NULL);
+	wr = stream_open(config->chan1,
+	    NULL, (stream_writefn_t *)chan_write, NULL);
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;

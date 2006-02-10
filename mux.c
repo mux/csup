@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.58 2006/02/07 16:38:21 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.59 2006/02/08 15:40:01 mux Exp $
  */
 
 #include <sys/param.h>
@@ -173,10 +173,10 @@ static void		 mux_unlock(void);
 
 static struct chan	*chan_new(void);
 static struct chan	*chan_get(int);
+static struct chan	*chan_connect(int);
 static void		 chan_lock(struct chan *);
 static void		 chan_unlock(struct chan *);
 static int		 chan_insert(struct chan *);
-static int		 chan_connect(int);
 static void		 chan_free(struct chan *);
 
 static struct buf	*buf_new(size_t);
@@ -207,6 +207,7 @@ static pthread_cond_t sender_newwork;
 static pthread_cond_t sender_started;
 static int sender_waiting;
 static int sender_ready;
+static int sender_lastid;
 
 /* Receiver thread data. */
 static pthread_t receiver;
@@ -303,8 +304,9 @@ mux_unlock(void)
 
 /* Initialize the multiplexer on the given socket. */
 int
-mux_init(int sock)
+mux_init(int sock, struct chan **chan)
 {
+	struct chan *chan0;
 	int error;
 
 	nchans = 0;
@@ -317,7 +319,17 @@ mux_init(int sock)
 	pthread_cond_init(&sender_started, NULL);
 
 	error = mux_initproto(mux_sock);
-	return (error);
+	if (error) {
+		mux_fini();
+		return (-1);
+	}
+	chan0 = chan_connect(0);
+	if (chan0 == NULL) {
+		mux_fini();
+		return (-1);
+	}
+	*chan = chan0;
+	return (0);
 }
 
 void
@@ -331,37 +343,19 @@ mux_fini(void)
 		chan = chans[i];
 		if (chan != NULL)
 			chan_free(chan);
+		chans[i] = NULL;
 	}
 	pthread_cond_destroy(&sender_started);
 	pthread_cond_destroy(&sender_newwork);
 	pthread_mutex_destroy(&mux_mtx);
 }
 
-/*
- * Create a new channel, connect it and return its ID.
- */
-int
-chan_open(void)
-{
-	struct chan *chan;
-	int error, id;
-
-	chan = chan_new();
-	id = chan_insert(chan);
-	assert(id == 0);
-	error = chan_connect(id);
-	if (error)
-		return (-1);
-	return (id);
-}
-
 /* Close a channel. */
 int
-chan_close(int id)
+chan_close(struct chan *chan)
 {
-	struct chan *chan;
 
-	chan = chan_get(id);
+	chan_lock(chan);
 	if (chan->state == CS_ESTABLISHED) {
 		chan->state = CS_WRCLOSED;
 		chan->flags |= CF_CLOSE;
@@ -381,11 +375,10 @@ chan_close(int id)
 }
 
 void
-chan_wait(int id)
+chan_wait(struct chan *chan)
 {
-	struct chan *chan;
 
-	chan = chan_get(id);
+	chan_lock(chan);
 	while (chan->state != CS_CLOSED)
 		pthread_cond_wait(&chan->rdready, &chan->lock);
 	chan_unlock(chan);
@@ -403,9 +396,9 @@ chan_listen(void)
 		chan = chans[i];
 		chan_lock(chan);
 		if (chan->state == CS_UNUSED) {
+			mux_unlock();
 			chan->state = CS_LISTENING;
 			chan_unlock(chan);
-			mux_unlock();
 			return (i);
 		}
 		chan_unlock(chan);
@@ -417,30 +410,31 @@ chan_listen(void)
 	return (i);
 }
 
-int
+struct chan *
 chan_accept(int id)
 {
 	struct chan *chan;
-	int ok;
 
 	chan = chan_get(id);
 	while (chan->state == CS_LISTENING)
 		pthread_cond_wait(&chan->rdready, &chan->lock);
-	ok = (chan->state != CS_ESTABLISHED);
+	if (chan->state != CS_ESTABLISHED) {
+		chan_unlock(chan);
+		return (NULL);
+	}
 	chan_unlock(chan);
-	return (ok);
+	return (chan);
 }
 
 /* Read bytes from a channel. */
 ssize_t
-chan_read(int id, void *buf, size_t size)
+chan_read(struct chan *chan, void *buf, size_t size)
 {
-	struct chan *chan;
 	char *cp;
 	size_t count, n;
 
 	cp = buf;
-	chan = chan_get(id);
+	chan_lock(chan);
 	for (;;) {
 		if (chan->state == CS_RDCLOSED || chan->state == CS_CLOSED) {
 			chan_unlock(chan);
@@ -469,15 +463,14 @@ chan_read(int id, void *buf, size_t size)
 
 /* Write bytes to a channel. */
 ssize_t
-chan_write(int id, const void *buf, size_t size)
+chan_write(struct chan *chan, const void *buf, size_t size)
 {
-	struct chan *chan;
 	const char *cp;
 	size_t avail, n, pos;
 
 	pos = 0;
 	cp = buf;
-	chan = chan_get(id);
+	chan_lock(chan);
 	while (pos < size) {
 		for (;;) {
 			if (chan->state != CS_ESTABLISHED &&
@@ -504,27 +497,34 @@ chan_write(int id, const void *buf, size_t size)
  * Internal channel API.
  */
 
-static int
+static struct chan *
 chan_connect(int id)
 {
 	struct chan *chan;
-	int ok;
 
 	chan = chan_get(id);
+	if (chan->state != CS_UNUSED) {
+		chan_unlock(chan);
+		return (NULL);
+	}
 	chan->state = CS_CONNECTING;
 	chan->flags |= CF_CONNECT;
 	chan_unlock(chan);
 	sender_wakeup();
-	chan = chan_get(id);
+	chan_lock(chan);
 	while (chan->state == CS_CONNECTING)
 		pthread_cond_wait(&chan->wrready, &chan->lock);
-	ok = (chan->state != CS_ESTABLISHED);
+	if (chan->state != CS_ESTABLISHED) {
+		chan_unlock(chan);
+		return (NULL);
+	}
 	chan_unlock(chan);
-	return (ok);
+	return (chan);
 }
 
 /*
- * Get a channel from its ID.  The channel is returned locked.
+ * Get a channel from its ID, creating it if necessary.
+ * The channel is returned locked.
  */
 static struct chan *
 chan_get(int id)
@@ -534,6 +534,11 @@ chan_get(int id)
 	assert(id < MUX_MAXCHAN);
 	mux_lock();
 	chan = chans[id];
+	if (chan == NULL) {
+		chan = chan_new();
+		chans[id] = chan;
+		nchans++;
+	}
 	chan_lock(chan);
 	mux_unlock();
 	return (chan);
@@ -596,7 +601,7 @@ chan_free(struct chan *chan)
 	free(chan);
 }
 
-/* Insert the new channel in the channel list and return its ID. */
+/* Insert the new channel in the channel list. */
 static int
 chan_insert(struct chan *chan)
 {
@@ -651,6 +656,7 @@ mux_initproto(int s)
 	 */
 	while (!sender_ready)
 		pthread_cond_wait(&sender_started, &mux_mtx);
+
 	mux_unlock();
 	error = pthread_create(&receiver, NULL, receiver_loop, &mux_sock);
 	if (error)
@@ -754,6 +760,7 @@ sender_loop(void *arg)
 
 	s = *(int *)arg;
 	sender_waiting = 0;
+	sender_lastid = 0;
 again:
 	id = sender_waitforwork(&what);
 	chan = chan_get(id);
@@ -889,10 +896,16 @@ static int
 sender_scan(int *what)
 {
 	struct chan *chan;
-	int i;
+	int id;
 
-	for (i = 0; i < nchans; i++) {
-		chan = chans[i];
+	if (nchans <= 0)
+		return (-1);
+	id = sender_lastid;
+	do {
+		id++;
+		if (id >= nchans)
+			id = 0;
+		chan = chans[id];
 		chan_lock(chan);
 		if (chan->state != CS_UNUSED) {
 			if (chan->sendseq != chan->sendwin &&
@@ -914,11 +927,12 @@ sender_scan(int *what)
 					*what = CF_CLOSE;
 				chan->flags &= ~*what;
 				chan_unlock(chan);
-				return (i);
+				sender_lastid = id;
+				return (id);
 			}
 		}
 		chan_unlock(chan);
-	}
+	} while (id != sender_lastid);
 	return (-1);
 }
 
