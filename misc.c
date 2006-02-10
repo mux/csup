@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.23 2006/02/06 01:44:23 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.24 2006/02/07 04:00:30 mux Exp $
  */
 
 #include <sys/types.h>
@@ -32,6 +32,7 @@
 
 #include <assert.h>
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -235,28 +236,51 @@ int
 mkdirhier(char *path, mode_t mask)
 {
 	struct fattr *fa;
-	char *cp, *comp;
-	int error, rv;
+	size_t i, last, len;
+	int error, finish, rv;
 
+	finish = 0;
+	last = 0;
+	len = strlen(path);
+	for (i = len - 1; i > 0; i--) {
+		if (path[i] == '/') {
+			path[i] = '\0';
+			if (access(path, F_OK) == 0) {
+				path[i] = '/';
+				break;
+			}
+			if (errno != ENOENT) {
+				path[i] = '/';
+				if (last == 0)
+					return (-1);
+				finish = 1;
+				break;
+			}
+			last = i;
+		}
+	}
+	if (last == 0)
+		return (0);
+
+	i = strlen(path);
 	fa = fattr_new(FT_DIRECTORY, -1);
 	fattr_mergedefault(fa);
 	fattr_umask(fa, mask);
-	comp = path + 1;
-	while ((cp = strchr(comp, '/')) != NULL) {
-		*cp = '\0';
-		if (access(path, F_OK) != 0) {
+	while (i < len) {
+		if (!finish) {
 			rv = 0;
 			error = fattr_makenode(fa, path);
 			if (!error)
 				rv = fattr_install(fa, path, NULL);
-			if (error || rv == -1) {
-				*cp = '/';
-				return (-1);
-			}
+			if (error || rv == -1)
+				finish = 1;
 		}
-	  	*cp = '/';
-                comp = cp + 1;
+		path[i] = '/';
+		i += strlen(path + i);
         }
+	assert(i == len);
+	if (finish)
+		return (-1);
         return (0);
 }
 
