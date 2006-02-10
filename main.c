@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.28 2006/02/02 19:53:13 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.29 2006/02/06 01:44:23 mux Exp $
  */
 
 #include <sys/file.h>
@@ -131,11 +131,12 @@ main(int argc, char *argv[])
 			lockfile = optarg;
 			lflag = 1;
 			lockfd = open(lockfile,
-			    O_CREAT | O_WRONLY | O_TRUNC | O_NONBLOCK, 0700);
+			    O_CREAT | O_WRONLY | O_TRUNC, 0700);
 			if (lockfd != -1) {
 				error = flock(lockfd, LOCK_EX | LOCK_NB);
 				if (error == -1 && errno == EWOULDBLOCK) {
-					close(lockfd);
+					if (lockfd != -1)
+						close(lockfd);
 					lprintf(-1, "\"%s\" is already locked "
 					    "by another process\n", lockfile);
 					return (1);
