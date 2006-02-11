@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.60 2006/02/10 18:18:47 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.61 2006/02/11 02:27:58 mux Exp $
  */
 
 #include <sys/param.h>
@@ -944,6 +944,10 @@ sender_scan(struct mux *m, int *what)
 	return (-1);
 }
 
+/* Read the rest of a packet header depending on its type. */
+#define	SOCK_READREST(s, mh, hsize)	\
+    sock_readwait(s, (char *)&mh + sizeof(mh.type), (hsize) - sizeof(mh.type))
+
 void *
 receiver_loop(void *arg)
 {
@@ -959,9 +963,7 @@ receiver_loop(void *arg)
 	    sizeof(mh.type))) == 0) {
 		switch (mh.type) {
 		case MUX_CONNECT:
-			error = sock_readwait(m->socket,
-			    (char *)&mh + sizeof(mh.type),
-			    MUX_CONNECTHDRSZ - sizeof(mh.type));
+			error = SOCK_READREST(m->socket, mh, MUX_CONNECTHDRSZ);
 			if (error)
 				goto bad;
 			chan = chan_get(m, mh.mh_connect.id);
@@ -977,9 +979,7 @@ receiver_loop(void *arg)
 			sender_wakeup(m);
 			break;
 		case MUX_ACCEPT:
-			error = sock_readwait(m->socket,
-			    (char *)&mh + sizeof(mh.type),
-			    MUX_ACCEPTHDRSZ - sizeof(mh.type));
+			error = SOCK_READREST(m->socket, mh, MUX_ACCEPTHDRSZ);
 			if (error)
 				goto bad;
 			chan = chan_get(m, mh.mh_accept.id);
@@ -996,17 +996,13 @@ receiver_loop(void *arg)
 			}
 			break;
 		case MUX_RESET:
-			error = sock_readwait(m->socket,
-			    (char *)&mh + sizeof(mh.type),
-			    MUX_RESETHDRSZ - sizeof(mh.type));
+			error = SOCK_READREST(m->socket, mh, MUX_RESETHDRSZ);
 			if (error)
 				goto bad;
 			mux_shutdown(m, -1);
 			return (NULL);
 		case MUX_WINDOW:
-			error = sock_readwait(m->socket,
-			    (char *)&mh + sizeof(mh.type),
-			    MUX_WINDOWHDRSZ - sizeof(mh.type));
+			error = SOCK_READREST(m->socket, mh, MUX_WINDOWHDRSZ);
 			if (error)
 				goto bad;
 			chan = chan_get(m, mh.mh_window.id);
@@ -1020,9 +1016,7 @@ receiver_loop(void *arg)
 			}
 			break;
 		case MUX_DATA:
-			error = sock_readwait(m->socket,
-			    (char *)&mh + sizeof(mh.type),
-			    MUX_DATAHDRSZ - sizeof(mh.type));
+			error = SOCK_READREST(m->socket, mh, MUX_DATAHDRSZ);
 			if (error)
 				goto bad;
 			chan = chan_get(m, mh.mh_data.id);
@@ -1061,9 +1055,7 @@ receiver_loop(void *arg)
 			chan_unlock(chan);
 			break;
 		case MUX_CLOSE:
-			error = sock_readwait(m->socket,
-			    (char *)&mh + sizeof(mh.type),
-			    MUX_CLOSEHDRSZ - sizeof(mh.type));
+			error = SOCK_READREST(m->socket, mh, MUX_CLOSEHDRSZ);
 			if (error)
 				goto bad;
 			chan = chan_get(m, mh.mh_close.id);
