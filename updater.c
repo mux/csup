@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.68 2006/02/04 02:04:55 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.69 2006/02/10 18:18:47 mux Exp $
  */
 
 #include <sys/types.h>
@@ -284,9 +284,9 @@ updater_delete(struct coll *coll, char *name)
 	/* XXX - delete limit handling */
 	if (coll->co_options & CO_DELETE) {
 		lprintf(1, " Delete %s\n", name + coll->co_prefixlen + 1);
-		error = unlink(name);
+		error = fattr_delete(name);
 		if (error)
-			lprintf(-1, "Updater: Cannot delete \"%s\": %s\n",
+			lprintf(-1, "Cannot delete \"%s\": %s\n",
 			    name, strerror(errno));
 		if (coll->co_options & CO_CHECKOUTMODE)
 			updater_prunedirs(coll->co_prefix, name);

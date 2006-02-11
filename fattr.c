@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.31 2006/02/05 22:26:55 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.32 2006/02/07 02:35:27 mux Exp $
  */
 
 #include <sys/time.h>
@@ -749,6 +749,32 @@ fattr_makenode(const struct fattr *fa, const char *path)
 	else
 		mode = 0700;
 	error = mkdir(path, mode);
+	return (error);
+}
+
+int
+fattr_delete(const char *path)
+{
+	struct fattr *fa;
+	int error;
+
+	fa = fattr_frompath(path, FATTR_NOFOLLOW);
+	if (fa == NULL) {
+		if (errno == ENOENT)
+			return (0);
+		return (-1);
+	}
+
+	/* Clear flags. */
+	if (fa->mask & FA_FLAGS && fa->flags != 0) {
+		fa->flags = 0;
+		(void)chflags(path, fa->flags);
+	}
+
+	if (fa->type == FT_DIRECTORY)
+		error = rmdir(path);
+	else
+		error = unlink(path);
 	return (error);
 }
 

@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.h,v 1.20 2006/02/03 05:45:02 mux Exp $
+ * $FreeBSD: projects/csup/fattr.h,v 1.21 2006/02/03 16:23:03 mux Exp $
  */
 #ifndef _FATTR_H_
 #define _FATTR_H_
@@ -106,6 +106,7 @@ void		 fattr_merge(struct fattr *, const struct fattr *);
 void		 fattr_mergedefault(struct fattr *);
 void		 fattr_override(struct fattr *, const struct fattr *, int);
 int		 fattr_makenode(const struct fattr *, const char *);
+int		 fattr_delete(const char *path);
 int		 fattr_install(struct fattr *, const char *, const char *);
 int		 fattr_equal(const struct fattr *, const struct fattr *);
 void		 fattr_free(struct fattr *);
