@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/stream.c,v 1.51 2006/02/10 18:18:47 mux Exp $
+ * $FreeBSD: projects/csup/stream.c,v 1.52 2006/02/10 23:06:36 mux Exp $
  */
 
 #include <sys/types.h>
@@ -361,17 +361,22 @@ stream_open_file(const char *path, int flags, ...)
 		return (NULL);
 
 	flags &= O_ACCMODE;
-	if (flags & O_RDONLY || (O_RDONLY == 0 && flags == 0)) {
+	if (flags == O_RDONLY) {
 		readfn = stream_read_fd;
 		writefn = NULL;
-	} else if (flags & O_WRONLY || (O_WRONLY == 0 && flags == 0)) {
+	} else if (flags == O_WRONLY) {
 		readfn = NULL;
 		writefn = stream_write_fd;
-	} else {
-		assert(flags & O_RDWR || (O_RDWR == 0 && flags == 0));
+	} else if (flags == O_RDWR) {
+		assert(flags == O_RDWR);
 		readfn = stream_read_fd;
 		writefn = stream_write_fd;
+	} else {
+		errno = EINVAL;
+		close(fd);
+		return (NULL);
 	}
+
 	stream = stream_open_fd(fd, readfn, writefn, stream_close_fd);
 	if (stream == NULL)
 		close(fd);
