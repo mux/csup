@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2005, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.33 2006/02/11 19:09:28 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.34 2006/02/11 19:20:33 mux Exp $
  */
 
 #include <sys/time.h>
