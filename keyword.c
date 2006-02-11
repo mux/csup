@@ -23,12 +23,13 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.23 2006/01/27 21:29:07 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.24 2006/01/30 22:06:02 mux Exp $
  */
 
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +61,7 @@ typedef enum rcskey rcskey_t;
 struct tag {
 	char *ident;
 	rcskey_t key;
+	int enabled;
 	STAILQ_ENTRY(tag) next;
 };
 
@@ -69,7 +71,8 @@ static void		 tag_free(struct tag *);
 
 struct keyword {
 	STAILQ_HEAD(, tag) keywords;		/* Enabled keywords. */
-	STAILQ_HEAD(, tag) aliases;		/* Aliases. */
+	size_t keyminlen;
+	size_t keymaxlen;
 };
 
 /* Default CVS keywords. */
@@ -96,10 +99,17 @@ struct keyword *
 keyword_new(void)
 {
 	struct keyword *new;
+	struct tag *tag;
+	int i;
 
 	new = xmalloc(sizeof(struct keyword));
 	STAILQ_INIT(&new->keywords);
-	STAILQ_INIT(&new->aliases);
+	for (i = 0; tag_defaults[i].ident != NULL; i++) {
+		tag = tag_new(tag_defaults[i].ident, tag_defaults[i].key);
+		STAILQ_INSERT_TAIL(&new->keywords, tag, next);
+	}
+	new->keyminlen = SIZE_T_MAX;
+	new->keymaxlen = 0;
 	return (new);
 }
 
@@ -115,68 +125,41 @@ keyword_free(struct keyword *keyword)
 		STAILQ_REMOVE_HEAD(&keyword->keywords, next);
 		tag_free(tag);
 	}
-	while (!STAILQ_EMPTY(&keyword->aliases)) {
-		tag = STAILQ_FIRST(&keyword->aliases);
-		STAILQ_REMOVE_HEAD(&keyword->aliases, next);
-		tag_free(tag);
-	}
 	free(keyword);
 }
 
 int
-keyword_alias(struct keyword *keyword, char *ident, char *rcskey)
+keyword_alias(struct keyword *keyword, const char *ident, const char *rcskey)
 {
-	struct tag *new;
-	int i;
+	struct tag *new, *tag;
 
-	i = 0;
-	while (tag_defaults[i].ident != NULL) {
-		if (strcmp(tag_defaults[i].ident, rcskey) == 0) {
-			new = tag_new(ident, tag_defaults[i].key);
-			STAILQ_INSERT_HEAD(&keyword->aliases, new, next);
+	STAILQ_FOREACH(tag, &keyword->keywords, next) {
+		if (strcmp(tag->ident, rcskey) == 0) {
+			new = tag_new(ident, tag->key);
+			STAILQ_INSERT_HEAD(&keyword->keywords, new, next);
 			return (0);
 		}
-		i++;
 	}
 	errno = ENOENT;
 	return (-1);
 }
 
 int
-keyword_enable(struct keyword *keyword, char *ident)
+keyword_enable(struct keyword *keyword, const char *ident)
 {
 	struct tag *tag;
-	int all, i;
+	int all;
 
 	all = 0;
 	if (strcmp(ident, ".") == 0)
 		all = 1;
 
-	for (i = 0; tag_defaults[i].ident != NULL; i++) {
-		if (!all) {
-			if (strcmp(tag_defaults[i].ident, ident) != 0)
-				continue;
-			tag = tag_new(tag_defaults[i].ident,
-			    tag_defaults[i].key);
-			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
+	STAILQ_FOREACH(tag, &keyword->keywords, next) {
+		if (!all && strcmp(tag->ident, ident) != 0)
+			continue;
+		tag->enabled = 1;
+		if (!all)
 			return (0);
-		} else {
-			tag = tag_new(tag_defaults[i].ident,
-			    tag_defaults[i].key);
-			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
-		}
-	}
-	STAILQ_FOREACH(tag, &keyword->aliases, next) {
-		if (!all) {
-			if (strcmp(tag->ident, ident) != 0)
-				continue;
-			tag = tag_new(tag->ident, tag->key);
-			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
-			return (0);
-		} else {
-			tag = tag_new(tag->ident, tag->key);
-			STAILQ_INSERT_TAIL(&keyword->keywords, tag, next);
-		}
 	}
 	if (!all) {
 		errno = ENOENT;
@@ -186,7 +169,7 @@ keyword_enable(struct keyword *keyword, char *ident)
 }
 
 int
-keyword_disable(struct keyword *keyword, char *ident)
+keyword_disable(struct keyword *keyword, const char *ident)
 {
 	struct tag *tag;
 	int all;
@@ -195,23 +178,36 @@ keyword_disable(struct keyword *keyword, char *ident)
 	if (strcmp(ident, ".") == 0)
 		all = 1;
 
-	if (all) {
-		while (!STAILQ_EMPTY(&keyword->keywords)) {
-			tag = STAILQ_FIRST(&keyword->keywords);
-			STAILQ_REMOVE_HEAD(&keyword->keywords, next);
-			tag_free(tag);
-		}
-		return (0);
-	}
 	STAILQ_FOREACH(tag, &keyword->keywords, next) {
-		if (strcmp(tag->ident, ident) != 0)
-		       continue;
-		STAILQ_REMOVE(&keyword->keywords, tag, tag, next);
-		tag_free(tag);
-		return (0);
+		if (!all && strcmp(tag->ident, ident) != 0)
+			continue;
+		tag->enabled = 0;
+		if (!all)
+			return (0);
 	}
-	errno = ENOENT;
-	return (-1);
+
+	if (!all) {
+		errno = ENOENT;
+		return (-1);
+	}
+	return (0);
+}
+
+void
+keyword_prepare(struct keyword *keyword)
+{
+	struct tag *tag, *temp;
+	size_t len;
+
+	STAILQ_FOREACH_SAFE(tag, &keyword->keywords, next, temp) {
+		if (!tag->enabled) {
+			STAILQ_REMOVE(&keyword->keywords, tag, tag, next);
+			continue;
+		}
+		len = strlen(tag->ident);
+		keyword->keyminlen = min(keyword->keyminlen, len);
+		keyword->keymaxlen = max(keyword->keymaxlen, len);
+	}
 }
 
 /*
@@ -269,6 +265,13 @@ again:
 	}
 	if (valstart == NULL || valstart > vallim)
 		valstart = vallim;
+
+	if (valstart < keystart + keyword->keyminlen ||
+	    valstart > keystart + keyword->keymaxlen) {
+		cp = vallim;
+		left -= vallim -keystart;
+		goto again;
+	}
 	STAILQ_FOREACH(tag, &keyword->keywords, next) {
 		if (strncmp(tag->ident, keystart, valstart - keystart) == 0 &&
 		    tag->ident[valstart - keystart] == '\0') {
@@ -371,6 +374,7 @@ tag_new(const char *ident, rcskey_t key)
 	new = xmalloc(sizeof(struct tag));
 	new->ident = xstrdup(ident);
 	new->key = key;
+	new->enabled = 1;
 	return (new);
 }
 

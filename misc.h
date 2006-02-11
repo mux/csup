@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.h,v 1.20 2006/02/03 16:23:03 mux Exp $
+ * $FreeBSD: projects/csup/misc.h,v 1.21 2006/02/06 01:44:23 mux Exp $
  */
 #ifndef _MISC_H_
 #define _MISC_H_
@@ -75,6 +75,7 @@
 #define	MD5_DIGEST_SIZE		33
 
 #define	min(a, b)		((a) > (b) ? (b) : (a))
+#define	max(a, b)		((a) < (b) ? (b) : (a))
 
 struct backoff_timer;
 

@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/keyword.h,v 1.7 2006/01/27 17:13:49 mux Exp $
  */
 #ifndef _KEYWORD_H_
 #define _KEYWORD_H_
@@ -41,9 +41,10 @@ struct diff;
 struct keyword;
 
 struct keyword	*keyword_new(void);
-int		 keyword_alias(struct keyword *, char *, char *);
-int		 keyword_enable(struct keyword *, char *);
-int		 keyword_disable(struct keyword *, char *);
+int		 keyword_alias(struct keyword *, const char *, const char *);
+int		 keyword_enable(struct keyword *, const char *);
+int		 keyword_disable(struct keyword *, const char *);
+void		 keyword_prepare(struct keyword *);
 int		 keyword_expand(struct keyword *, struct diff *, char *, size_t,
 		     char **, size_t *);
 void		 keyword_free(struct keyword *);

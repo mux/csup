@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.63 2006/02/10 18:18:47 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.64 2006/02/11 02:27:58 mux Exp $
  */
 
 #include <sys/param.h>
@@ -390,6 +390,7 @@ proto_xchgcoll(struct config *config)
 					goto bad;
 			}
 		}
+		keyword_prepare(cur->co_keyword);
 		if (line == NULL)
 			goto bad;
 	}
