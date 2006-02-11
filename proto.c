@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.62 2006/02/04 17:47:39 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.63 2006/02/10 18:18:47 mux Exp $
  */
 
 #include <sys/param.h>
@@ -63,15 +63,15 @@
 #define	PROTO_MIN	0
 #define	PROTO_SWVER	"CSUP_0_1"
 
-static int	proto_greet(struct config *);
-static int	proto_negproto(struct config *);
-static int	proto_login(struct config *);
-static int	proto_fileattr(struct config *);
-static int	proto_xchgcoll(struct config *);
-static int	proto_mux(struct config *);
+static int		 proto_greet(struct config *);
+static int		 proto_negproto(struct config *);
+static int		 proto_login(struct config *);
+static int		 proto_fileattr(struct config *);
+static int		 proto_xchgcoll(struct config *);
+static struct mux	*proto_mux(struct config *);
 
-static int	proto_escape(struct stream *, const char *);
-static void	proto_unescape(char *);
+static int		 proto_escape(struct stream *, const char *);
+static void		 proto_unescape(char *);
 
 /* Connect to the CVSup server. */
 int
@@ -399,41 +399,43 @@ bad:
 	return (1);
 }
 
-static int
+static struct mux *
 proto_mux(struct config *config)
 {
+	struct mux *m;
 	struct stream *s, *wr;
 	struct chan *chan0, *chan1;
 	int id;
-	int error;
 
 	s = config->server;
 	lprintf(2, "Establishing multiplexed-mode data connection\n");
 	proto_printf(s, "MUX\n");
 	stream_flush(s);
-	error = mux_init(config->socket, &chan0);
-	if (error) {
-		lprintf(-1, "mux_init() failed\n");
-		return (error);
+	m = mux_open(config->socket, &chan0);
+	if (m == NULL) {
+		lprintf(-1, "mux_open() failed\n");
+		return (NULL);
 	}
-	id = chan_listen();
+	id = chan_listen(m);
 	if (id == -1) {
 		lprintf(-1, "chan_listen() failed\n");
-		return (-1);
+		mux_close(m);
+		return (NULL);
 	}
 	wr = stream_open(chan0, NULL, (stream_writefn_t *)chan_write, NULL);
 	proto_printf(wr, "CHAN %d\n", id);
 	stream_close(wr);
-	chan1 = chan_accept(id);
+	chan1 = chan_accept(m, id);
 	if (chan1 == NULL) {
 		/* XXX - Sync error message with CVSup. */
 		lprintf(-1, "Accept failed for channel %d\n", id);
-		return (-1);
+		mux_close(m);
+		return (NULL);
 	}
 	stream_close(config->server);
 	config->chan0 = chan0;
 	config->chan1 = chan1;
-	return (0);
+	return (m);
 }
 
 /*
@@ -445,6 +447,7 @@ int
 proto_init(struct config *config)
 {
 	struct threads *workers;
+	struct mux *m;
 	int error, i;
 
 	/*
@@ -462,10 +465,12 @@ proto_init(struct config *config)
 		error = proto_fileattr(config);
 	if (!error)
 		error = proto_xchgcoll(config);
-	if (!error)
-		error = proto_mux(config);
 	if (error)
 		return (error);
+
+	m = proto_mux(config);
+	if (m == NULL)
+		return (-1);
 
 	/* Initialize the fattr API.  Hopefully this is not needed
 	   earlier, since it's only for fattr_mergedefault(). */
@@ -485,7 +490,7 @@ proto_init(struct config *config)
 	chan_close(config->chan1);
 	chan_wait(config->chan0);
 	chan_wait(config->chan1);
-	mux_fini();
+	mux_close(m);
 	lprintf(2, "Finished successfully\n");
 	fattr_fini();
 	return (error);

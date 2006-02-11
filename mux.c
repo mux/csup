@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.59 2006/02/08 15:40:01 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.60 2006/02/10 18:18:47 mux Exp $
  */
 
 #include <sys/param.h>
@@ -146,6 +146,7 @@ struct chan {
 	int		flags;
 	int		state;
 	pthread_mutex_t	lock;
+	struct mux	*mux;
 
 	/* Receiver state variables. */
 	struct buf	*recvbuf;
@@ -161,22 +162,41 @@ struct chan {
 	uint16_t	sendmss;
 };
 
+struct mux {
+	int		closed;
+	int		socket;
+	pthread_mutex_t	lock;
+	struct chan	*channels[MUX_MAXCHAN];
+	int		nchans;
+
+	/* Sender thread data. */
+	pthread_t	sender;
+	pthread_cond_t	sender_newwork;
+	pthread_cond_t	sender_started;
+	int		sender_waiting;
+	int		sender_ready;
+	int		sender_lastid;
+
+	/* Receiver thread data. */
+	pthread_t	receiver;
+};
+
 static int		 sock_writev(int, struct iovec *, int);
 static int		 sock_write(int, void *, size_t);
 static ssize_t		 sock_read(int, void *, size_t);
 static int		 sock_readwait(int, void *, size_t);
 
-static int		 mux_initproto(int);
-static void		 mux_shutdown(int);
-static void		 mux_lock(void);
-static void		 mux_unlock(void);
+static int		 mux_init(struct mux *);
+static void		 mux_shutdown(struct mux *, int);
+static void		 mux_lock(struct mux *);
+static void		 mux_unlock(struct mux *);
 
-static struct chan	*chan_new(void);
-static struct chan	*chan_get(int);
-static struct chan	*chan_connect(int);
+static struct chan	*chan_new(struct mux *);
+static struct chan	*chan_get(struct mux *, int);
+static struct chan	*chan_connect(struct mux *, int);
 static void		 chan_lock(struct chan *);
 static void		 chan_unlock(struct chan *);
-static int		 chan_insert(struct chan *);
+static int		 chan_insert(struct mux *, struct chan *);
 static void		 chan_free(struct chan *);
 
 static struct buf	*buf_new(size_t);
@@ -186,31 +206,13 @@ static void		 buf_get(struct buf *, void *, size_t);
 static void		 buf_put(struct buf *, const void *, size_t);
 static void		 buf_free(struct buf *);
 
-static void		 sender_wakeup(void);
+static void		 sender_wakeup(struct mux *);
 static void		*sender_loop(void *);
-static int		 sender_waitforwork(int *);
-static int		 sender_scan(int *);
+static int		 sender_waitforwork(struct mux *, int *);
+static int		 sender_scan(struct mux *, int *);
 static void		 sender_cleanup(void *);
 
 static void		*receiver_loop(void *);
-
-/* We use one static multiplexer for now. */
-static int mux_closed;
-static int mux_sock;
-static pthread_mutex_t mux_mtx;
-static struct chan *chans[MUX_MAXCHAN];
-static int nchans;
-
-/* Sender thread data. */
-static pthread_t sender;
-static pthread_cond_t sender_newwork;
-static pthread_cond_t sender_started;
-static int sender_waiting;
-static int sender_ready;
-static int sender_lastid;
-
-/* Receiver thread data. */
-static pthread_t receiver;
 
 static int
 sock_writev(int s, struct iovec *iov, int iovcnt)
@@ -285,69 +287,74 @@ sock_readwait(int s, void *buf, size_t size)
 }
 
 static void
-mux_lock(void)
+mux_lock(struct mux *m)
 {
 	int error;
 
-	error = pthread_mutex_lock(&mux_mtx);
+	error = pthread_mutex_lock(&m->lock);
 	assert(!error);
 }
 
 static void
-mux_unlock(void)
+mux_unlock(struct mux *m)
 {
 	int error;
 
-	error = pthread_mutex_unlock(&mux_mtx);
+	error = pthread_mutex_unlock(&m->lock);
 	assert(!error);
 }
 
-/* Initialize the multiplexer on the given socket. */
-int
-mux_init(int sock, struct chan **chan)
+/* Create a TCP multiplexer on the given socket. */
+struct mux *
+mux_open(int sock, struct chan **chan)
 {
+	struct mux *m;
 	struct chan *chan0;
 	int error;
 
-	nchans = 0;
-	memset(chans, 0, sizeof(chans));
-	mux_closed = 0;
-	mux_sock = sock;
+	m = xmalloc(sizeof(struct mux));
+	memset(m->channels, 0, sizeof(m->channels));
+	m->nchans = 0;
+	m->closed = 0;
+	m->socket = sock;
 
-	pthread_mutex_init(&mux_mtx, NULL);
-	pthread_cond_init(&sender_newwork, NULL);
-	pthread_cond_init(&sender_started, NULL);
+	m->sender_waiting = 0;
+	m->sender_lastid = 0;
+	m->sender_ready = 0;
+	pthread_mutex_init(&m->lock, NULL);
+	pthread_cond_init(&m->sender_newwork, NULL);
+	pthread_cond_init(&m->sender_started, NULL);
 
-	error = mux_initproto(mux_sock);
+	error = mux_init(m);
 	if (error) {
-		mux_fini();
-		return (-1);
+		mux_close(m);
+		return (NULL);
 	}
-	chan0 = chan_connect(0);
+	chan0 = chan_connect(m, 0);
 	if (chan0 == NULL) {
-		mux_fini();
-		return (-1);
+		mux_close(m);
+		return (NULL);
 	}
 	*chan = chan0;
-	return (0);
+	return (m);
 }
 
 void
-mux_fini(void)
+mux_close(struct mux *m)
 {
 	struct chan *chan;
 	int i;
 
-	mux_shutdown(0);
-	for (i = 0; i < nchans; i++) {
-		chan = chans[i];
+	mux_shutdown(m, 0);
+	for (i = 0; i < m->nchans; i++) {
+		chan = m->channels[i];
 		if (chan != NULL)
 			chan_free(chan);
-		chans[i] = NULL;
 	}
-	pthread_cond_destroy(&sender_started);
-	pthread_cond_destroy(&sender_newwork);
-	pthread_mutex_destroy(&mux_mtx);
+	pthread_cond_destroy(&m->sender_started);
+	pthread_cond_destroy(&m->sender_newwork);
+	pthread_mutex_destroy(&m->lock);
+	free(m);
 }
 
 /* Close a channel. */
@@ -370,7 +377,7 @@ chan_close(struct chan *chan)
 		return (-1);
 	}
 	chan_unlock(chan);
-	sender_wakeup();
+	sender_wakeup(chan->mux);
 	return (0);
 }
 
@@ -386,36 +393,36 @@ chan_wait(struct chan *chan)
 
 /* Returns the ID of an available channel in the listening state. */
 int
-chan_listen(void)
+chan_listen(struct mux *m)
 {
 	struct chan *chan;
 	int i;
 
-	mux_lock();
-	for (i = 0; i < nchans; i++) {
-		chan = chans[i];
+	mux_lock(m);
+	for (i = 0; i < m->nchans; i++) {
+		chan = m->channels[i];
 		chan_lock(chan);
 		if (chan->state == CS_UNUSED) {
-			mux_unlock();
+			mux_unlock(m);
 			chan->state = CS_LISTENING;
 			chan_unlock(chan);
 			return (i);
 		}
 		chan_unlock(chan);
 	}
-	mux_unlock();
-	chan = chan_new();
+	mux_unlock(m);
+	chan = chan_new(m);
 	chan->state = CS_LISTENING;
-	i = chan_insert(chan);
+	i = chan_insert(m, chan);
 	return (i);
 }
 
 struct chan *
-chan_accept(int id)
+chan_accept(struct mux *m, int id)
 {
 	struct chan *chan;
 
-	chan = chan_get(id);
+	chan = chan_get(m, id);
 	while (chan->state == CS_LISTENING)
 		pthread_cond_wait(&chan->rdready, &chan->lock);
 	if (chan->state != CS_ESTABLISHED) {
@@ -457,7 +464,7 @@ chan_read(struct chan *chan, void *buf, size_t size)
 	chan->flags |= CF_WINDOW;
 	chan_unlock(chan);
 	/* We need to wake up the sender so that it sends a window update. */
-	sender_wakeup();
+	sender_wakeup(chan->mux);
 	return (n);
 }
 
@@ -489,7 +496,7 @@ chan_write(struct chan *chan, const void *buf, size_t size)
 		pos += n;
 	}
 	chan_unlock(chan);
-	sender_wakeup();
+	sender_wakeup(chan->mux);
 	return (size);
 }
 
@@ -498,11 +505,11 @@ chan_write(struct chan *chan, const void *buf, size_t size)
  */
 
 static struct chan *
-chan_connect(int id)
+chan_connect(struct mux *m, int id)
 {
 	struct chan *chan;
 
-	chan = chan_get(id);
+	chan = chan_get(m, id);
 	if (chan->state != CS_UNUSED) {
 		chan_unlock(chan);
 		return (NULL);
@@ -510,7 +517,7 @@ chan_connect(int id)
 	chan->state = CS_CONNECTING;
 	chan->flags |= CF_CONNECT;
 	chan_unlock(chan);
-	sender_wakeup();
+	sender_wakeup(m);
 	chan_lock(chan);
 	while (chan->state == CS_CONNECTING)
 		pthread_cond_wait(&chan->wrready, &chan->lock);
@@ -527,20 +534,20 @@ chan_connect(int id)
  * The channel is returned locked.
  */
 static struct chan *
-chan_get(int id)
+chan_get(struct mux *m, int id)
 {
 	struct chan *chan;
 
 	assert(id < MUX_MAXCHAN);
-	mux_lock();
-	chan = chans[id];
+	mux_lock(m);
+	chan = m->channels[id];
 	if (chan == NULL) {
-		chan = chan_new();
-		chans[id] = chan;
-		nchans++;
+		chan = chan_new(m);
+		m->channels[id] = chan;
+		m->nchans++;
 	}
 	chan_lock(chan);
-	mux_unlock();
+	mux_unlock(m);
 	return (chan);
 }
 
@@ -568,13 +575,14 @@ chan_unlock(struct chan *chan)
  * Create a new channel.
  */
 static struct chan *
-chan_new(void)
+chan_new(struct mux *m)
 {
 	struct chan *chan;
 
 	chan = xmalloc(sizeof(struct chan));
 	chan->state = CS_UNUSED;
 	chan->flags = 0;
+	chan->mux = m;
 	chan->sendbuf = buf_new(CHAN_SBSIZE);
 	chan->sendseq = 0;
 	chan->sendwin = 0;
@@ -603,16 +611,16 @@ chan_free(struct chan *chan)
 
 /* Insert the new channel in the channel list. */
 static int
-chan_insert(struct chan *chan)
+chan_insert(struct mux *m, struct chan *chan)
 {
 	int i;
 
-	mux_lock();
+	mux_lock(m);
 	for (i = 0; i < MUX_MAXCHAN; i++) {
-		if (chans[i] == NULL) {
-			chans[i] = chan;
-			nchans++;
-			mux_unlock();
+		if (m->channels[i] == NULL) {
+			m->channels[i] = chan;
+			m->nchans++;
+			mux_unlock(m);
 			return (i);
 		}
 	}
@@ -626,27 +634,26 @@ chan_insert(struct chan *chan)
  * the receiver and sender threads.
  */
 static int
-mux_initproto(int s)
+mux_init(struct mux *m)
 {
 	struct mux_header mh;
 	int error;
 
 	mh.type = MUX_STARTUPREQ;
 	mh.mh_startup.version = htons(MUX_PROTOVER);
-	error = sock_write(s, &mh, MUX_STARTUPHDRSZ);
+	error = sock_write(m->socket, &mh, MUX_STARTUPHDRSZ);
 	if (error)
 		return (-1);
-	error = sock_readwait(s, &mh, MUX_STARTUPHDRSZ);
+	error = sock_readwait(m->socket, &mh, MUX_STARTUPHDRSZ);
 	if (error)
 		return (-1);
 	if (mh.type != MUX_STARTUPREP ||
 	    ntohs(mh.mh_startup.version) != MUX_PROTOVER)
 		return (-1);
-	sender_ready = 0;
-	mux_lock();
-	error = pthread_create(&sender, NULL, sender_loop, &mux_sock);
+	mux_lock(m);
+	error = pthread_create(&m->sender, NULL, sender_loop, m);
 	if (error) {
-		mux_unlock();
+		mux_unlock(m);
 		return (-1);
 	}
 	/*
@@ -654,11 +661,11 @@ mux_initproto(int s)
 	 * before going on.  Otherwise, it might lose the race and a
 	 * request, which will cause a deadlock.
 	 */
-	while (!sender_ready)
-		pthread_cond_wait(&sender_started, &mux_mtx);
+	while (!m->sender_ready)
+		pthread_cond_wait(&m->sender_started, &m->lock);
 
-	mux_unlock();
-	error = pthread_create(&receiver, NULL, receiver_loop, &mux_sock);
+	mux_unlock(m);
+	error = pthread_create(&m->receiver, NULL, receiver_loop, m);
 	if (error)
 		return (-1);
 	return (0);
@@ -671,7 +678,7 @@ mux_initproto(int s)
  * the error was a protocol error.
  */
 static void
-mux_shutdown(int error)
+mux_shutdown(struct mux *m, int error)
 {
 	struct chan *chan;
 	const char *name;
@@ -679,15 +686,15 @@ mux_shutdown(int error)
 	void *val;
 	int i, ret;
 
-	mux_lock();
-	if (mux_closed) {
-		mux_unlock();
+	mux_lock(m);
+	if (m->closed) {
+		mux_unlock(m);
 		return;
 	}
-	mux_closed = 1;
+	m->closed = 1;
 	for (i = 0; i < MUX_MAXCHAN; i++) {
-		if (chans[i] != NULL) {
-			chan = chans[i];
+		if (m->channels[i] != NULL) {
+			chan = m->channels[i];
 			chan_lock(chan);
 			if (chan->state != CS_UNUSED) {
 				chan->state = CS_CLOSED;
@@ -698,29 +705,29 @@ mux_shutdown(int error)
 			chan_unlock(chan);
 		}
 	}
-	mux_unlock();
+	mux_unlock(m);
 	self = pthread_self();
-	if (!pthread_equal(self, receiver)) {
-		ret = pthread_cancel(receiver);
+	if (!pthread_equal(self, m->receiver)) {
+		ret = pthread_cancel(m->receiver);
 		assert(!ret);
-		pthread_join(receiver, &val);
+		pthread_join(m->receiver, &val);
 		assert(val == PTHREAD_CANCELED);
 	}
-	if (!pthread_equal(self, sender)) {
-		ret = pthread_cancel(sender);
+	if (!pthread_equal(self, m->sender)) {
+		ret = pthread_cancel(m->sender);
 		assert(!ret);
-		pthread_join(sender, &val);
+		pthread_join(m->sender, &val);
 		assert(val == PTHREAD_CANCELED);
 	}
 
 	if (!error)
 		return;
 
-	if (pthread_equal(self, sender)) {
+	if (pthread_equal(self, m->sender)) {
 		name = "Sender";
 	} else {
 		/* Only the sender and receiver threads report errors. */
-		assert(pthread_equal(self, receiver));
+		assert(pthread_equal(self, m->receiver));
 		name = "Receiver";
 	}
 	if (error == -1)
@@ -730,13 +737,13 @@ mux_shutdown(int error)
 }
 
 static void
-sender_wakeup(void)
+sender_wakeup(struct mux *m)
 {
 	int waiting;
 
-	mux_lock();
-	waiting = sender_waiting;
-	mux_unlock();
+	mux_lock(m);
+	waiting = m->sender_waiting;
+	mux_unlock(m);
 	/*
 	 * We don't care about the race here: if the sender was
 	 * waiting and is not anymore, we'll just send a useless
@@ -744,7 +751,7 @@ sender_wakeup(void)
 	 * before having sent what we want him to.
 	 */
 	if (waiting)
-		pthread_cond_signal(&sender_newwork);
+		pthread_cond_signal(&m->sender_newwork);
 }
 
 static void *
@@ -752,18 +759,17 @@ sender_loop(void *arg)
 {
 	struct iovec iov[3];
 	struct mux_header mh;
+	struct mux *m;
 	struct chan *chan;
 	struct buf *buf;
 	uint32_t winsize;
 	uint16_t hdrsize, size, len;
-	int error, id, iovcnt, s, what;
+	int error, id, iovcnt, what;
 
-	s = *(int *)arg;
-	sender_waiting = 0;
-	sender_lastid = 0;
+	m = (struct mux *)arg;
 again:
-	id = sender_waitforwork(&what);
-	chan = chan_get(id);
+	id = sender_waitforwork(m, &what);
+	chan = chan_get(m, id);
 	hdrsize = size = 0;
 	switch (what) {
 	case CF_CONNECT:
@@ -839,7 +845,7 @@ again:
 		 * too long, since write() might block.
 		 */
 		chan_unlock(chan);
-		error = sock_writev(s, iov, iovcnt);
+		error = sock_writev(m->socket, iov, iovcnt);
 		if (error)
 			goto bad;
 		chan_lock(chan);
@@ -851,61 +857,63 @@ again:
 		chan_unlock(chan);
 	} else {
 		chan_unlock(chan);
-		error = sock_write(s, &mh, hdrsize);
+		error = sock_write(m->socket, &mh, hdrsize);
 		if (error)
 			goto bad;
 	}
 	goto again;
 bad:
-	mux_shutdown(errno);
+	mux_shutdown(m, errno);
 	return (NULL);
 }
 
 static void
-sender_cleanup(void __unused *arg)
+sender_cleanup(void *arg)
 {
+	struct mux *m;
 
-	mux_unlock();
+	m = (struct mux *)arg;
+	mux_unlock(m);
 }
 
 static int
-sender_waitforwork(int *what)
+sender_waitforwork(struct mux *m, int *what)
 {
 	int id;
 
-	mux_lock();
-	pthread_cleanup_push(sender_cleanup, NULL);
-	if (!sender_ready) {
-		pthread_cond_signal(&sender_started);
-		sender_ready = 1;
+	mux_lock(m);
+	pthread_cleanup_push(sender_cleanup, m);
+	if (!m->sender_ready) {
+		pthread_cond_signal(&m->sender_started);
+		m->sender_ready = 1;
 	}
-	while ((id = sender_scan(what)) == -1) {
-		sender_waiting = 1;
-		pthread_cond_wait(&sender_newwork, &mux_mtx);
+	while ((id = sender_scan(m, what)) == -1) {
+		m->sender_waiting = 1;
+		pthread_cond_wait(&m->sender_newwork, &m->lock);
 	}
-	sender_waiting = 0;
+	m->sender_waiting = 0;
 	pthread_cleanup_pop(1);
 	return (id);
 }
 
 /*
- * Scan for work to do for the sender.  Has to be
- * called with the mux_lock held.
+ * Scan for work to do for the sender.  Has to be called with
+ * the multiplexer lock held.
  */
 static int
-sender_scan(int *what)
+sender_scan(struct mux *m, int *what)
 {
 	struct chan *chan;
 	int id;
 
-	if (nchans <= 0)
+	if (m->nchans <= 0)
 		return (-1);
-	id = sender_lastid;
+	id = m->sender_lastid;
 	do {
 		id++;
-		if (id >= nchans)
+		if (id >= m->nchans)
 			id = 0;
-		chan = chans[id];
+		chan = m->channels[id];
 		chan_lock(chan);
 		if (chan->state != CS_UNUSED) {
 			if (chan->sendseq != chan->sendwin &&
@@ -927,12 +935,12 @@ sender_scan(int *what)
 					*what = CF_CLOSE;
 				chan->flags &= ~*what;
 				chan_unlock(chan);
-				sender_lastid = id;
+				m->sender_lastid = id;
 				return (id);
 			}
 		}
 		chan_unlock(chan);
-	} while (id != sender_lastid);
+	} while (id != m->sender_lastid);
 	return (-1);
 }
 
@@ -940,20 +948,23 @@ void *
 receiver_loop(void *arg)
 {
 	struct mux_header mh;
+	struct mux *m;
 	struct chan *chan;
 	struct buf *buf;
 	uint16_t size, len;
-	int error, s;
+	int error;
 
-	s = *(int *)arg;
-	while ((error = sock_readwait(s, &mh.type, sizeof(mh.type))) == 0) {
+	m = (struct mux *)arg;
+	while ((error = sock_readwait(m->socket, &mh.type,
+	    sizeof(mh.type))) == 0) {
 		switch (mh.type) {
 		case MUX_CONNECT:
-			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			error = sock_readwait(m->socket,
+			    (char *)&mh + sizeof(mh.type),
 			    MUX_CONNECTHDRSZ - sizeof(mh.type));
 			if (error)
 				goto bad;
-			chan = chan_get(mh.mh_connect.id);
+			chan = chan_get(m, mh.mh_connect.id);
 			if (chan->state == CS_LISTENING) {
 				chan->state = CS_ESTABLISHED;
 				chan->sendmss = ntohs(mh.mh_connect.mss);
@@ -963,14 +974,15 @@ receiver_loop(void *arg)
 			} else
 				chan->flags |= CF_RESET;
 			chan_unlock(chan);
-			sender_wakeup();
+			sender_wakeup(m);
 			break;
 		case MUX_ACCEPT:
-			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			error = sock_readwait(m->socket,
+			    (char *)&mh + sizeof(mh.type),
 			    MUX_ACCEPTHDRSZ - sizeof(mh.type));
 			if (error)
 				goto bad;
-			chan = chan_get(mh.mh_accept.id);
+			chan = chan_get(m, mh.mh_accept.id);
 			if (chan->state == CS_CONNECTING) {
 				chan->sendmss = ntohs(mh.mh_accept.mss);
 				chan->sendwin = ntohl(mh.mh_accept.window);
@@ -980,37 +992,40 @@ receiver_loop(void *arg)
 			} else {
 				chan->flags |= CF_RESET;
 				chan_unlock(chan);
-				sender_wakeup();
+				sender_wakeup(m);
 			}
 			break;
 		case MUX_RESET:
-			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			error = sock_readwait(m->socket,
+			    (char *)&mh + sizeof(mh.type),
 			    MUX_RESETHDRSZ - sizeof(mh.type));
 			if (error)
 				goto bad;
-			mux_shutdown(-1);
+			mux_shutdown(m, -1);
 			return (NULL);
 		case MUX_WINDOW:
-			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			error = sock_readwait(m->socket,
+			    (char *)&mh + sizeof(mh.type),
 			    MUX_WINDOWHDRSZ - sizeof(mh.type));
 			if (error)
 				goto bad;
-			chan = chan_get(mh.mh_window.id);
+			chan = chan_get(m, mh.mh_window.id);
 			if (chan->state == CS_ESTABLISHED ||
 			    chan->state == CS_RDCLOSED) {
 				chan->sendwin = ntohl(mh.mh_window.window);
 				chan_unlock(chan);
-				sender_wakeup();
+				sender_wakeup(m);
 			} else {
 				chan_unlock(chan);
 			}
 			break;
 		case MUX_DATA:
-			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			error = sock_readwait(m->socket,
+			    (char *)&mh + sizeof(mh.type),
 			    MUX_DATAHDRSZ - sizeof(mh.type));
 			if (error)
 				goto bad;
-			chan = chan_get(mh.mh_data.id);
+			chan = chan_get(m, mh.mh_data.id);
 			len = ntohs(mh.mh_data.len);
 			buf = chan->recvbuf;
 			if ((chan->state != CS_ESTABLISHED &&
@@ -1018,7 +1033,7 @@ receiver_loop(void *arg)
 			    (len > buf_avail(buf) ||
 			     len > chan->recvmss)) {
 				chan_unlock(chan);
-				mux_shutdown(-1);
+				mux_shutdown(m, -1);
 				return (NULL);
 			}
 			/*
@@ -1027,12 +1042,14 @@ receiver_loop(void *arg)
 			 */
 			chan_unlock(chan);
 			size = min(buf->size + 1 - buf->in, len);
-			error = sock_readwait(s, buf->data + buf->in, size);
+			error = sock_readwait(m->socket,
+			    buf->data + buf->in, size);
 			if (error)
 				goto bad;
 			if (len > size) {
 				/* Wrapping around. */
-				error = sock_readwait(s, buf->data, len - size);
+				error = sock_readwait(m->socket,
+				    buf->data, len - size);
 				if (error)
 					goto bad;
 			}
@@ -1044,29 +1061,30 @@ receiver_loop(void *arg)
 			chan_unlock(chan);
 			break;
 		case MUX_CLOSE:
-			error = sock_readwait(s, (char *)&mh + sizeof(mh.type),
+			error = sock_readwait(m->socket,
+			    (char *)&mh + sizeof(mh.type),
 			    MUX_CLOSEHDRSZ - sizeof(mh.type));
 			if (error)
 				goto bad;
-			chan = chan_get(mh.mh_close.id);
+			chan = chan_get(m, mh.mh_close.id);
 			if (chan->state == CS_ESTABLISHED)
 				chan->state = CS_RDCLOSED;
 			else if (chan->state == CS_WRCLOSED)
 				chan->state = CS_CLOSED;
 			else  {
-				mux_shutdown(-1);
+				mux_shutdown(m, -1);
 				return (NULL);
 			}
 			pthread_cond_signal(&chan->rdready);
 			chan_unlock(chan);
 			break;
 		default:
-			mux_shutdown(-1);
+			mux_shutdown(m, -1);
 			return (NULL);
 		}
 	}
 bad:
-	mux_shutdown(errno);
+	mux_shutdown(m, errno);
 	return (NULL);
 }
 
