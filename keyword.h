@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.h,v 1.7 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/keyword.h,v 1.8 2006/02/11 18:32:09 mux Exp $
  */
 #ifndef _KEYWORD_H_
 #define _KEYWORD_H_
