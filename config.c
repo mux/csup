@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.39 2006/02/02 23:15:03 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.40 2006/02/02 23:22:25 mux Exp $
  */
 
 #include <sys/types.h>
@@ -137,6 +137,8 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			cur->co_options &= ~CO_COMPRESS;
 		if (truststatus)
 			cur->co_options |= CO_TRUSTSTATUSFILE;
+		/* XXX We don't support the rsync updating algorithm yet. */
+		cur->co_options |= CO_NORSYNC;
 		if (colldir)
 			cur->co_colldir = colldir;
 		else
