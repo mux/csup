@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.70 2006/02/11 19:09:28 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.71 2006/02/11 19:15:03 mux Exp $
  */
 
 #include <sys/types.h>
@@ -126,8 +126,10 @@ updater(void *arg)
 			stream_filter_start(rd, STREAM_FILTER_ZLIB, NULL);
 
 		error = updater_docoll(coll, rd, st);
-		if (error)
-			goto bad;
+		if (error) {
+			stream_close(rd);
+			return (NULL);
+		}
 
 		status_close(st, &errmsg);
 		if (errmsg != NULL) {
@@ -145,7 +147,7 @@ updater(void *arg)
 	stream_close(rd);
 	return (NULL);
 bad:
-	lprintf(-1, "Updater: error (%s)\n", line);
+	lprintf(-1, "Updater: Protocol error\n");
 	stream_close(rd);
 	return (NULL);
 }
@@ -858,16 +860,12 @@ updater_prunedirs(char *base, char *file)
 	int error;
 
 	while ((cp = strrchr(file, '/')) != NULL) {
+		*cp = '\0';
 		if (strcmp(base, file) == 0)
 			return;
-		*cp = '\0';
 		error = rmdir(file);
-		if (error) {
-			if (errno != ENOTEMPTY)
-				/* XXX */
-				err(1, "rmdir");
+		if (error)
 			return;
-		}
 	}
 }
 
