@@ -23,14 +23,13 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.71 2006/02/11 19:15:03 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.72 2006/02/12 02:04:19 mux Exp $
  */
 
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include <assert.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>
@@ -792,14 +791,14 @@ updater_checkout(struct context *ctx, char *line)
 	lprintf(1, " Checkout %s\n", file + coll->co_prefixlen + 1);
 	error = mkdirhier(file, coll->co_umask);
 	if (error) {
-		lprintf(-1, "Updater: Cannot create directory hierarchy: %s\n",
-		    strerror(errno));
+		lprintf(-1, "Cannot create directories leading to \"%s\": %s\n",
+		    file, strerror(errno));
 		goto bad;
 	}
 
 	to = stream_open_file(file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (to == NULL) {
-		warn("stream_open_file(\"%s\")", file);
+		lprintf(-1, "%s: Cannot create: %s\n", file, strerror(errno));
 		goto bad;
 	}
 	stream_filter_start(to, STREAM_FILTER_MD5, md5);
