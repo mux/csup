@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.24 2006/01/30 22:06:02 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.25 2006/02/11 18:32:09 mux Exp $
  */
 
 #include <assert.h>
@@ -100,17 +100,51 @@ keyword_new(void)
 {
 	struct keyword *new;
 	struct tag *tag;
+	size_t len;
 	int i;
 
 	new = xmalloc(sizeof(struct keyword));
 	STAILQ_INIT(&new->keywords);
+	new->keyminlen = SIZE_T_MAX;
+	new->keymaxlen = 0;
 	for (i = 0; tag_defaults[i].ident != NULL; i++) {
 		tag = tag_new(tag_defaults[i].ident, tag_defaults[i].key);
 		STAILQ_INSERT_TAIL(&new->keywords, tag, next);
+		len = strlen(tag->ident);
+		/*
+		 * It is really weird that we're computing these values here
+		 * and that we don't update them when adding an alias.  I
+		 * originally thought it was a bug in CVSup, but when I tried
+		 * to update them when adding an alias, I had failures with
+		 * CVSup servers that really expected me to _not_ expand some
+		 * tag because it was longer than keymaxlen as computed here.
+		 */
+		new->keyminlen = min(new->keyminlen, len);
+		new->keymaxlen = max(new->keymaxlen, len);
 	}
-	new->keyminlen = SIZE_T_MAX;
-	new->keymaxlen = 0;
 	return (new);
+}
+
+int
+keyword_decode_expand(const char *expand)
+{
+
+	if (strcmp(expand, ".") == 0)
+		return (EXPAND_DEFAULT);
+	else if (strcmp(expand, "kv") == 0)
+		return (EXPAND_KEYVALUE);
+	else if (strcmp(expand, "kvl") == 0)
+		return (EXPAND_KEYVALUELOCKER);
+	else if (strcmp(expand, "k") == 0)
+		return (EXPAND_KEY);
+	else if (strcmp(expand, "o") == 0)
+		return (EXPAND_OLD);
+	else if (strcmp(expand, "b") == 0)
+		return (EXPAND_BINARY);
+	else if (strcmp(expand, "v") == 0)
+		return (EXPAND_VALUE);
+	else
+		return (-1);
 }
 
 void
@@ -197,16 +231,12 @@ void
 keyword_prepare(struct keyword *keyword)
 {
 	struct tag *tag, *temp;
-	size_t len;
 
 	STAILQ_FOREACH_SAFE(tag, &keyword->keywords, next, temp) {
 		if (!tag->enabled) {
 			STAILQ_REMOVE(&keyword->keywords, tag, tag, next);
 			continue;
 		}
-		len = strlen(tag->ident);
-		keyword->keyminlen = min(keyword->keyminlen, len);
-		keyword->keymaxlen = max(keyword->keymaxlen, len);
 	}
 }
 

@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.72 2006/02/12 02:04:19 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.73 2006/02/12 02:11:50 mux Exp $
  */
 
 #include <sys/types.h>
@@ -479,21 +479,8 @@ updater_diff_parseln(struct context *ctx, char *line)
 		return (-1);
 	}
 
-	if (strcmp(expand, ".") == 0)
-		ctx->expand = EXPAND_DEFAULT;
-	else if (strcmp(expand, "kv") == 0)
-		ctx->expand = EXPAND_KEYVALUE;
-	else if (strcmp(expand, "kvl") == 0)
-		ctx->expand = EXPAND_KEYVALUELOCKER;
-	else if (strcmp(expand, "k") == 0)
-		ctx->expand = EXPAND_KEY;
-	else if (strcmp(expand, "o") == 0)
-		ctx->expand = EXPAND_OLD;
-	else if (strcmp(expand, "b") == 0)
-		ctx->expand = EXPAND_BINARY;
-	else if (strcmp(expand, "v") == 0)
-		ctx->expand = EXPAND_VALUE;
-	else
+	ctx->expand = keyword_decode_expand(expand);
+	if (ctx->expand == -1)
 		return (-1);
 
 	ctx->tag = xstrdup(tag);
