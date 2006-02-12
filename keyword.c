@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.25 2006/02/11 18:32:09 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.26 2006/02/12 04:10:28 mux Exp $
  */
 
 #include <assert.h>
@@ -71,8 +71,8 @@ static void		 tag_free(struct tag *);
 
 struct keyword {
 	STAILQ_HEAD(, tag) keywords;		/* Enabled keywords. */
-	size_t keyminlen;
-	size_t keymaxlen;
+	size_t minkeylen;
+	size_t maxkeylen;
 };
 
 /* Default CVS keywords. */
@@ -105,8 +105,8 @@ keyword_new(void)
 
 	new = xmalloc(sizeof(struct keyword));
 	STAILQ_INIT(&new->keywords);
-	new->keyminlen = SIZE_T_MAX;
-	new->keymaxlen = 0;
+	new->minkeylen = SIZE_T_MAX;
+	new->maxkeylen = 0;
 	for (i = 0; tag_defaults[i].ident != NULL; i++) {
 		tag = tag_new(tag_defaults[i].ident, tag_defaults[i].key);
 		STAILQ_INSERT_TAIL(&new->keywords, tag, next);
@@ -117,10 +117,10 @@ keyword_new(void)
 		 * originally thought it was a bug in CVSup, but when I tried
 		 * to update them when adding an alias, I had failures with
 		 * CVSup servers that really expected me to _not_ expand some
-		 * tag because it was longer than keymaxlen as computed here.
+		 * tag because it was longer than maxkeylen as computed here.
 		 */
-		new->keyminlen = min(new->keyminlen, len);
-		new->keymaxlen = max(new->keymaxlen, len);
+		new->minkeylen = min(new->minkeylen, len);
+		new->maxkeylen = max(new->maxkeylen, len);
 	}
 	return (new);
 }
@@ -296,8 +296,8 @@ again:
 	if (valstart == NULL || valstart > vallim)
 		valstart = vallim;
 
-	if (valstart < keystart + keyword->keyminlen ||
-	    valstart > keystart + keyword->keymaxlen) {
+	if (valstart < keystart + keyword->minkeylen ||
+	    valstart > keystart + keyword->maxkeylen) {
 		cp = vallim;
 		left -= vallim -keystart;
 		goto again;
