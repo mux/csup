@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.h,v 1.20 2006/02/10 18:18:47 mux Exp $
+ * $FreeBSD: projects/csup/mux.h,v 1.21 2006/02/11 02:27:58 mux Exp $
  */
 #ifndef _MUX_H_
 #define _MUX_H_
@@ -34,7 +34,6 @@ struct chan;
 struct mux	*mux_open(int, struct chan **);
 void		 mux_close(struct mux *);
 
-void		 chan_wait(struct chan *);
 int		 chan_listen(struct mux *);
 struct chan	*chan_accept(struct mux *, int);
 ssize_t		 chan_read(struct chan *, void *, size_t);

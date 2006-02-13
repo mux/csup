@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.64 2006/02/11 02:27:58 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.65 2006/02/11 18:32:09 mux Exp $
  */
 
 #include <sys/param.h>
@@ -489,8 +489,6 @@ proto_init(struct config *config)
 	lprintf(2, "Shutting down connection to server\n");
 	chan_close(config->chan0);
 	chan_close(config->chan1);
-	chan_wait(config->chan0);
-	chan_wait(config->chan1);
 	mux_close(m);
 	lprintf(2, "Finished successfully\n");
 	fattr_fini();
