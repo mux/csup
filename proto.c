@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.65 2006/02/11 18:32:09 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.66 2006/02/13 04:47:44 mux Exp $
  */
 
 #include <sys/param.h>
@@ -31,9 +31,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
-#include <netinet/in.h>
-#include <arpa/inet.h>
 
 #include <err.h>
 #include <errno.h>
@@ -77,11 +74,10 @@ static void		 proto_unescape(char *);
 int
 proto_connect(struct config *config, int family, uint16_t port)
 {
-	char addrbuf[128];
-	/* This is large enough to hold sizeof("cvsup") or any port number. */
+	char addrbuf[NI_MAXHOST];
+	/* Enough to hold sizeof("cvsup") or any port number. */
 	char servname[8];
 	struct addrinfo *res, *ai, hints;
-	const char *addr;
 	fd_set connfd;
 	int error, ok, rv, s;
 
@@ -129,10 +125,8 @@ proto_connect(struct config *config, int family, uint16_t port)
 				close(s);
 		}
 		if (s == -1 || error) {
-			addr = inet_ntop(ai->ai_family, ai->ai_addr, addrbuf,
-			    sizeof(addrbuf));
-			if (addr == NULL)
-				err(1, "inet_ntop");
+			getnameinfo(ai->ai_addr, ai->ai_addrlen, addrbuf,
+			    sizeof(addrbuf), NULL, 0, NI_NUMERICHOST);
 			lprintf(0, "Cannot connect to %s: %s\n", addrbuf,
 			    strerror(errno));
 			continue;
