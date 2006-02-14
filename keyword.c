@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.26 2006/02/12 04:10:28 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.27 2006/02/12 15:22:33 mux Exp $
  */
 
 #include <assert.h>
@@ -105,7 +105,7 @@ keyword_new(void)
 
 	new = xmalloc(sizeof(struct keyword));
 	STAILQ_INIT(&new->keywords);
-	new->minkeylen = SIZE_T_MAX;
+	new->minkeylen = ~0;
 	new->maxkeylen = 0;
 	for (i = 0; tag_defaults[i].ident != NULL; i++) {
 		tag = tag_new(tag_defaults[i].ident, tag_defaults[i].key);
