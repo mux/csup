@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.66 2006/02/13 04:47:44 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.67 2006/02/14 21:58:05 mux Exp $
  */
 
 #include <sys/param.h>
@@ -125,7 +125,7 @@ proto_connect(struct config *config, int family, uint16_t port)
 				close(s);
 		}
 		if (s == -1 || error) {
-			getnameinfo(ai->ai_addr, ai->ai_addrlen, addrbuf,
+			(void)getnameinfo(ai->ai_addr, ai->ai_addrlen, addrbuf,
 			    sizeof(addrbuf), NULL, 0, NI_NUMERICHOST);
 			lprintf(0, "Cannot connect to %s: %s\n", addrbuf,
 			    strerror(errno));
