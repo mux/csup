@@ -23,13 +23,12 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.27 2006/02/12 15:22:33 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.28 2006/02/14 21:22:18 mux Exp $
  */
 
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
