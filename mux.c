@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.62 2006/02/11 04:13:43 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.63 2006/02/13 04:47:44 mux Exp $
  */
 
 #include <sys/param.h>
@@ -379,6 +379,16 @@ chan_close(struct chan *chan)
 	chan_unlock(chan);
 	sender_wakeup(chan->mux);
 	return (0);
+}
+
+void
+chan_wait(struct chan *chan)
+{
+
+	chan_lock(chan);
+	while (chan->state != CS_CLOSED)
+		pthread_cond_wait(&chan->rdready, &chan->lock);
+	chan_unlock(chan);
 }
 
 /* Returns the ID of an available channel in the listening state. */

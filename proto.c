@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.67 2006/02/14 21:58:05 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.68 2006/02/14 22:03:43 mux Exp $
  */
 
 #include <sys/param.h>
@@ -408,7 +408,7 @@ proto_mux(struct config *config)
 	stream_flush(s);
 	m = mux_open(config->socket, &chan0);
 	if (m == NULL) {
-		lprintf(-1, "mux_open() failed\n");
+		lprintf(-1, "Cannot open the multiplexer\n");
 		return (NULL);
 	}
 	id = chan_listen(m);
@@ -483,6 +483,8 @@ proto_init(struct config *config)
 	lprintf(2, "Shutting down connection to server\n");
 	chan_close(config->chan0);
 	chan_close(config->chan1);
+	chan_wait(config->chan0);
+	chan_wait(config->chan1);
 	mux_close(m);
 	lprintf(2, "Finished successfully\n");
 	fattr_fini();
