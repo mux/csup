@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.68 2006/02/14 22:03:43 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.69 2006/02/15 03:24:55 mux Exp $
  */
 
 #include <sys/param.h>
@@ -60,6 +60,7 @@
 #define	PROTO_MIN	0
 #define	PROTO_SWVER	"CSUP_0_1"
 
+static int		 proto_waitconnect(int);
 static int		 proto_greet(struct config *);
 static int		 proto_negproto(struct config *);
 static int		 proto_login(struct config *);
@@ -70,6 +71,36 @@ static struct mux	*proto_mux(struct config *);
 static int		 proto_escape(struct stream *, const char *);
 static void		 proto_unescape(char *);
 
+static int
+proto_waitconnect(int s)
+{
+	fd_set readfd;
+	socklen_t len;
+	int error, rv, soerror;
+
+	FD_ZERO(&readfd);
+	FD_SET(s, &readfd);
+
+	do {
+		rv = select(s + 1, &readfd, NULL, NULL, NULL);
+	} while (rv == -1 && errno == EINTR);
+	if (rv == -1)
+		return (-1);
+	/* Check that the connection was really successful. */
+	len = sizeof(soerror);
+	error = getsockopt(s, SOL_SOCKET, SO_ERROR, &soerror, &len);
+	if (error) {
+		/* We have no choice but faking an error here. */
+		errno = ECONNREFUSED;
+		return (-1);
+	}
+	if (soerror) {
+		errno = soerror;
+		return (-1);
+	}
+	return (0);
+}
+
 /* Connect to the CVSup server. */
 int
 proto_connect(struct config *config, int family, uint16_t port)
@@ -78,8 +109,7 @@ proto_connect(struct config *config, int family, uint16_t port)
 	/* Enough to hold sizeof("cvsup") or any port number. */
 	char servname[8];
 	struct addrinfo *res, *ai, hints;
-	fd_set connfd;
-	int error, ok, rv, s;
+	int error, ok, s;
 
 	s = -1;
 	if (port != 0)
@@ -111,16 +141,8 @@ proto_connect(struct config *config, int family, uint16_t port)
 		s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (s != -1) {
 			error = connect(s, ai->ai_addr, ai->ai_addrlen);
-			if (error && errno == EINTR) {
-				FD_ZERO(&connfd);
-				FD_SET(s, &connfd);
-				do {
-					rv = select(s + 1, &connfd,
-					    NULL, NULL, NULL);
-				} while (rv == -1 && errno == EINTR);
-				if (rv == 1)
-					error = 0;
-			}
+			if (error && errno == EINTR)
+				error = proto_waitconnect(s);
 			if (error)
 				close(s);
 		}
