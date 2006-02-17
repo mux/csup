@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.70 2006/02/16 00:51:22 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.71 2006/02/17 23:29:17 mux Exp $
  */
 
 #include <sys/param.h>
@@ -32,7 +32,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include <err.h>
+#include <assert.h>
 #include <errno.h>
 #include <netdb.h>
 #include <stdarg.h>
@@ -44,7 +44,6 @@
 
 #include "config.h"
 #include "detailer.h"
-#include "diff.h"
 #include "fattr.h"
 #include "keyword.h"
 #include "lister.h"
@@ -621,10 +620,12 @@ proto_printf(struct stream *wr, const char *format, ...)
 			break;
 		case 'S':
 			s = va_arg(ap, char *);
+			assert(s != NULL);
 			rv = stream_printf(wr, "%s", s);
 			break;
 		case 's':
 			s = va_arg(ap, char *);
+			assert(s != NULL);
 			if (s == NULL)
 				break;
 			rv = proto_escape(wr, s);
