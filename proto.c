@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.69 2006/02/15 03:24:55 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.70 2006/02/16 00:51:22 mux Exp $
  */
 
 #include <sys/param.h>
@@ -711,11 +711,14 @@ proto_get_ascii(char **s)
 {
 	char *ret;
 
-	if (s == NULL)
-		return (NULL);
 	ret = strsep(s, " ");
 	if (ret == NULL)
 		return (NULL);
+	/* Make sure we disallow 0-length fields. */
+	if (*ret == '\0') {
+		*s = NULL;
+		return (NULL);
+	}
 	proto_unescape(ret);
 	return (ret);
 }
