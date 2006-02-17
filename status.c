@@ -337,6 +337,7 @@ status_wrraw(struct status *st, struct statusrec *sr, char *line)
 		break;
 	default:
 		assert(0);
+		return (-1);
 	}
 	if (sr->sr_type == SR_DIRDOWN)
 		error = proto_printf(st->wr, "%c %S\n", cmd, sr->sr_file);
