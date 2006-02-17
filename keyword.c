@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.28 2006/02/14 21:22:18 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.29 2006/02/14 21:23:18 mux Exp $
  */
 
 #include <assert.h>
@@ -234,6 +234,7 @@ keyword_prepare(struct keyword *keyword)
 	STAILQ_FOREACH_SAFE(tag, &keyword->keywords, next, temp) {
 		if (!tag->enabled) {
 			STAILQ_REMOVE(&keyword->keywords, tag, tag, next);
+			tag_free(tag);
 			continue;
 		}
 	}
