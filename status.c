@@ -92,6 +92,8 @@ statusrec_cook(struct statusrec *sr, char *line)
 	switch (sr->sr_type) {
 	case SR_DIRDOWN:
 		/* Nothing to do. */
+		if (line != NULL)
+			return (-1);
 		break;
 	case SR_CHECKOUTLIVE:
 		sr->sr_tag = proto_get_ascii(&line);
@@ -112,7 +114,6 @@ statusrec_cook(struct statusrec *sr, char *line)
 		}
 		break;
 	case SR_CHECKOUTDEAD:
-		sr->sr_type = SR_CHECKOUTDEAD;
 		sr->sr_tag = proto_get_ascii(&line);
 		sr->sr_date = proto_get_ascii(&line);
 		serverattr = proto_get_ascii(&line);
@@ -148,7 +149,7 @@ status_rd(struct status *st)
 		return (NULL);
 	error = statusrec_cook(sr, line);
 	if (error) {
-		xasprintf(&st->errmsg, "Error in \"%s\" line %d: "
+		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
 		    "Could not parse status record", st->path, st->linenum);
 		return (NULL);
 	}
@@ -182,7 +183,7 @@ status_rdraw(struct status *st, char **linep)
 	cmd = proto_get_ascii(&line);
 	file = proto_get_ascii(&line);
 	if (file == NULL) {
-		xasprintf(&st->errmsg, "Error in \"%s\" line %d: "
+		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
 		    "Could not parse status record", st->path, st->linenum);
 		return (NULL);
 	}
@@ -197,14 +198,14 @@ status_rdraw(struct status *st, char **linep)
 	} else if (strcmp(cmd, "U") == 0) {
 		sr.sr_type = SR_DIRUP;
 		if (st->depth <= 0) {
-			xasprintf(&st->errmsg, "Error in \"%s\" line %d: "
+			xasprintf(&st->errmsg, "Error in \"%s\": %d: "
 			    "\"U\" entry has no matching \"D\"", st->path,
 			    st->linenum);
 			return (NULL);
 		}
 		st->depth--;
 	} else {
-		xasprintf(&st->errmsg, "Error in \"%s\" line %d: "
+		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
 		    "Invalid file type \"%s\"", st->path, st->linenum, cmd);
 		return (NULL);
 	}
@@ -212,7 +213,7 @@ status_rdraw(struct status *st, char **linep)
 	sr.sr_file = xstrdup(file);
 	if (st->previous != NULL &&
 	    statusrec_cmp(st->previous, &sr) >= 0) {
-		xasprintf(&st->errmsg, "Error in \"%s\" line %d: "
+		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
 		    "File is not sorted properly", st->path, st->linenum);
 		free(sr.sr_file);
 		return (NULL);
@@ -621,7 +622,7 @@ status_get(struct status *st, char *name, int isdirup, int deleteto,
 		}
 		error = statusrec_cook(sr, line);
 		if (error) {
-			xasprintf(&st->errmsg, "Error in \"%s\" line %d: "
+			xasprintf(&st->errmsg, "Error in \"%s\": %d: "
 			    "Could not parse status record", st->path,
 			    st->linenum);
 			return (-1);
