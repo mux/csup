@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.34 2006/02/11 19:20:33 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.35 2006/02/11 19:28:57 mux Exp $
  */
 
 #include <sys/time.h>
@@ -574,25 +574,25 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 		errno = 0;
 		fa->mask = (int)strtol(attrstart, &end, FA_MASKRADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_FILETYPE:
 		errno = 0;
 		fa->type = (int)strtol(attrstart, &end, FA_FILETYPERADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_MODTIME:
 		errno = 0;
 		fa->modtime = (time_t)strtoll(attrstart, &end, FA_MODTIMERADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_SIZE:
 		errno = 0;
 		fa->size = (off_t)strtoll(attrstart, &end, FA_SIZERADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_LINKTARGET:
 		fa->linktarget = xstrdup(attrstart);
@@ -601,7 +601,7 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 		errno = 0;
 		fa->rdev = (dev_t)strtoll(attrstart, &end, FA_RDEVRADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_OWNER:
 		/*
@@ -625,7 +625,7 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 		errno = 0;
 		fa->mode = (mode_t)strtol(attrstart, &end, FA_MODERADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		if (fa->mask & FA_OWNER && fa->mask & FA_GROUP)
 			modemask = FA_SETIDMASK | FA_PERMMASK;
 		else
@@ -636,29 +636,32 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 		errno = 0;
 		fa->flags = (fflags_t)strtoul(attrstart, &end, FA_FLAGSRADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_LINKCOUNT:
 		errno = 0;
 		fa->linkcount = (nlink_t)strtol(attrstart, &end, FA_FLAGSRADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_DEV:
 		errno = 0;
 		fa->dev = (dev_t)strtoll(attrstart, &end, FA_DEVRADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	case FA_INODE:
 		errno = 0;
 		fa->inode = (ino_t)strtoll(attrstart, &end, FA_INODERADIX);
 		if (errno || end != attrend)
-			return (NULL);
+			goto bad;
 		break;
 	}
 	*attrend = tmp;
 	return (attrend);
+bad:
+	*attrend = tmp;
+	return (NULL);
 }
 
 /* Return a file attribute structure built from the RCS file attributes. */
