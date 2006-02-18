@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.63 2006/02/13 04:47:44 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.64 2006/02/15 03:24:55 mux Exp $
  */
 
 #include <sys/param.h>
@@ -273,13 +273,11 @@ sock_readwait(int s, void *buf, size_t size)
 	while (left > 0) {
 		nbytes = sock_read(s, cp, left);
 		if (nbytes == 0) {
-			lprintf(-1, "Receiver: Connection reset by peer\n");
+			errno = ECONNRESET;
 			return (-1);
 		}
-		if (nbytes < 0) {
-			lprintf(-1, "Receiver: %s\n", strerror(errno));
+		if (nbytes < 0)
 			return (-1);
-		}
 		left -= nbytes;
 		cp += nbytes;
 	}
