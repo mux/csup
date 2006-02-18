@@ -1,5 +1,5 @@
 # A simple gmake Makefile, to be used on Linux and Darwin.
-# $Id$
+# $FreeBSD$
 #
 
 PREFIX?=/usr/local

@@ -1,20 +1,21 @@
-$FreeBSD$
+$FreeBSD: projects/csup/README,v 1.3 2006/02/01 23:48:22 mux Exp $
 
 Authors
 -------
 
-CVSup was originally written in Modula-3 by John Polstra <jdp@polstra.com>.
+CVSup was originally written in Modula-3 by
+	John Polstra <jdp@polstra.com>.
 
 Csup is a rewrite of CVSup in C.  It has been mostly written by
-Maxime Henrion <mux@FreeBSD.org>.
+	Maxime Henrion <mux@FreeBSD.org>.
 
 A few contributors have helped him in his task and they are listed here in
 alphabetical order :
 
-Olivier Houchard <cognet@FreeBSD.org>
-Ulf Lilleengen <lulf@kerneled.org>
-Christoph Mathys <cmathys@bluewin.ch>	(Google Summer of Code Project)
-Etienne Vidal <etienne.vidal@gmail.com>
+	Olivier Houchard <cognet@FreeBSD.org>
+	Ulf Lilleengen <lulf@kerneled.org>
+	Christoph Mathys <cmathys@bluewin.ch>	(Google SoC Project)
+	Etienne Vidal <etienne.vidal@gmail.com>
 
 
 Building & Installing
@@ -24,11 +25,15 @@ Csup should build and run fine under any *BSD OS (that includes FreeBSD,
 NetBSD, OpenBSD and DragonFlyBSD), as well as Linux and Darwin.  If you
 have a problem building from source, drop me a mail!
 
-If you're running a *BSD system, you can just run "make" followed by
-"make install".  However, if you're a Linux or Darwin user, you need to
-use the gmake-specific Makefile, so run "make -f Makefile.gmake", and
-then "make -f Makefile.gmake install" to install.
+There is one Makefile specifically tailored for *BSD systems named
+Makefile and another one that is gmake-specific for Darwin and Linux
+users named GNUmakefile.  You don't really need to worry about that
+since whatever your "make" command is, it should pick up the correct
+Makefile.
 
-Be warned however that if the packaging system of your OS knows about csup,
-it is certainly better to install it from there rather than by hand, so
-that it can then be properly deinstalled.
+As usual, to build the source code, just run "make".  Once this is done,
+just run "make install" to install the binary and manual page.
+
+Be warned however that if the packaging system of your OS knows about
+csup, it is certainly better to install it from there rather than by
+hand, so that it can then be properly deinstalled.
