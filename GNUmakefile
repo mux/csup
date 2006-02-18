@@ -1,5 +1,8 @@
-# A simple gmake Makefile, to be used on Linux and Darwin.
-# $FreeBSD$
+# A simple gmake Makefile, to be used on Linux and Darwin.  It shouldn't
+# be used elsewhere because it assumes that the target system doesn't
+# support BSD extended file flags.
+#
+# $FreeBSD: projects/csup/GNUmakefile,v 1.1 2006/02/18 11:56:27 mux Exp $
 #
 
 PREFIX?=/usr/local
