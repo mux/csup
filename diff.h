@@ -23,31 +23,28 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/diff.h,v 1.8 2006/01/27 17:13:49 mux Exp $
  */
 #ifndef _DIFF_H_
 #define _DIFF_H_
 
 struct stream;
 struct keyword;
+struct file_update;
 
 /* Description of an RCS delta. */
-struct diff {
-	char *d_rcsfile;			/* RCS filename */
-	char *d_cvsroot;			/* CVS root prefix */
-	char *d_revnum;				/* Revision number */
-	char *d_revdate;			/* Revision date */
-	char *d_author;				/* Author of the delta */
-	char *d_log;				/* Commit log message */
-	char *d_tag;				/* CVS tag, if any */
-	//intmax_t d_loglines;			/* Number of "Log" lines */
-	char *d_state;				/* State of the branch */
-	struct stream *d_diff;			/* The delta */
-	struct stream *d_orig;			/* Original file */
-	struct stream *d_to;			/* Target file */
-	int d_expand;				/* CVS expansion mode */
+struct diffinfo {
+	char *di_rcsfile;			/* RCS filename */
+	char *di_cvsroot;			/* CVS root prefix */
+	char *di_revnum;			/* Revision number */
+	char *di_revdate;			/* Revision date */
+	char *di_author;			/* Author of the delta */
+	char *di_tag;				/* CVS tag, if any */
+	char *di_state;				/* State of the branch */
+	int di_expand;				/* CVS expansion mode */
 };
 
-int		 diff_apply(struct diff *, struct keyword *);
+int		 diff_apply(struct stream *, struct stream *, struct stream *,
+		     struct keyword *, struct diffinfo *);
 
 #endif /* !_DIFF_H_ */

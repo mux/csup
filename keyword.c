@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.29 2006/02/14 21:23:18 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.30 2006/02/17 20:50:12 mux Exp $
  */
 
 #include <assert.h>
@@ -39,6 +39,13 @@
 #include "misc.h"
 #include "queue.h"
 #include "stream.h"
+
+/*
+ * The keyword API is used to expand the CVS/RCS keywords in files,
+ * such as $Id$, $Revision$, etc.  The server does it for us when it
+ * sends us entire files, but we need to handle the expansion when
+ * applying a diff update.
+ */
 
 enum rcskey {
 	RCSKEY_AUTHOR,
@@ -65,7 +72,7 @@ struct tag {
 };
 
 static struct tag	*tag_new(const char *, rcskey_t);
-static char		*tag_expand(struct tag *, struct diff *);
+static char		*tag_expand(struct tag *, struct diffinfo *);
 static void		 tag_free(struct tag *);
 
 struct keyword {
@@ -111,12 +118,11 @@ keyword_new(void)
 		STAILQ_INSERT_TAIL(&new->keywords, tag, next);
 		len = strlen(tag->ident);
 		/*
-		 * It is really weird that we're computing these values here
-		 * and that we don't update them when adding an alias.  I
-		 * originally thought it was a bug in CVSup, but when I tried
-		 * to update them when adding an alias, I had failures with
-		 * CVSup servers that really expected me to _not_ expand some
-		 * tag because it was longer than maxkeylen as computed here.
+		 * These values are only computed here and not updated when
+		 * adding an alias.  This is a bug, but CVSup has it and we
+		 * need to be bug-to-bug compatible since the server will
+		 * expect us to do the same, and we will fail with an MD5
+		 * checksum mismatch if we don't.
 		 */
 		new->minkeylen = min(new->minkeylen, len);
 		new->maxkeylen = max(new->maxkeylen, len);
@@ -248,7 +254,7 @@ keyword_prepare(struct keyword *keyword)
  * caller after use.
  */
 int
-keyword_expand(struct keyword *keyword, struct diff *diff, char *line,
+keyword_expand(struct keyword *keyword, struct diffinfo *di, char *line,
     size_t size, char **buf, size_t *len)
 {
 	struct tag *tag;
@@ -256,7 +262,7 @@ keyword_expand(struct keyword *keyword, struct diff *diff, char *line,
 	char *linestart, *newline, *newval, *cp, *tmp;
 	size_t left, newsize, vallen;
 
-	if (diff->d_expand == EXPAND_OLD || diff->d_expand == EXPAND_BINARY)
+	if (di->di_expand == EXPAND_OLD || di->di_expand == EXPAND_BINARY)
 		return (0);
 	newline = NULL;
 	newsize = 0;
@@ -310,7 +316,7 @@ again:
 			else
 				tmp = NULL;
 			newval = NULL;
-			if (diff->d_expand == EXPAND_KEY) {
+			if (di->di_expand == EXPAND_KEY) {
 				newsize = dollar - linestart + 1 +
 				    valstart - keystart + 1 +
 				    size - (vallim + 1 - linestart);
@@ -325,8 +331,8 @@ again:
 				next = cp;
 				memcpy(cp, vallim + 1,
 				    size - (vallim + 1 - linestart));
-			} else if (diff->d_expand == EXPAND_VALUE) {
-				newval = tag_expand(tag, diff);
+			} else if (di->di_expand == EXPAND_VALUE) {
+				newval = tag_expand(tag, di);
 				if (newval == NULL)
 					vallen = 0;
 				else
@@ -346,10 +352,10 @@ again:
 				memcpy(cp, vallim + 1,
 				    size - (vallim + 1 - linestart));
 			} else {
-				assert(diff->d_expand == EXPAND_DEFAULT ||
-				    diff->d_expand == EXPAND_KEYVALUE ||
-				    diff->d_expand == EXPAND_KEYVALUELOCKER);
-				newval = tag_expand(tag, diff);
+				assert(di->di_expand == EXPAND_DEFAULT ||
+				    di->di_expand == EXPAND_KEYVALUE ||
+				    di->di_expand == EXPAND_KEYVALUELOCKER);
+				newval = tag_expand(tag, di);
 				if (newval == NULL)
 					vallen = 0;
 				else
@@ -421,7 +427,7 @@ tag_free(struct tag *tag)
  * is returned, the tag is empty.
  */
 static char *
-tag_expand(struct tag *tag, struct diff *diff)
+tag_expand(struct tag *tag, struct diffinfo *di)
 {
 	/*
 	 * CVS formats dates as "XXXX/XX/XX XX:XX:XX".  32 bytes
@@ -431,38 +437,38 @@ tag_expand(struct tag *tag, struct diff *diff)
 	struct tm tm;
 	char *cp, *filename, *val;
 
-	cp = strptime(diff->d_revdate, "%Y.%m.%d.%H.%M.%S", &tm);
+	cp = strptime(di->di_revdate, "%Y.%m.%d.%H.%M.%S", &tm);
 	if (cp == NULL)
-		cp = strptime(diff->d_revdate, "%y.%m.%d.%H.%M.%S", &tm);
+		cp = strptime(di->di_revdate, "%y.%m.%d.%H.%M.%S", &tm);
 	if (cp == NULL || *cp != '\0')
 		err(1, "strptime");
 	if (strftime(cvsdate, sizeof(cvsdate), "%Y/%m/%d %H:%M:%S", &tm) == 0)
 		err(1, "strftime");
-	filename = strrchr(diff->d_rcsfile, '/');
+	filename = strrchr(di->di_rcsfile, '/');
 	if (filename == NULL)
-		filename = diff->d_rcsfile;
+		filename = di->di_rcsfile;
 	else
 		filename++;
 
 	switch (tag->key) {
 	case RCSKEY_AUTHOR:
-		xasprintf(&val, "%s", diff->d_author);
+		xasprintf(&val, "%s", di->di_author);
 		break;
 	case RCSKEY_CVSHEADER:
-		xasprintf(&val, "%s %s %s %s %s", diff->d_rcsfile,
-		    diff->d_revnum, cvsdate, diff->d_author, diff->d_state);
+		xasprintf(&val, "%s %s %s %s %s", di->di_rcsfile,
+		    di->di_revnum, cvsdate, di->di_author, di->di_state);
 		break;
 	case RCSKEY_DATE:
 		xasprintf(&val, "%s", cvsdate);
 		break;
 	case RCSKEY_HEADER:
-		xasprintf(&val, "%s/%s %s %s %s %s", diff->d_cvsroot,
-		    diff->d_rcsfile, diff->d_revnum, cvsdate, diff->d_author,
-		    diff->d_state);
+		xasprintf(&val, "%s/%s %s %s %s %s", di->di_cvsroot,
+		    di->di_rcsfile, di->di_revnum, cvsdate, di->di_author,
+		    di->di_state);
 		break;
 	case RCSKEY_ID:
-		xasprintf(&val, "%s %s %s %s %s", filename, diff->d_revnum,
-		    cvsdate, diff->d_author, diff->d_state);
+		xasprintf(&val, "%s %s %s %s %s", filename, di->di_revnum,
+		    cvsdate, di->di_author, di->di_state);
 		break;
 	case RCSKEY_LOCKER:
 		/*
@@ -475,8 +481,8 @@ tag_expand(struct tag *tag, struct diff *diff)
 		printf("%s: Implement Log keyword expansion\n", __func__);
 		return (NULL);
 	case RCSKEY_NAME:
-		if (diff->d_tag != NULL)
-			xasprintf(&val, "%s", diff->d_tag);
+		if (di->di_tag != NULL)
+			xasprintf(&val, "%s", di->di_tag);
 		else
 			return (NULL);
 		break;
@@ -484,13 +490,13 @@ tag_expand(struct tag *tag, struct diff *diff)
 		xasprintf(&val, "%s", filename);
 		break;
 	case RCSKEY_REVISION:
-		xasprintf(&val, "%s", diff->d_revnum);
+		xasprintf(&val, "%s", di->di_revnum);
 		break;
 	case RCSKEY_SOURCE:
-		xasprintf(&val, "%s/%s", diff->d_cvsroot, diff->d_rcsfile);
+		xasprintf(&val, "%s/%s", di->di_cvsroot, di->di_rcsfile);
 		break;
 	case RCSKEY_STATE:
-		xasprintf(&val, "%s", diff->d_state);
+		xasprintf(&val, "%s", di->di_state);
 		break;
 	}
 	return (val);

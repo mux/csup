@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/diff.c,v 1.19 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <assert.h>
@@ -34,8 +34,8 @@
 
 #include "diff.h"
 #include "keyword.h"
-#include "stream.h"
 #include "misc.h"
+#include "stream.h"
 
 typedef long lineno_t;
 
@@ -50,9 +50,11 @@ struct editcmd {
 	lineno_t lasta;
 	lineno_t lastd;
 	lineno_t editline;
-	/* Those are here for convenience. */
-	struct diff *diff;
+	/* For convenience. */
 	struct keyword *keyword;
+	struct diffinfo *di;
+	struct stream *orig;
+	struct stream *dest;
 };
 
 static int	diff_geteditcmd(struct editcmd *, char *);
@@ -60,7 +62,8 @@ static int	diff_copyln(struct editcmd *, lineno_t);
 static void	diff_write(struct editcmd *, void *, size_t);
 
 int
-diff_apply(struct diff *diff, struct keyword *keyword)
+diff_apply(struct stream *rd, struct stream *orig, struct stream *dest,
+    struct keyword *keyword, struct diffinfo *di)
 {
 	struct editcmd ec;
 	lineno_t i;
@@ -71,9 +74,11 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 	memset(&ec, 0, sizeof(ec));
 	empty = 0;
 	noeol = 0;
-	ec.diff = diff;
+	ec.di = di;
 	ec.keyword = keyword;
-	line = stream_getln(diff->d_diff, NULL);
+	ec.orig = orig;
+	ec.dest = dest;
+	line = stream_getln(rd, NULL);
 	while (line != NULL && strcmp(line, ".") != 0 &&
 	    strcmp(line, ".+") != 0) {
 		/*
@@ -84,7 +89,7 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 			if (empty)
 				return (-1);
 			empty = 1;
-			line = stream_getln(diff->d_diff, NULL);
+			line = stream_getln(rd, NULL);
 			continue;
 		}
 		error = diff_geteditcmd(&ec, line);
@@ -96,7 +101,7 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 			if (error)
 				return (-1);
 			for (i = 0; i < ec.count; i++) {
-				line = stream_getln(diff->d_diff, &size);
+				line = stream_getln(rd, &size);
 				if (line == NULL)
 					return (-1);
 				if (line[0] == '.') {
@@ -111,13 +116,13 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 			if (error)
 				return (-1);
 			for (i = 0; i < ec.count; i++) {
-				line = stream_getln(diff->d_orig, NULL);
+				line = stream_getln(orig, NULL);
 				if (line == NULL)
 					return (-1);
 				ec.editline++;
 			}
 		}
-		line = stream_getln(diff->d_diff, NULL);
+		line = stream_getln(rd, NULL);
 	}
 	if (line == NULL)
 		return (-1);
@@ -125,11 +130,11 @@ diff_apply(struct diff *diff, struct keyword *keyword)
 	if (strcmp(line, ".+") == 0 && !empty)
 		noeol = 1;
 	ec.where = 0;
-	while ((line = stream_getln(diff->d_orig, &size)) != NULL)
+	while ((line = stream_getln(orig, &size)) != NULL)
 		diff_write(&ec, line, size);
-	stream_flush(diff->d_to);
+	stream_flush(dest);
 	if (noeol) {
-		error = stream_truncate_rel(diff->d_to, -1);
+		error = stream_truncate_rel(dest, -1);
 		if (error) {
 			warn("stream_truncate_rel");
 			return (-1);
@@ -180,7 +185,7 @@ diff_copyln(struct editcmd *ec, lineno_t to)
 	size_t size;
 
 	while (ec->editline < to) {
-		line = stream_getln(ec->diff->d_orig, &size);
+		line = stream_getln(ec->orig, &size);
 		if (line == NULL)
 			return (-1);
 		ec->editline++;
@@ -198,12 +203,12 @@ diff_write(struct editcmd *ec, void *buf, size_t size)
 	int ret;
 
 	line = buf;
-	ret = keyword_expand(ec->keyword, ec->diff, line, size,
+	ret = keyword_expand(ec->keyword, ec->di, line, size,
 	    &newline, &newsize);
 	if (ret) {
-		stream_write(ec->diff->d_to, newline, newsize);
+		stream_write(ec->dest, newline, newsize);
 		free(newline);
 	} else {
-		stream_write(ec->diff->d_to, buf, size);
+		stream_write(ec->dest, buf, size);
 	}
 }

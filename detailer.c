@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/detailer.c,v 1.37 2006/02/03 18:49:23 mux Exp $
+ * $FreeBSD: projects/csup/detailer.c,v 1.38 2006/02/10 18:18:47 mux Exp $
  */
 
 #include <stdlib.h>
@@ -31,6 +31,7 @@
 
 #include "config.h"
 #include "detailer.h"
+#include "fixups.h"
 #include "misc.h"
 #include "mux.h"
 #include "proto.h"
@@ -48,9 +49,10 @@ detailer(void *arg)
 	struct config *config;
 	struct coll *coll;
 	struct status *st;
+	struct fixup *fixup;
 	char *errmsg;
 	char *cmd, *collname, *line, *release;
-	int error;
+	int error, fixupseof;
 
 	config = arg;
 	rd = stream_open(config->chan0,
@@ -100,6 +102,8 @@ detailer(void *arg)
 	stream_flush(wr);
 
 	/* Now send fixups if needed. */
+	fixup = NULL;
+	fixupseof = 0;
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
@@ -107,6 +111,19 @@ detailer(void *arg)
 		    coll->co_release);
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
+		while (!fixupseof) {
+			if (fixup == NULL)
+				fixup = fixups_get(config->fixups);
+			if (fixup == NULL) {
+				fixupseof = 1;
+				break;
+			}
+			if (fixup->f_coll != coll)
+				break;
+			proto_printf(wr, "Y %s %s %s\n", fixup->f_name,
+			    coll->co_tag, coll->co_date);
+			fixup = NULL;
+		}
 		proto_printf(wr, ".\n");
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_stop(wr);
@@ -134,13 +151,17 @@ detailer_coll(struct coll *coll, struct status *st)
 		return (-1);
 	while (strcmp(line, ".") != 0) {
 		cmd = proto_get_ascii(&line);
-		if (strcmp(cmd, "D") == 0) {
+		if (cmd == NULL || strlen(cmd) != 1)
+			return (-1);
+		switch (cmd[0]) {
+		case 'D':
 			/* Delete file. */
 			file = proto_get_ascii(&line);
 			if (file == NULL || line != NULL)
 				return (-1);
 			proto_printf(wr, "D %s\n", file);
-		} else if (strcmp(cmd, "U") == 0) {
+			break;
+		case 'U':
 			/* Add or update file. */
 			file = proto_get_ascii(&line);
 			if (file == NULL || line != NULL)
@@ -148,13 +169,15 @@ detailer_coll(struct coll *coll, struct status *st)
 			error = detailer_dofile(coll, st, file);
 			if (error)
 				return (-1);
-		} else if (strcmp(cmd, "!") == 0) {
+			break;
+		case '!':
 			/* Warning from server. */
 			msg = proto_get_rest(&line);
 			if (msg == NULL)
 				return (-1);
 			lprintf(-1, "Server warning: %s\n", msg);
-		} else {
+			break;
+		default:
 			if (line == NULL)
 				lprintf(-1, "Bad command from server: %s\n",
 				    cmd);
