@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2004, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/diff.h,v 1.8 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/diff.h,v 1.9 2006/02/18 10:41:08 mux Exp $
  */
 #ifndef _DIFF_H_
 #define _DIFF_H_
