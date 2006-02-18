@@ -6,9 +6,9 @@ PREFIX?=/usr/local
 
 UNAME=	$(shell uname -s)
 
-SRCS=	attrstack.c config.c detailer.c diff.c fattr.c keyword.c lister.c \
-	main.c misc.c mux.c pathcomp.c parse.c proto.c status.c stream.c \
-	threads.c token.c updater.c
+SRCS=	attrstack.c config.c detailer.c diff.c fattr.c fixups.c keyword.c \
+	lister.c main.c misc.c mux.c pathcomp.c parse.c proto.c status.c \
+	stream.c threads.c token.c updater.c
 OBJS=	$(SRCS:.c=.o)
 
 WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
