@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/threads.c,v 1.5 2006/02/07 04:00:30 mux Exp $
+ * $FreeBSD: projects/csup/threads.c,v 1.6 2006/02/09 22:24:10 mux Exp $
  */
 
 #include <assert.h>
@@ -105,6 +105,7 @@ threads_new(void)
 void *
 threads_create(struct threads *tds, void *(*start)(void *), void *data)
 {
+	pthread_attr_t attr;
 	struct thread *td;
 	int error;
 
@@ -112,8 +113,11 @@ threads_create(struct threads *tds, void *(*start)(void *), void *data)
 	td->threads = tds;
 	td->start = start;
 	td->data = data;
+	/* We don't use pthread_join() to wait for the threads to finish. */
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 	threads_lock(tds);
-	error = pthread_create(&td->thread, NULL, thread_start, td);
+	error = pthread_create(&td->thread, &attr, thread_start, td);
 	if (error) {
 		pthread_mutex_unlock(&tds->threads_mtx);
 		free(td);
