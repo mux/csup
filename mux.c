@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.64 2006/02/15 03:24:55 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.65 2006/02/18 01:07:57 mux Exp $
  */
 
 #include <sys/param.h>
@@ -163,9 +163,11 @@ struct chan {
 };
 
 struct mux {
+	int		closing;
 	int		closed;
 	int		socket;
 	pthread_mutex_t	lock;
+	pthread_cond_t	done;
 	struct chan	*channels[MUX_MAXCHAN];
 	int		nchans;
 
@@ -313,6 +315,7 @@ mux_open(int sock, struct chan **chan)
 	m = xmalloc(sizeof(struct mux));
 	memset(m->channels, 0, sizeof(m->channels));
 	m->nchans = 0;
+	m->closing = 0;
 	m->closed = 0;
 	m->socket = sock;
 
@@ -320,6 +323,7 @@ mux_open(int sock, struct chan **chan)
 	m->sender_lastid = 0;
 	m->sender_ready = 0;
 	pthread_mutex_init(&m->lock, NULL);
+	pthread_cond_init(&m->done, NULL);
 	pthread_cond_init(&m->sender_newwork, NULL);
 	pthread_cond_init(&m->sender_started, NULL);
 
@@ -351,6 +355,7 @@ mux_close(struct mux *m)
 	}
 	pthread_cond_destroy(&m->sender_started);
 	pthread_cond_destroy(&m->sender_newwork);
+	pthread_cond_destroy(&m->done);
 	pthread_mutex_destroy(&m->lock);
 	free(m);
 }
@@ -689,7 +694,13 @@ mux_shutdown(struct mux *m, int error)
 		mux_unlock(m);
 		return;
 	}
-	m->closed = 1;
+	if (m->closing) {
+		while (!m->closed)
+			pthread_cond_wait(&m->done, &m->lock);
+		mux_unlock(m);
+		return;
+	}
+	m->closing = 1;
 	for (i = 0; i < MUX_MAXCHAN; i++) {
 		if (m->channels[i] != NULL) {
 			chan = m->channels[i];
@@ -718,6 +729,10 @@ mux_shutdown(struct mux *m, int error)
 		assert(val == PTHREAD_CANCELED);
 	}
 
+	mux_lock(m);
+	m->closed = 1;
+	pthread_cond_broadcast(&m->done);
+	mux_unlock(m);
 	if (!error)
 		return;
 
