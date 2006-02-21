@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.65 2006/02/18 01:07:57 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.66 2006/02/21 02:49:58 mux Exp $
  */
 
 #include <sys/param.h>
@@ -189,7 +189,6 @@ static ssize_t		 sock_read(int, void *, size_t);
 static int		 sock_readwait(int, void *, size_t);
 
 static int		 mux_init(struct mux *);
-static void		 mux_shutdown(struct mux *, int);
 static void		 mux_lock(struct mux *);
 static void		 mux_unlock(struct mux *);
 
@@ -680,15 +679,16 @@ mux_init(struct mux *m)
  * errno value corresponding to the error that happened and if it's -1
  * the error was a protocol error.
  */
-static void
+void
 mux_shutdown(struct mux *m, int error)
 {
+	pthread_t self, sender, receiver;
 	struct chan *chan;
 	const char *name;
-	pthread_t self;
 	void *val;
 	int i, ret;
 
+	name = NULL;
 	mux_lock(m);
 	if (m->closed) {
 		mux_unlock(m);
@@ -714,39 +714,40 @@ mux_shutdown(struct mux *m, int error)
 			chan_unlock(chan);
 		}
 	}
+	sender = m->sender;
+	receiver = m->receiver;
 	mux_unlock(m);
 	self = pthread_self();
-	if (!pthread_equal(self, m->receiver)) {
-		ret = pthread_cancel(m->receiver);
+	if (!pthread_equal(self, receiver)) {
+		ret = pthread_cancel(receiver);
 		assert(!ret);
-		pthread_join(m->receiver, &val);
+		pthread_join(receiver, &val);
 		assert(val == PTHREAD_CANCELED);
+		name = "Sender";
 	}
-	if (!pthread_equal(self, m->sender)) {
-		ret = pthread_cancel(m->sender);
+	if (!pthread_equal(self, sender)) {
+		ret = pthread_cancel(sender);
 		assert(!ret);
-		pthread_join(m->sender, &val);
+		pthread_join(sender, &val);
 		assert(val == PTHREAD_CANCELED);
+		name = "Receiver";
 	}
 
 	mux_lock(m);
 	m->closed = 1;
 	pthread_cond_broadcast(&m->done);
-	mux_unlock(m);
-	if (!error)
+	if (!error) {
+		mux_unlock(m);
 		return;
-
-	if (pthread_equal(self, m->sender)) {
-		name = "Sender";
-	} else {
-		/* Only the sender and receiver threads report errors. */
-		assert(pthread_equal(self, m->receiver));
-		name = "Receiver";
 	}
+
+	/* Only the receiver and sender threads report errors. */
+	assert(name != NULL);
 	if (error == -1)
 		lprintf(-1, "%s: Protocol error\n", name);
 	else
 		lprintf(-1, "%s: %s\n", name, strerror(error));
+	mux_unlock(m);
 }
 
 static void
