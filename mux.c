@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.68 2006/02/22 21:27:01 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.69 2006/02/22 22:46:17 mux Exp $
  */
 
 #include <sys/param.h>
@@ -33,7 +33,6 @@
 #include <netinet/in.h>
 
 #include <assert.h>
-#include <err.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -418,6 +417,8 @@ chan_listen(struct mux *m)
 	chan = chan_new(m);
 	chan->state = CS_LISTENING;
 	i = chan_insert(m, chan);
+	if (i == -1)
+		chan_free(chan);
 	return (i);
 }
 
@@ -430,6 +431,7 @@ chan_accept(struct mux *m, int id)
 	while (chan->state == CS_LISTENING)
 		pthread_cond_wait(&chan->rdready, &chan->lock);
 	if (chan->state != CS_ESTABLISHED) {
+		errno = ECONNRESET;
 		chan_unlock(chan);
 		return (NULL);
 	}
@@ -628,7 +630,8 @@ chan_insert(struct mux *m, struct chan *chan)
 			return (i);
 		}
 	}
-	errx(1, "%s: no free channel", __func__);
+	errno = ENOBUFS;
+	return (-1);
 }
 
 /*

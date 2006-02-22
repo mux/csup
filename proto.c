@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.73 2006/02/18 10:41:08 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.74 2006/02/22 21:27:01 mux Exp $
  */
 
 #include <sys/param.h>
@@ -447,7 +447,7 @@ proto_mux(struct config *config)
 	}
 	id = chan_listen(m);
 	if (id == -1) {
-		lprintf(-1, "chan_listen() failed\n");
+		lprintf(-1, "ChannelMux.Listen failed: %s\n", strerror(errno));
 		mux_close(m);
 		return (NULL);
 	}
@@ -456,8 +456,7 @@ proto_mux(struct config *config)
 	stream_close(wr);
 	chan1 = chan_accept(m, id);
 	if (chan1 == NULL) {
-		/* XXX - Sync error message with CVSup. */
-		lprintf(-1, "Accept failed for channel %d\n", id);
+		lprintf(-1, "ChannelMux.Accept failed: %s\n", strerror(errno));
 		mux_close(m);
 		return (NULL);
 	}
