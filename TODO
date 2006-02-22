@@ -1,16 +1,8 @@
-$FreeBSD$
+$FreeBSD: projects/csup/TODO,v 1.35 2006/01/27 17:13:49 mux Exp $
 
 BUGS:
 
 - Fix every XXX in the code :-).
-- Cleanup error handling just about everywhere.  For now, the code is
-  unable to properly handle failures.  This is made complicated due to
-  the multi-threaded design and because the worker threads can block in
-  many different places.  We need a way to properly "kill" threads in
-  case of an error, and at least the updater thread needs to be able to
-  recover nicely so that a proper status file is written.  We also need
-  the worker threads to return an exist status and possibly an error
-  message.  I probably overlooked a few more things.
 - The stream API needs some polishing.  It needs proper error numbers
   and a stream_error() function similar to the ferror() function.
 - The yacc/lex code to parse the configuration file is sub-optimal.  It
@@ -27,8 +19,6 @@ BUGS:
 - If the prefix directory is a symbolic link pointing to a nonexistent
   file named `SKIP', then we should skip the collection, as described in
   the CVSup manual page.
-- Handle some signals (SIGINT, SIGPIPE and maybe others) gracefully, like
-  CVSup does and like we should.
 
 MISSING FEATURES:
 
