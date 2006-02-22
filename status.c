@@ -45,6 +45,16 @@
 
 #define	STATUS_VERSION	5
 
+/* Internal error codes. */
+#define	STATUS_ERR_READ		(-1)
+#define	STATUS_ERR_WRITE	(-2)
+#define	STATUS_ERR_PARSE	(-3)
+#define	STATUS_ERR_UNSORTED	(-4)
+#define	STATUS_ERR_TRUNC	(-5)
+#define	STATUS_ERR_BOGUS_DIRUP	(-6)
+#define	STATUS_ERR_BAD_TYPE	(-7)
+#define	STATUS_ERR_RENAME	(-8)
+
 static struct status	*status_new(char *, time_t, struct stream *);
 static struct statusrec	*status_rd(struct status *);
 static struct statusrec	*status_rdraw(struct status *, char **);
@@ -63,7 +73,8 @@ static int		 statusrec_cmp(struct statusrec *, struct statusrec *);
 struct status {
 	char *path;
 	char *tempfile;
-	char *errmsg;
+	int error;
+	int suberror;
 	struct pathcomp *pc;
 	struct statusrec buf;
 	struct statusrec *previous;
@@ -149,8 +160,7 @@ status_rd(struct status *st)
 		return (NULL);
 	error = statusrec_cook(sr, line);
 	if (error) {
-		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
-		    "Could not parse status record", st->path, st->linenum);
+		st->error = STATUS_ERR_PARSE;
 		return (NULL);
 	}
 	return (sr);
@@ -168,53 +178,53 @@ status_rdraw(struct status *st, char **linep)
 	if (line == NULL) {
 		if (stream_eof(st->rd)) {
 			if (st->depth != 0) {
-				xasprintf(&st->errmsg, "Error in \"%s\": "
-				    "File is truncated", st->path);
+				st->error = STATUS_ERR_TRUNC;
 				return (NULL);
 			}
 			st->eof = 1;
 			return (NULL);
 		}
-		xasprintf(&st->errmsg, "Read failure on \"%s\": %s", st->path,
-		    strerror(errno));
+		st->error = STATUS_ERR_READ;
+		st->suberror = errno;
 		return (NULL);
 	}
 	st->linenum++;
 	cmd = proto_get_ascii(&line);
 	file = proto_get_ascii(&line);
-	if (file == NULL) {
-		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
-		    "Could not parse status record", st->path, st->linenum);
+	if (file == NULL || strlen(cmd) != 1) {
+		st->error = STATUS_ERR_PARSE;
 		return (NULL);
 	}
 
-	if (strcmp(cmd, "D") == 0) {
+	switch (cmd[0]) {
+	case 'D':
 		sr.sr_type = SR_DIRDOWN;
 		st->depth++;
-	} else if (strcmp(cmd, "C") == 0) {
+		break;
+	case 'C':
 		sr.sr_type = SR_CHECKOUTLIVE;
-	} else if (strcmp(cmd, "c") == 0) {
+		break;
+	case 'c':
 		sr.sr_type = SR_CHECKOUTDEAD;
-	} else if (strcmp(cmd, "U") == 0) {
+		break;
+	case 'U':
 		sr.sr_type = SR_DIRUP;
 		if (st->depth <= 0) {
-			xasprintf(&st->errmsg, "Error in \"%s\": %d: "
-			    "\"U\" entry has no matching \"D\"", st->path,
-			    st->linenum);
+			st->error = STATUS_ERR_BOGUS_DIRUP;
 			return (NULL);
 		}
 		st->depth--;
-	} else {
-		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
-		    "Invalid file type \"%s\"", st->path, st->linenum, cmd);
+		break;
+	default:
+		st->error = STATUS_ERR_BAD_TYPE;
+		st->suberror = cmd[0];
 		return (NULL);
 	}
 
 	sr.sr_file = xstrdup(file);
 	if (st->previous != NULL &&
 	    statusrec_cmp(st->previous, &sr) >= 0) {
-		xasprintf(&st->errmsg, "Error in \"%s\": %d: "
-		    "File is not sorted properly", st->path, st->linenum);
+		st->error = STATUS_ERR_UNSORTED;
 		free(sr.sr_file);
 		return (NULL);
 	}
@@ -285,8 +295,8 @@ status_wr(struct status *st, struct statusrec *sr)
 		goto bad;
 	return (0);
 bad:
-	xasprintf(&st->errmsg, "Write failure on \"%s\": %s", st->tempfile,
-	    strerror(errno));
+	st->error = STATUS_ERR_WRITE;
+	st->suberror = errno;
 	return (-1);
 }
 
@@ -346,8 +356,8 @@ status_wrraw(struct status *st, struct statusrec *sr, char *line)
 		error = proto_printf(st->wr, "%c %s %S\n", cmd, sr->sr_file,
 		    line);
 	if (error) {
-		xasprintf(&st->errmsg, "Write failure on \"%s\": %s",
-		    st->tempfile, strerror(errno));
+		st->error = STATUS_ERR_WRITE;
+		st->suberror = errno;
 		return (-1);
 	}
 	return (0);
@@ -389,7 +399,8 @@ status_new(char *path, time_t scantime, struct stream *file)
 
 	st = xmalloc(sizeof(struct status));
 	st->path = path;
-	st->errmsg = NULL;
+	st->error = 0;
+	st->suberror = 0;
 	st->tempfile = NULL;
 	st->scantime = scantime;
 	st->rd = file;
@@ -418,8 +429,6 @@ status_free(struct status *st)
 	if (st->tempfile != NULL)
 		free(st->tempfile);
 	free(st->path);
-	if (st->errmsg != NULL)
-		free(st->errmsg);
 	pathcomp_free(st->pc);
 	free(st);
 }
@@ -495,13 +504,14 @@ status_open(struct coll *coll, time_t scantime, char **errmsg)
 			return (NULL);
 		}
 		st = status_fromnull(path);
-	} else
+	} else {
 		st = status_fromrd(path, file);
-	if (st == NULL) {
-		xasprintf(errmsg, "Error in status file \"%s\".  "
-		    "Delete it and try again.", path);
-		free(path);
-		return (NULL);
+		if (st == NULL) {
+			xasprintf(errmsg, "Error in \"%s\": Bad header line",
+			    path);
+			free(path);
+			return (NULL);
+		}
 	}
 
 	if (scantime != -1) {
@@ -542,8 +552,9 @@ status_open(struct coll *coll, time_t scantime, char **errmsg)
 		error = proto_printf(st->wr, "F %d %t\n", STATUS_VERSION,
 		    scantime);
 		if (error) {
-			xasprintf(errmsg, "Could not write to \"%s\": %s",
-			    st->tempfile, strerror(errno));
+			st->error = STATUS_ERR_WRITE;
+			st->suberror = errno;
+			*errmsg = status_errmsg(st);
 			status_free(st);
 			return (NULL);
 		}
@@ -570,12 +581,16 @@ status_get(struct status *st, char *name, int isdirup, int deleteto,
 	if (st->eof)
 		return (0);
 
+	if (st->error)
+		return (-1);
+
 	if (name == NULL) {
 		sr = status_rd(st);
-		if (st->errmsg != NULL)
-			return (-1);
-		if (sr == NULL)
+		if (sr == NULL) {
+			if (st->error)
+				return (-1);
 			return (0);
+		}
 		*psr = sr;
 		return (1);
 	}
@@ -585,10 +600,11 @@ status_get(struct status *st, char *name, int isdirup, int deleteto,
 		st->current = NULL;
 	} else {
 		sr = status_rd(st);
-		if (st->errmsg != NULL)
-			return (-1);
-		if (sr == NULL)
+		if (sr == NULL) {
+			if (st->error)
+				return (-1);
 			return (0);
+		}
 	}
 
 	key.sr_file = name;
@@ -607,10 +623,11 @@ status_get(struct status *st, char *name, int isdirup, int deleteto,
 		/* Loop until we find the good entry. */
 		for (;;) {
 			sr = status_rdraw(st, &line);
-			if (st->errmsg != NULL)
-				return (-1);
-			if (sr == NULL)
+			if (sr == NULL) {
+				if (st->error)
+					return (-1);
 				return (0);
+			}
 			c = statusrec_cmp(sr, &key);
 			if (c >= 0)
 				break;
@@ -622,9 +639,7 @@ status_get(struct status *st, char *name, int isdirup, int deleteto,
 		}
 		error = statusrec_cook(sr, line);
 		if (error) {
-			xasprintf(&st->errmsg, "Error in \"%s\": %d: "
-			    "Could not parse status record", st->path,
-			    st->linenum);
+			st->error = STATUS_ERR_PARSE;
 			return (-1);
 		}
 	}
@@ -703,14 +718,56 @@ status_eof(struct status *st)
 }
 
 /*
- * Check whether ther was an error.  The error message is returned
- * if there is an error, otherwise NULL is returned.
+ * Returns the error message if there was an error, otherwise returns
+ * NULL.  The error message is allocated dynamically and needs to be
+ * freed by the caller after use.
  */
 char *
 status_errmsg(struct status *st)
 {
+	char *errmsg;
 
-	return (st->errmsg);
+	if (!st->error)
+		return (NULL);
+	switch (st->error) {
+	case STATUS_ERR_READ:
+		xasprintf(&errmsg, "Read failure on \"%s\": %s",
+		    st->path, strerror(st->suberror));
+		break;
+	case STATUS_ERR_WRITE:
+		xasprintf(&errmsg, "Write failure on \"%s\": %s",
+		    st->tempfile, strerror(st->suberror));
+		break;
+	case STATUS_ERR_PARSE:
+		xasprintf(&errmsg, "Error in \"%s\": %d: "
+		    "Could not parse status record", st->path, st->linenum);
+		break;
+	case STATUS_ERR_UNSORTED:
+		xasprintf(&errmsg, "Error in \"%s\": %d: "
+		    "File is not sorted properly", st->path, st->linenum);
+		break;
+	case STATUS_ERR_TRUNC:
+		xasprintf(&errmsg, "Error in \"%s\": "
+		    "File is truncated", st->path);
+		break;
+	case STATUS_ERR_BOGUS_DIRUP:
+		xasprintf(&errmsg, "Error in \"%s\": %d: "
+		    "\"U\" entry has no matching \"D\"", st->path, st->linenum);
+		break;
+	case STATUS_ERR_BAD_TYPE:
+		xasprintf(&errmsg, "Error in \"%s\": %d: "
+		    "Invalid file type \"%c\"", st->path, st->linenum,
+		    st->suberror);
+		break;
+	case STATUS_ERR_RENAME:
+		xasprintf(&errmsg, "Cannot rename \"%s\" to \"%s\": %s",
+		    st->tempfile, st->path, strerror(st->suberror));
+		break;
+	default:
+		assert(0);
+		return (NULL);
+	}
+	return (errmsg);
 }
 
 /*
@@ -732,8 +789,7 @@ status_close(struct status *st, char **errmsg)
 			if (st->current != NULL) {
 				error = status_wr(st, st->current);
 				if (error) {
-					*errmsg = st->errmsg;
-					st->errmsg = NULL;
+					*errmsg = status_errmsg(st);
 					goto bad;
 				}
 				st->current = NULL;
@@ -742,14 +798,12 @@ status_close(struct status *st, char **errmsg)
 			while ((sr = status_rdraw(st, &line)) != NULL) {
 				error = status_wrraw(st, sr, line);
 				if (error) {
-					*errmsg = st->errmsg;
-					st->errmsg = NULL;
+					*errmsg = status_errmsg(st);
 					goto bad;
 				}
 			}
-			if (st->errmsg != NULL) {
-				*errmsg = st->errmsg;
-				st->errmsg = NULL;
+			if (st->error) {
+				*errmsg = status_errmsg(st);
 				goto bad;
 			}
 
@@ -760,9 +814,9 @@ status_close(struct status *st, char **errmsg)
 				error = proto_printf(st->wr, "U %s %f\n",
 				    name, fattr_bogus);
 				if (error) {
-					xasprintf(errmsg,
-					    "Write failure on \"%s\": %s",
-					    st->path, strerror(errno));
+					st->error = STATUS_ERR_WRITE;
+					st->suberror = errno;
+					*errmsg = status_errmsg(st);
 					goto bad;
 				}
 			}
@@ -770,9 +824,9 @@ status_close(struct status *st, char **errmsg)
 			/* Rename tempfile. */
 			error = rename(st->tempfile, st->path);
 			if (error) {
-				xasprintf(errmsg, "Cannot rename \"%s\" to "
-				    "\"%s\": %s", st->tempfile, st->path,
-				    strerror(errno));
+				st->error = STATUS_ERR_RENAME;
+				st->suberror = errno;
+				*errmsg = status_errmsg(st);
 				goto bad;
 			}
 		} else {

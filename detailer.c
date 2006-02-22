@@ -23,9 +23,11 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/detailer.c,v 1.38 2006/02/10 18:18:47 mux Exp $
+ * $FreeBSD: projects/csup/detailer.c,v 1.39 2006/02/18 10:41:08 mux Exp $
  */
 
+#include <assert.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -38,27 +40,87 @@
 #include "status.h"
 #include "stream.h"
 
-static int	detailer_coll(struct coll *, struct status *);
-static int	detailer_dofile(struct coll *, struct status *, char *);
+/* Internal error codes. */
+#define	DETAILER_ERR_PROTO	(-1)	/* Protocol error. */
+#define	DETAILER_ERR_MSG	(-2)	/* Error is in detailer->errmsg. */
+#define	DETAILER_ERR_READ	(-3)	/* Error reading from server. */
+#define	DETAILER_ERR_WRITE	(-4)	/* Error writing to server. */
 
-static struct stream *rd, *wr;
+struct detailer {
+	struct config *config;
+	struct stream *rd;
+	struct stream *wr;
+	char *errmsg;
+};
+
+static int	detailer_batch(struct detailer *);
+static int	detailer_coll(struct detailer *, struct coll *,
+		    struct status *);
+static int	detailer_dofile(struct detailer *, struct coll *,
+		    struct status *, char *);
 
 void *
 detailer(void *arg)
 {
+	struct thread_args *args;
+	struct detailer dbuf, *d;
+	int error;
+
+	args = arg;
+
+	d = &dbuf;
+	d->config = args->config;
+	d->rd = args->rd;
+	d->wr = args->wr;
+	d->errmsg = NULL;
+
+	error = detailer_batch(d);
+	switch (error) {
+	case DETAILER_ERR_PROTO:
+		xasprintf(&args->errmsg, "Detailer failed: Protocol error");
+		args->status = STATUS_FAILURE;
+		break;
+	case DETAILER_ERR_MSG:
+		xasprintf(&args->errmsg, "Detailer failed: %s", d->errmsg);
+		free(d->errmsg);
+		args->status = STATUS_FAILURE;
+		break;
+	case DETAILER_ERR_READ:
+		if (stream_eof(d->rd)) {
+			xasprintf(&args->errmsg, "Detailer failed: "
+			    "Premature EOF from server");
+		} else {
+			xasprintf(&args->errmsg, "Detailer failed: "
+			    "Network read failure: %s", strerror(errno));
+		}
+		args->status = STATUS_TRANSIENTFAILURE;
+		break;
+	case DETAILER_ERR_WRITE:
+		xasprintf(&args->errmsg, "Detailer failed: "
+		    "Network write failure: %s", strerror(errno));
+		args->status = STATUS_TRANSIENTFAILURE;
+		break;
+	default:
+		assert(error == 0);
+		args->status = STATUS_SUCCESS;
+	}
+	return (NULL);
+}
+
+static int
+detailer_batch(struct detailer *d)
+{
 	struct config *config;
+	struct stream *rd, *wr;
 	struct coll *coll;
 	struct status *st;
 	struct fixup *fixup;
-	char *errmsg;
 	char *cmd, *collname, *line, *release;
 	int error, fixupseof;
 
-	config = arg;
-	rd = stream_open(config->chan0,
-	    (stream_readfn_t *)chan_read, NULL, NULL);
-	wr = stream_open(config->chan1,
-	    NULL, (stream_writefn_t *)chan_write, NULL);
+	config = d->config;
+	rd = d->rd;
+	wr = d->wr;
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
@@ -70,25 +132,23 @@ detailer(void *arg)
 		if (error || line != NULL || strcmp(cmd, "COLL") != 0 ||
 		    strcmp(collname, coll->co_name) != 0 ||
 		    strcmp(release, coll->co_release) != 0)
-			goto bad;
-		proto_printf(wr, "COLL %s %s\n", coll->co_name,
+			return (DETAILER_ERR_PROTO);
+		error = proto_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		if (error)
+			return (DETAILER_ERR_WRITE);
 		stream_flush(wr);
 		if (coll->co_options & CO_COMPRESS) {
 			stream_filter_start(rd, STREAM_FILTER_ZLIB, NULL);
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
 		}
-		st = status_open(coll, -1, &errmsg);
-		if (st == NULL) {
-			lprintf(-1, "Detailer: %s\n", errmsg);
-			stream_close(rd);
-			stream_close(wr);
-			return (NULL);
-		}
-		error = detailer_coll(coll, st);
+		st = status_open(coll, -1, &d->errmsg);
+		if (st == NULL)
+			return (DETAILER_ERR_MSG);
+		error = detailer_coll(d, coll, st);
 		status_close(st, NULL);
 		if (error)
-			return (NULL);
+			return (error);
 		if (coll->co_options & CO_COMPRESS) {
 			stream_filter_stop(rd);
 			stream_filter_stop(wr);
@@ -96,9 +156,13 @@ detailer(void *arg)
 		stream_flush(wr);
 	}
 	line = stream_getln(rd, NULL);
-	if (line == NULL || strcmp(line, ".") != 0)
-		goto bad;
-	proto_printf(wr, ".\n");
+	if (line == NULL)
+		return (DETAILER_ERR_READ);
+	if (strcmp(line, ".") != 0)
+		return (DETAILER_ERR_PROTO);
+	error = proto_printf(wr, ".\n");
+	if (error)
+		return (DETAILER_ERR_WRITE);
 	stream_flush(wr);
 
 	/* Now send fixups if needed. */
@@ -107,8 +171,10 @@ detailer(void *arg)
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
-		proto_printf(wr, "COLL %s %s\n", coll->co_name,
+		error = proto_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		if (error)
+			return (DETAILER_ERR_WRITE);
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
 		while (!fixupseof) {
@@ -120,109 +186,114 @@ detailer(void *arg)
 			}
 			if (fixup->f_coll != coll)
 				break;
-			proto_printf(wr, "Y %s %s %s\n", fixup->f_name,
+			error = proto_printf(wr, "Y %s %s %s\n", fixup->f_name,
 			    coll->co_tag, coll->co_date);
+			if (error)
+				return (DETAILER_ERR_WRITE);
 			fixup = NULL;
 		}
-		proto_printf(wr, ".\n");
+		error = proto_printf(wr, ".\n");
+		if (error)
+			return (DETAILER_ERR_WRITE);
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_stop(wr);
 		stream_flush(wr);
 	}
-	proto_printf(wr, ".\n");
-	stream_close(wr);
-	stream_close(rd);
-	return (NULL);
-bad:
-	lprintf(-1, "Detailer: Protocol error\n");
-	stream_close(wr);
-	stream_close(rd);
-	return (NULL);
+	error = proto_printf(wr, ".\n");
+	if (error)
+		return (DETAILER_ERR_WRITE);
+	return (0);
 }
 
 static int
-detailer_coll(struct coll *coll, struct status *st)
+detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 {
+	struct stream *rd, *wr;
 	char *cmd, *file, *line, *msg;
 	int error;
 
+	rd = d->rd;
+	wr = d->wr;
 	line = stream_getln(rd, NULL);
 	if (line == NULL)
-		return (-1);
+		return (DETAILER_ERR_READ);
 	while (strcmp(line, ".") != 0) {
 		cmd = proto_get_ascii(&line);
 		if (cmd == NULL || strlen(cmd) != 1)
-			return (-1);
+			return (DETAILER_ERR_PROTO);
 		switch (cmd[0]) {
 		case 'D':
 			/* Delete file. */
 			file = proto_get_ascii(&line);
 			if (file == NULL || line != NULL)
-				return (-1);
-			proto_printf(wr, "D %s\n", file);
+				return (DETAILER_ERR_PROTO);
+			error = proto_printf(wr, "D %s\n", file);
+			if (error)
+				return (DETAILER_ERR_WRITE);
 			break;
 		case 'U':
 			/* Add or update file. */
 			file = proto_get_ascii(&line);
 			if (file == NULL || line != NULL)
-				return (-1);
-			error = detailer_dofile(coll, st, file);
+				return (DETAILER_ERR_PROTO);
+			error = detailer_dofile(d, coll, st, file);
 			if (error)
-				return (-1);
+				return (error);
 			break;
 		case '!':
 			/* Warning from server. */
 			msg = proto_get_rest(&line);
 			if (msg == NULL)
-				return (-1);
+				return (DETAILER_ERR_PROTO);
 			lprintf(-1, "Server warning: %s\n", msg);
 			break;
 		default:
-			if (line == NULL)
-				lprintf(-1, "Bad command from server: %s\n",
-				    cmd);
-			else
-				lprintf(-1, "Bad command from server: %s %s\n",
-				    cmd, line);
-			return (-1);
+			return (DETAILER_ERR_PROTO);
 		}
 		stream_flush(wr);
 		line = stream_getln(rd, NULL);
 		if (line == NULL)
-			return (-1);
+			return (DETAILER_ERR_READ);
 	}
-	proto_printf(wr, ".\n");
+	error = proto_printf(wr, ".\n");
+	if (error)
+		return (DETAILER_ERR_WRITE);
 	return (0);
 }
 
 static int
-detailer_dofile(struct coll *coll, struct status *st, char *file)
+detailer_dofile(struct detailer *d, struct coll *coll, struct status *st,
+    char *file)
 {
 	char md5[MD5_DIGEST_SIZE];
+	struct stream *wr;
 	struct fattr *fa;
 	struct statusrec *sr;
 	char *path;
 	int error, ret;
 
+	wr = d->wr;
 	path = checkoutpath(coll->co_prefix, file);
 	if (path == NULL)
-		return (-1);
+		return (DETAILER_ERR_PROTO);
 	fa = fattr_frompath(path, FATTR_NOFOLLOW);
 	if (fa == NULL) {
 		/* We don't have the file, so the only option at this
 		   point is to tell the server to send it.  The server
 		   may figure out that the file is dead, in which case
 		   it will tell us. */
-		proto_printf(wr, "C %s %s %s\n",
+		error = proto_printf(wr, "C %s %s %s\n",
 		    file, coll->co_tag, coll->co_date);
 		free(path);
+		if (error)
+			return (DETAILER_ERR_WRITE);
 		return (0);
 	}
 	ret = status_get(st, file, 0, 0, &sr);
 	if (ret == -1) {
-		lprintf(-1, "Detailer: %s\n", status_errmsg(st));
+		d->errmsg = status_errmsg(st);
 		free(path);
-		return (-1);
+		return (DETAILER_ERR_MSG);
 	}
 	if (ret == 0)
 		sr = NULL;
@@ -234,22 +305,35 @@ detailer_dofile(struct coll *coll, struct status *st, char *file)
 		sr = NULL;
 	fattr_free(fa);
 	if (sr != NULL && strcmp(sr->sr_revdate, ".") != 0) {
-		proto_printf(wr, "U %s %s %s %s %s\n", file, coll->co_tag,
-		    coll->co_date, sr->sr_revnum, sr->sr_revdate);
+		error = proto_printf(wr, "U %s %s %s %s %s\n", file,
+		    coll->co_tag, coll->co_date, sr->sr_revnum, sr->sr_revdate);
 		free(path);
+		if (error)
+			return (DETAILER_ERR_WRITE);
 		return (0);
 	}
 
+	/*
+	 * We don't have complete and/or accurate recorded information
+	 * about what version of the file we have.  Compute the file's
+	 * checksum as an aid toward identifying which version it is.
+	 */
 	error = MD5_File(path, md5);
-	if (error)
-		return (-1);
+	if (error) {
+		xasprintf(&d->errmsg,
+		    "Cannot calculate checksum for \"%s\": %s", path,
+		    strerror(errno));
+		return (DETAILER_ERR_MSG);
+	}
 	free(path);
 	if (sr == NULL) {
-		proto_printf(wr, "S %s %s %s %s\n", file, coll->co_tag,
-		    coll->co_date, md5);
+		error = proto_printf(wr, "S %s %s %s %s\n", file,
+		    coll->co_tag, coll->co_date, md5);
 	} else {
-		proto_printf(wr, "s %s %s %s %s %s\n", file, coll->co_tag,
-		    coll->co_date, sr->sr_revnum, md5);
+		error = proto_printf(wr, "s %s %s %s %s %s\n", file,
+		    coll->co_tag, coll->co_date, sr->sr_revnum, md5);
 	}
+	if (error)
+		return (DETAILER_ERR_WRITE);
 	return (0);
 }

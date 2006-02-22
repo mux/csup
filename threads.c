@@ -23,10 +23,11 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/threads.c,v 1.6 2006/02/09 22:24:10 mux Exp $
+ * $FreeBSD: projects/csup/threads.c,v 1.7 2006/02/21 01:10:23 mux Exp $
  */
 
 #include <assert.h>
+#include <err.h>
 #include <pthread.h>
 #include <stdlib.h>
 
@@ -97,12 +98,8 @@ threads_new(void)
 	return (tds);
 }
 
-/*
- * Create a new thread in this set.  The returned void * uniquely
- * identifies the newly created thread.  The caller will need it
- * later after threads_wait() to know which of the threads exited.
- */
-void *
+/* Create a new thread in this set. */
+void
 threads_create(struct threads *tds, void *(*start)(void *), void *data)
 {
 	pthread_attr_t attr;
@@ -118,21 +115,18 @@ threads_create(struct threads *tds, void *(*start)(void *), void *data)
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 	threads_lock(tds);
 	error = pthread_create(&td->thread, &attr, thread_start, td);
-	if (error) {
-		pthread_mutex_unlock(&tds->threads_mtx);
-		free(td);
-		return (NULL);
-	}
+	if (error)
+		err(1, "pthread_create");
 	LIST_INSERT_HEAD(&tds->threads_running, td, runlist);
 	threads_unlock(tds);
-	return (td);
 }
 
-/* Wait for any of the threads in the set to exit. */
+/* Wait for a thread in the set to exit, and return its data pointer. */
 void *
 threads_wait(struct threads *tds)
 {
 	struct thread *td;
+	void *data;
 
 	threads_lock(tds);
 	while (STAILQ_EMPTY(&tds->threads_dead)) {
@@ -142,8 +136,9 @@ threads_wait(struct threads *tds)
 	td = STAILQ_FIRST(&tds->threads_dead);
 	STAILQ_REMOVE_HEAD(&tds->threads_dead, deadlist);
 	threads_unlock(tds);
+	data = td->data;
 	free(td);
-	return (td);
+	return (data);
 }
 
 /* Free a threads set. */

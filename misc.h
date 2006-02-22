@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.h,v 1.21 2006/02/06 01:44:23 mux Exp $
+ * $FreeBSD: projects/csup/misc.h,v 1.22 2006/02/11 18:32:09 mux Exp $
  */
 #ifndef _MISC_H_
 #define _MISC_H_
@@ -70,6 +70,24 @@
 #else
 #define	__printflike(fmtarg, firstvararg)
 #endif
+
+/* Exit codes. */
+#define	STATUS_SUCCESS		0
+#define	STATUS_FAILURE		1
+#define	STATUS_TRANSIENTFAILURE	2
+#define	STATUS_INTERRUPTED	3
+
+struct config;
+struct stream;
+
+/* Thread parameters. */
+struct thread_args {
+	struct config *config;
+	struct stream *rd;
+	struct stream *wr;
+	int status;
+	char *errmsg;
+};
 
 /* Minimum size for MD5_File() and MD5_End() buffers. */
 #define	MD5_DIGEST_SIZE		33

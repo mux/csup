@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.30 2006/02/10 04:00:43 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.31 2006/02/10 18:18:47 mux Exp $
  */
 
 #include <sys/file.h>
@@ -39,6 +39,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "fattr.h"
 #include "misc.h"
 #include "proto.h"
 #include "stream.h"
@@ -90,7 +91,7 @@ main(int argc, char *argv[])
 	char *argv0, *base, *colldir, *host, *file, *lockfile;
 	uint16_t port;
 	int family, compress, error, lockfd, lflag, truststatus;
-	int c, i, retries;
+	int c, i, retries, status;
 	time_t nexttry;
 
 	error = 0;
@@ -226,13 +227,13 @@ main(int argc, char *argv[])
 	lprintf(2, "Connecting to %s\n", config->host);
 
 	i = 0;
+	fattr_init();	/* Initialize the fattr API. */
 	timer = bt_new(300, 7200, 2.0, 0.1);
 	for (;;) {
-		error = proto_connect(config, family, port);
-		if (!error) {
-			lprintf(1, "Connected to %s\n", config->host);
-			error = proto_init(config);
-			if (!error)
+		status = proto_connect(config, family, port);
+		if (status == STATUS_SUCCESS) {
+			status = proto_run(config);
+			if (status != STATUS_TRANSIENTFAILURE)
 				break;
 		}
 		if (retries >= 0 && i >= retries)
@@ -246,10 +247,13 @@ main(int argc, char *argv[])
 		i++;
 	}
 	bt_free(timer);
+	fattr_fini();
 	if (lflag) {
 		unlink(lockfile);
 		flock(lockfd, LOCK_UN);
 		close(lockfd);
 	}
+	if (status != STATUS_SUCCESS)
+		return (1);
 	return (0);
 }

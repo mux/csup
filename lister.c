@@ -23,10 +23,11 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.22 2006/02/03 18:49:23 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.23 2006/02/10 18:18:47 mux Exp $
  */
 
 #include <assert.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,71 +43,110 @@
 #include "status.h"
 #include "stream.h"
 
-static int	lister_coll(struct config *, struct stream *, struct coll *,
-		    struct status *);
-static void	lister_sendbogus(struct config *, struct stream *,
-		    struct statusrec *);
-static int	lister_dodirdown(struct config *, struct stream *,
-		    struct coll *, struct statusrec *, struct attrstack *as);
-static int	lister_dodirup(struct config *, struct stream *, struct coll *,
+/* Internal error codes. */
+#define	LISTER_ERR_WRITE	(-1)	/* Error writing to server. */
+#define	LISTER_ERR_STATUS	(-2)	/* Status file error in lstr->errmsg. */
+
+struct lister {
+	struct config *config;
+	struct stream *wr;
+	char *errmsg;
+};
+
+static int	lister_batch(struct lister *);
+static int	lister_coll(struct lister *, struct coll *, struct status *);
+static int	lister_dodirdown(struct lister *, struct coll *,
+		    struct statusrec *, struct attrstack *as);
+static int	lister_dodirup(struct lister *, struct coll *,
     		    struct statusrec *, struct attrstack *as);
-static int	lister_dofile(struct config *, struct stream *, struct coll *,
+static int	lister_dofile(struct lister *, struct coll *,
 		    struct statusrec *);
-static int	lister_dodead(struct config *, struct stream *, struct coll *,
+static int	lister_dodead(struct lister *, struct coll *,
 		    struct statusrec *);
 
 void *
 lister(void *arg)
 {
-	struct config *config;
-	struct coll *coll;
-	struct stream *wr;
-	struct status *st;
-	char *errmsg;
+	struct thread_args *args;
+	struct lister lbuf, *l;
 	int error;
 
-	config = arg;
-	wr = stream_open(config->chan0,
-	    NULL, (stream_writefn_t *)chan_write, NULL);
+	args = arg;
+	l = &lbuf;
+	l->config = args->config;
+	l->wr = args->wr;
+	l->errmsg = NULL;
+	error = lister_batch(l);
+	switch (error) {
+	case LISTER_ERR_WRITE:
+		xasprintf(&args->errmsg,
+		    "TreeList failed: Network write failure: %s",
+		    strerror(errno));
+		args->status = STATUS_TRANSIENTFAILURE;
+		break;
+	case LISTER_ERR_STATUS:
+		xasprintf(&args->errmsg,
+		    "TreeList failed: %s.  Delete it and try again.",
+		    l->errmsg);
+		free(l->errmsg);
+		args->status = STATUS_FAILURE;
+		break;
+	default:
+		assert(error == 0);
+		args->status = STATUS_SUCCESS;
+	};
+	return (NULL);
+}
+
+static int
+lister_batch(struct lister *l)
+{
+	struct config *config;
+	struct stream *wr;
+	struct status *st;
+	struct coll *coll;
+	int error;
+
+	config = l->config;
+	wr = l->wr;
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
-		st = status_open(coll, -1, &errmsg);
-		if (st == NULL) {
-			lprintf(-1, "Lister: %s\n", errmsg);
-			stream_close(wr);
-			return (NULL);
-		}
-		proto_printf(wr, "COLL %s %s\n", coll->co_name,
+		st = status_open(coll, -1, &l->errmsg);
+		if (st == NULL)
+			return (LISTER_ERR_STATUS);
+		error = proto_printf(wr, "COLL %s %s\n", coll->co_name,
 		    coll->co_release);
+		if (error)
+			return (LISTER_ERR_WRITE);
 		stream_flush(wr);
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_start(wr, STREAM_FILTER_ZLIB, NULL);
-		error = lister_coll(config, wr, coll, st);
+		error = lister_coll(l, coll, st);
 		status_close(st, NULL);
-		if (error) {
-			stream_close(wr);
-			return (NULL);
-		}
+		if (error)
+			return (error);
 		if (coll->co_options & CO_COMPRESS)
 			stream_filter_stop(wr);
 		stream_flush(wr);
 	}
-	proto_printf(wr, ".\n");
-	stream_close(wr);
-	return (NULL);
+	error = proto_printf(wr, ".\n");
+	if (error)
+		return (LISTER_ERR_WRITE);
+	return (0);
 }
 
 /* List a single collection based on the status file. */
 static int
-lister_coll(struct config *config, struct stream *wr, struct coll *coll,
-    struct status *st)
+lister_coll(struct lister *l, struct coll *coll, struct status *st)
 {
+	struct stream *wr;
 	struct attrstack *as;
 	struct statusrec *sr;
 	struct fattr *fa;
 	int depth, error, ret, prunedepth;
 
+	wr = l->wr;
 	depth = 0;
 	prunedepth = INT_MAX;
 	as = attrstack_new();
@@ -115,18 +155,18 @@ lister_coll(struct config *config, struct stream *wr, struct coll *coll,
 		case SR_DIRDOWN:
 			depth++;
 			if (depth < prunedepth) {
-				error = lister_dodirdown(config, wr, coll, sr,
-				    as);
-				if (error) {
+				error = lister_dodirdown(l, coll, sr, as);
+				if (error < 0)
+					goto bad;
+				if (error)
 					prunedepth = depth;
-					break;
-				}
 			}
 			break;
 		case SR_DIRUP:
 			if (depth < prunedepth) {
-				error = lister_dodirup(config, wr, coll, sr,
-				    as);
+				error = lister_dodirup(l, coll, sr, as);
+				if (error)
+					goto bad;
 			} else if (depth == prunedepth) {
 				/* Finished pruning. */
 				prunedepth = INT_MAX;
@@ -134,26 +174,32 @@ lister_coll(struct config *config, struct stream *wr, struct coll *coll,
 			depth--;
 			continue;
 		case SR_CHECKOUTLIVE:
-			if (depth < prunedepth)
-				error = lister_dofile(config, wr, coll, sr);
+			if (depth < prunedepth) {
+				error = lister_dofile(l, coll, sr);
+				if (error)
+					goto bad;
+			}
 			break;
 		case SR_CHECKOUTDEAD:
-			if (depth < prunedepth)
-				error = lister_dodead(config, wr, coll, sr);
+			if (depth < prunedepth) {
+				error = lister_dodead(l, coll, sr);
+				if (error)
+					goto bad;
+			}
 			break;
-		default:
-			goto bad;
 		}
 	}
 	if (ret == -1) {
-		lprintf(-1, "Lister: %s.  Delete it and try again.\n",
-		    status_errmsg(st));
+		l->errmsg = status_errmsg(st);
+		error = LISTER_ERR_STATUS;
 		goto bad;
 	}
 	assert(status_eof(st));
 	assert(depth == 0);
-	proto_printf(wr, ".\n");
+	error = proto_printf(wr, ".\n");
 	attrstack_free(as);
+	if (error)
+		return (LISTER_ERR_WRITE);
 	return (0);
 bad:
 	while (depth-- > 0) {
@@ -161,17 +207,22 @@ bad:
 		fattr_free(fa);
 	}
 	attrstack_free(as);
-	return (-1);
+	return (error);
 }
 
 /* Handle a directory up entry found in the status file. */
 static int
-lister_dodirdown(struct config *config, struct stream *wr, struct coll *coll,
-    struct statusrec *sr, struct attrstack *as)
+lister_dodirdown(struct lister *l, struct coll *coll, struct statusrec *sr,
+    struct attrstack *as)
 {
+	struct config *config;
+	struct stream *wr;
 	struct fattr *fa, *fa2;
 	char *path;
+	int error;
 
+	config = l->config;
+	wr = l->wr;
 	if (coll->co_options & CO_TRUSTSTATUSFILE) {
 		fa = fattr_new(FT_DIRECTORY, -1);
 	} else {
@@ -181,7 +232,7 @@ lister_dodirdown(struct config *config, struct stream *wr, struct coll *coll,
 			/* The directory doesn't exist, prune
 			 * everything below it. */
 			free(path);
-			return (-1);
+			return (1);
 		}
 		if (fattr_type(fa) == FT_SYMLINK) {
 			fa2 = fattr_frompath(path, FATTR_FOLLOW);
@@ -202,24 +253,34 @@ lister_dodirdown(struct config *config, struct stream *wr, struct coll *coll,
 		fattr_free(fa);
 		/* Report it as something bogus so
 		 * that it will be replaced. */
-		lister_sendbogus(config, wr, sr);
-		return (-1);
+		error = proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file),
+		    fattr_bogus, config->fasupport);
+		if (error)
+			return (LISTER_ERR_WRITE);
+		return (1);
 	}
 
 	/* It really is a directory. */
 	attrstack_push(as, fa);
-	proto_printf(wr, "D %s\n", pathlast(sr->sr_file));
+	error = proto_printf(wr, "D %s\n", pathlast(sr->sr_file));
+	if (error)
+		return (LISTER_ERR_WRITE);
 	return (0);
 }
 
 /* Handle a directory up entry found in the status file. */
 static int
-lister_dodirup(struct config *config, struct stream *wr, struct coll *coll,
-    struct statusrec *sr, struct attrstack *as)
+lister_dodirup(struct lister *l, struct coll *coll, struct statusrec *sr,
+    struct attrstack *as)
 {
+	struct config *config;
 	const struct fattr *sendattr;
+	struct stream *wr;
 	struct fattr *fa, *fa2;
+	int error;
 
+	config = l->config;
+	wr = l->wr;
 	fa = attrstack_pop(as);
 	if (coll->co_options & CO_TRUSTSTATUSFILE) {
 		fattr_free(fa);
@@ -231,7 +292,9 @@ lister_dodirup(struct config *config, struct stream *wr, struct coll *coll,
 		sendattr = fa;
 	else
 		sendattr = fattr_bogus;
-	proto_printf(wr, "U %F\n", sendattr, config->fasupport);
+	error = proto_printf(wr, "U %F\n", sendattr, config->fasupport);
+	if (error)
+		return (LISTER_ERR_WRITE);
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE))
 		fattr_free(fa);
 	/* XXX CVSup flushes here for some reason with a comment saying
@@ -242,62 +305,98 @@ lister_dodirup(struct config *config, struct stream *wr, struct coll *coll,
 
 /* Handle a checkout live entry found in the status file. */
 static int
-lister_dofile(struct config *config, struct stream *wr, struct coll *coll,
-    struct statusrec *sr)
+lister_dofile(struct lister *l, struct coll *coll, struct statusrec *sr)
 {
-	struct fattr *fa, *fa2, *cfa, *sfa, *rfa;
-	char *path;
+	struct config *config;
+	struct stream *wr;
+	const struct fattr *sendattr, *fa;
+	struct fattr *fa2, *rfa;
+	char *path, *spath;
 	int error;
 
-	fa = NULL;
+	config = l->config;
+	wr = l->wr;
 	rfa = NULL;
+	sendattr = NULL;
 	error = 0;
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE)) {
 		path = checkoutpath(coll->co_prefix, sr->sr_file);
-		if (path == NULL)
-			goto bad;
+		if (path == NULL) {
+			spath = coll_statuspath(coll);
+			xasprintf(&l->errmsg, "Error in \"%s\": "
+			    "Invalid filename \"%s\"", spath, sr->sr_file);
+			free(spath);
+			return (LISTER_ERR_STATUS);
+		}
 		rfa = fattr_frompath(path, FATTR_NOFOLLOW);
 		free(path);
-		if (rfa == NULL)
-			goto bad;
+		if (rfa == NULL) {
+			/*
+			 * According to the checkouts file we should have
+			 * this file but we don't.  Maybe the user deleted
+			 * the file, or maybe the checkouts file is wrong.
+			 * List the file with bogus attributes to cause the
+			 * server to get things back in sync again.
+			 */
+			sendattr = fattr_bogus;
+			goto send;
+		}
 		fa = rfa;
+	} else {
+		fa = sr->sr_clientattr;
 	}
-	cfa = sr->sr_clientattr;
-	if (fa == NULL)
-		fa = cfa;
-	sfa = sr->sr_serverattr;
-	fa2 = fattr_forcheckout(sfa, coll->co_umask);
-	if (!fattr_equal(fa, cfa) || !fattr_equal(fa, fa2) ||
+	fa2 = fattr_forcheckout(sr->sr_serverattr, coll->co_umask);
+	if (!fattr_equal(fa, sr->sr_clientattr) || !fattr_equal(fa, fa2) ||
 	    strcmp(coll->co_tag, sr->sr_tag) != 0 ||
 	    strcmp(coll->co_date, sr->sr_date) != 0) {
-		fattr_free(fa2);
-		fattr_free(rfa);
-		goto bad;
+		/*
+		 * The file corresponds to the information we have
+		 * recorded about it, and its moded is correct for
+		 * the requested umask setting.
+		 */
+		sendattr = fattr_bogus;
+	} else {
+		/*
+		 * Either the file has been touched, or we are asking
+		 * for a different revision than the one we recorded
+		 * information about, or its mode isn't right (because
+		 * it was last updated using a version of CVSup that
+		 * wasn't so strict about modes).
+		 */
+		sendattr = sr->sr_serverattr;
 	}
-	proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), sfa,
-	    config->fasupport);
 	fattr_free(fa2);
-	fattr_free(rfa);
+	if (rfa != NULL)
+		fattr_free(rfa);
+send:
+	error = proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), sendattr,
+	    config->fasupport);
+	if (error)
+		return (LISTER_ERR_WRITE);
 	return (0);
-bad:
-	lister_sendbogus(config, wr, sr);
-	return (-1);
 }
 
 /* Handle a checkout dead entry found in the status file. */
 static int
-lister_dodead(struct config *config, struct stream *wr, struct coll *coll,
-    struct statusrec *sr)
+lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 {
+	struct config *config;
+	struct stream *wr;
 	const struct fattr *sendattr;
 	struct fattr *fa;
-	char *path;
+	char *path, *spath;
+	int error;
 
+	config = l->config;
+	wr = l->wr;
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE)) {
 		path = checkoutpath(coll->co_prefix, sr->sr_file);
 		if (path == NULL) {
-			/* XXX I think checkoutpath() errors are fatal. */
-			return (-1);
+			spath = coll_statuspath(coll);
+			xasprintf(&l->errmsg, "Error in \"%s\": "
+			    "Invalid filename \"%s\"", spath, sr->sr_file);
+			free(spath);
+			return (LISTER_ERR_STATUS);
 		}
 		fa = fattr_frompath(path, FATTR_NOFOLLOW);
 		free(path);
@@ -309,8 +408,12 @@ lister_dodead(struct config *config, struct stream *wr, struct coll *coll,
 			 * sent the correct version.
 			 */
 			fattr_free(fa);
-			lister_sendbogus(config, wr, sr);
-			return (-1);
+			error = proto_printf(wr, "F %s %F\n",
+			    pathlast(sr->sr_file), fattr_bogus,
+			    config->fasupport);
+			if (error)
+				return (LISTER_ERR_WRITE);
+			return (0);
 		}
 		fattr_free(fa);
 	}
@@ -319,15 +422,9 @@ lister_dodead(struct config *config, struct stream *wr, struct coll *coll,
 		sendattr = fattr_bogus;
 	else
 		sendattr = sr->sr_serverattr;
-	proto_printf(wr, "f %s %F\n", pathlast(sr->sr_file), sendattr,
+	error = proto_printf(wr, "f %s %F\n", pathlast(sr->sr_file), sendattr,
 	    config->fasupport);
+	if (error)
+		return (LISTER_ERR_WRITE);
 	return (0);
-}
-
-static void
-lister_sendbogus(struct config *config, struct stream *wr, struct statusrec *sr)
-{
-
-	proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), fattr_bogus,
-	    config->fasupport);
 }

@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/threads.h,v 1.4 2006/01/27 17:13:50 mux Exp $
+ * $FreeBSD: projects/csup/threads.h,v 1.5 2006/02/07 02:46:09 mux Exp $
  */
 #ifndef _THREADS_H_
 #define _THREADS_H_
@@ -31,7 +31,7 @@
 struct threads;
 
 struct threads	*threads_new(void);
-void		*threads_create(struct threads *, void *(*)(void *), void *);
+void		 threads_create(struct threads *, void *(*)(void *), void *);
 void		*threads_wait(struct threads *);
 void		 threads_free(struct threads *);
 

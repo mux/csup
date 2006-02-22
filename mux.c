@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.66 2006/02/21 02:49:58 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.67 2006/02/21 18:37:34 mux Exp $
  */
 
 #include <sys/param.h>
@@ -163,8 +163,8 @@ struct chan {
 };
 
 struct mux {
-	int		closing;
 	int		closed;
+	int		status;
 	int		socket;
 	pthread_mutex_t	lock;
 	pthread_cond_t	done;
@@ -314,8 +314,8 @@ mux_open(int sock, struct chan **chan)
 	m = xmalloc(sizeof(struct mux));
 	memset(m->channels, 0, sizeof(m->channels));
 	m->nchans = 0;
-	m->closing = 0;
 	m->closed = 0;
+	m->status = -1;
 	m->socket = sock;
 
 	m->sender_waiting = 0;
@@ -327,26 +327,26 @@ mux_open(int sock, struct chan **chan)
 	pthread_cond_init(&m->sender_started, NULL);
 
 	error = mux_init(m);
-	if (error) {
-		mux_close(m);
-		return (NULL);
-	}
+	if (error)
+		goto bad;
 	chan0 = chan_connect(m, 0);
-	if (chan0 == NULL) {
-		mux_close(m);
-		return (NULL);
-	}
+	if (chan0 == NULL)
+		goto bad;
 	*chan = chan0;
 	return (m);
+bad:
+	mux_shutdown(m, NULL, STATUS_FAILURE);
+	(void)mux_close(m);
+	return (NULL);
 }
 
-void
+int
 mux_close(struct mux *m)
 {
 	struct chan *chan;
-	int i;
+	int i, status;
 
-	mux_shutdown(m, 0);
+	assert(m->closed);
 	for (i = 0; i < m->nchans; i++) {
 		chan = m->channels[i];
 		if (chan != NULL)
@@ -356,7 +356,9 @@ mux_close(struct mux *m)
 	pthread_cond_destroy(&m->sender_newwork);
 	pthread_cond_destroy(&m->done);
 	pthread_mutex_destroy(&m->lock);
+	status = m->status;
 	free(m);
+	return (status);
 }
 
 /* Close a channel. */
@@ -675,12 +677,21 @@ mux_init(struct mux *m)
 
 /*
  * Close all the channels, terminate the sender and receiver thread.
- * If "error" is 0, it is a normal shutdown; if it's >0 then it is an
- * errno value corresponding to the error that happened and if it's -1
- * the error was a protocol error.
+ * This is an important function because it is used everytime we need
+ * to wake up all the worker threads to abort the program.
+ *
+ * This function accepts an error message that will be printed if the
+ * multiplexer wasn't already closed.  This is useful because it ensures
+ * that only the first error message will be printed, and that it will
+ * be printed before doing the actual shutdown work.  If this is a
+ * normal shutdown, NULL can be passed instead.
+ *
+ * The "status" parameter of the first mux_shutdown() call is retained
+ * and then returned by mux_close(),  so that the main thread can know
+ * what type of error happened in the end, if any.
  */
 void
-mux_shutdown(struct mux *m, int error)
+mux_shutdown(struct mux *m, const char *errmsg, int status)
 {
 	pthread_t self, sender, receiver;
 	struct chan *chan;
@@ -688,19 +699,29 @@ mux_shutdown(struct mux *m, int error)
 	void *val;
 	int i, ret;
 
-	name = NULL;
 	mux_lock(m);
 	if (m->closed) {
 		mux_unlock(m);
 		return;
 	}
-	if (m->closing) {
-		while (!m->closed)
-			pthread_cond_wait(&m->done, &m->lock);
-		mux_unlock(m);
-		return;
+	m->closed = 1;
+	m->status = status;
+	self = pthread_self();
+	sender = m->sender;
+	receiver = m->receiver;
+	if (errmsg != NULL) {
+		if (pthread_equal(self, receiver))
+			name = "Receiver";
+		else if (pthread_equal(self, sender))
+			name = "Sender";
+		else
+			name = NULL;
+		if (name == NULL)
+			lprintf(-1, "%s\n", errmsg);
+		else
+			lprintf(-1, "%s: %s\n", name, errmsg);
 	}
-	m->closing = 1;
+	
 	for (i = 0; i < MUX_MAXCHAN; i++) {
 		if (m->channels[i] != NULL) {
 			chan = m->channels[i];
@@ -714,40 +735,20 @@ mux_shutdown(struct mux *m, int error)
 			chan_unlock(chan);
 		}
 	}
-	sender = m->sender;
-	receiver = m->receiver;
 	mux_unlock(m);
-	self = pthread_self();
+
 	if (!pthread_equal(self, receiver)) {
 		ret = pthread_cancel(receiver);
 		assert(!ret);
 		pthread_join(receiver, &val);
 		assert(val == PTHREAD_CANCELED);
-		name = "Sender";
 	}
 	if (!pthread_equal(self, sender)) {
 		ret = pthread_cancel(sender);
 		assert(!ret);
 		pthread_join(sender, &val);
 		assert(val == PTHREAD_CANCELED);
-		name = "Receiver";
 	}
-
-	mux_lock(m);
-	m->closed = 1;
-	pthread_cond_broadcast(&m->done);
-	if (!error) {
-		mux_unlock(m);
-		return;
-	}
-
-	/* Only the receiver and sender threads report errors. */
-	assert(name != NULL);
-	if (error == -1)
-		lprintf(-1, "%s: Protocol error\n", name);
-	else
-		lprintf(-1, "%s: %s\n", name, strerror(error));
-	mux_unlock(m);
 }
 
 static void
@@ -877,7 +878,10 @@ again:
 	}
 	goto again;
 bad:
-	mux_shutdown(m, errno);
+	if (error == EPIPE)
+		mux_shutdown(m, strerror(errno), STATUS_TRANSIENTFAILURE);
+	else
+		mux_shutdown(m, strerror(errno), STATUS_FAILURE);
 	return (NULL);
 }
 
@@ -1013,8 +1017,7 @@ receiver_loop(void *arg)
 			error = SOCK_READREST(m->socket, mh, MUX_RESETHDRSZ);
 			if (error)
 				goto bad;
-			mux_shutdown(m, -1);
-			return (NULL);
+			goto badproto;
 		case MUX_WINDOW:
 			error = SOCK_READREST(m->socket, mh, MUX_WINDOWHDRSZ);
 			if (error)
@@ -1041,7 +1044,7 @@ receiver_loop(void *arg)
 			    (len > buf_avail(buf) ||
 			     len > chan->recvmss)) {
 				chan_unlock(chan);
-				mux_shutdown(m, -1);
+				goto badproto;
 				return (NULL);
 			}
 			/*
@@ -1077,20 +1080,23 @@ receiver_loop(void *arg)
 				chan->state = CS_RDCLOSED;
 			else if (chan->state == CS_WRCLOSED)
 				chan->state = CS_CLOSED;
-			else  {
-				mux_shutdown(m, -1);
-				return (NULL);
-			}
+			else
+				goto badproto;
 			pthread_cond_signal(&chan->rdready);
 			chan_unlock(chan);
 			break;
 		default:
-			mux_shutdown(m, -1);
-			return (NULL);
+			goto badproto;
 		}
 	}
 bad:
-	mux_shutdown(m, errno);
+	if (errno == ECONNRESET)
+		mux_shutdown(m, strerror(errno), STATUS_TRANSIENTFAILURE);
+	else
+		mux_shutdown(m, strerror(errno), STATUS_FAILURE);
+	return (NULL);
+badproto:
+	mux_shutdown(m, "Protocol error", STATUS_FAILURE);
 	return (NULL);
 }
 

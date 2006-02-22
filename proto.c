@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.72 2006/02/17 23:47:45 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.73 2006/02/18 10:41:08 mux Exp $
  */
 
 #include <sys/param.h>
@@ -33,8 +33,11 @@
 #include <sys/stat.h>
 
 #include <assert.h>
+#include <err.h>
 #include <errno.h>
 #include <netdb.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -59,6 +62,17 @@
 #define	PROTO_MAJ	17
 #define	PROTO_MIN	0
 #define	PROTO_SWVER	"CSUP_0_1"
+
+struct killer {
+	pthread_t thread;
+	sigset_t sigset;
+	struct mux *mux;
+	int killedby;
+};
+
+static void		 killer_start(struct killer *, struct mux *);
+static void		*killer_run(void *);
+static void		 killer_stop(struct killer *);
 
 static int		 proto_waitconnect(int);
 static int		 proto_greet(struct config *);
@@ -109,7 +123,7 @@ proto_connect(struct config *config, int family, uint16_t port)
 	/* Enough to hold sizeof("cvsup") or any port number. */
 	char servname[8];
 	struct addrinfo *res, *ai, hints;
-	int error, ok, s;
+	int error, s;
 
 	s = -1;
 	if (port != 0)
@@ -134,9 +148,8 @@ proto_connect(struct config *config, int family, uint16_t port)
 	if (error) {
 		lprintf(0, "Name lookup failure for \"%s\": %s\n", config->host,
 		    gai_strerror(error));
-		return (-1);
+		return (STATUS_TRANSIENTFAILURE);
 	}
-	ok = 0;
 	for (ai = res; ai != NULL; ai = ai->ai_next) {
 		s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (s != -1) {
@@ -146,21 +159,20 @@ proto_connect(struct config *config, int family, uint16_t port)
 			if (error)
 				close(s);
 		}
+		(void)getnameinfo(ai->ai_addr, ai->ai_addrlen, addrbuf,
+		    sizeof(addrbuf), NULL, 0, NI_NUMERICHOST);
 		if (s == -1 || error) {
-			(void)getnameinfo(ai->ai_addr, ai->ai_addrlen, addrbuf,
-			    sizeof(addrbuf), NULL, 0, NI_NUMERICHOST);
 			lprintf(0, "Cannot connect to %s: %s\n", addrbuf,
 			    strerror(errno));
 			continue;
 		}
-		ok = 1;
-		break;
+		lprintf(1, "Connected to %s\n", addrbuf);
+		freeaddrinfo(res);
+		config->socket = s;
+		return (STATUS_SUCCESS);
 	}
 	freeaddrinfo(res);
-	if (!ok)
-		return (-1);
-	config->socket = s;
-	return (0);
+	return (STATUS_TRANSIENTFAILURE);
 }
 
 /* Greet the server. */
@@ -456,16 +468,22 @@ proto_mux(struct config *config)
 }
 
 /*
- * Initializes the connection to the CVSup server.  This includes
+ * Initializes the connection to the CVSup server, that is handle
  * the protocol negotiation, logging in, exchanging file attributes
- * support and collections information.
+ * support and collections information, and finally run the update
+ * session.
  */
 int
-proto_init(struct config *config)
+proto_run(struct config *config)
 {
+	struct thread_args lister_args;
+	struct thread_args detailer_args;
+	struct thread_args updater_args;
+	struct thread_args *args;
+	struct killer killer;
 	struct threads *workers;
 	struct mux *m;
-	int error, i;
+	int error, i, status;
 
 	/*
 	 * We pass NULL for the close() function because we'll reuse
@@ -483,36 +501,86 @@ proto_init(struct config *config)
 	if (!error)
 		error = proto_xchgcoll(config);
 	if (error)
-		return (error);
+		return (STATUS_FAILURE);
 
+	/* Multi-threaded action starts here. */
 	m = proto_mux(config);
 	if (m == NULL)
-		return (-1);
+		return (STATUS_FAILURE);
 
-	/* Initialize the fattr API.  Hopefully this is not needed
-	   earlier, since it's only for fattr_mergedefault(). */
-	fattr_init();
 	config->fixups = fixups_new();
+	killer_start(&killer, m);
 
+	/* Start the worker threads. */
 	workers = threads_new();
-	threads_create(workers, lister, config);
-	threads_create(workers, detailer, config);
-	threads_create(workers, updater, config);
+	args = &lister_args;
+	args->config = config;
+	args->status = -1;
+	args->errmsg = NULL;
+	args->rd = NULL;
+	args->wr = stream_open(config->chan0,
+	    NULL, (stream_writefn_t *)chan_write, NULL);
+	threads_create(workers, lister, args);
+
+	args = &detailer_args;
+	args->config = config;
+	args->status = -1;
+	args->errmsg = NULL;
+	args->rd = stream_open(config->chan0,
+	    (stream_readfn_t *)chan_read, NULL, NULL);
+	args->wr = stream_open(config->chan1,
+	    NULL, (stream_writefn_t *)chan_write, NULL);
+	threads_create(workers, detailer, args);
+
+	args = &updater_args;
+	args->config = config;
+	args->status = -1;
+	args->errmsg = NULL;
+	args->rd = stream_open(config->chan1,
+	    (stream_readfn_t *)chan_read, NULL, NULL);
+	args->wr = NULL;
+	threads_create(workers, updater, args);
+
 	lprintf(2, "Running\n");
 	/* Wait for all the worker threads to finish. */
-	for (i = 0; i < 3; i++)
-		threads_wait(workers);
+	status = STATUS_SUCCESS;
+	for (i = 0; i < 3; i++) {
+		args = threads_wait(workers);
+		if (args->rd != NULL)
+			stream_close(args->rd);
+		if (args->wr != NULL)
+			stream_close(args->wr);
+		if (args->status != STATUS_SUCCESS) {
+			assert(args->errmsg != NULL);
+			if (status == STATUS_SUCCESS) {
+				status = args->status;
+				/* Shutdown the multiplexer to wake up all
+				   the other threads. */
+				mux_shutdown(m, args->errmsg, status);
+			}
+			free(args->errmsg);
+		}
+	}
 	threads_free(workers);
-	lprintf(2, "Shutting down connection to server\n");
-	chan_close(config->chan0);
-	chan_close(config->chan1);
-	chan_wait(config->chan0);
-	chan_wait(config->chan1);
-	mux_close(m);
-	lprintf(2, "Finished successfully\n");
+	if (status == STATUS_SUCCESS) {
+		lprintf(2, "Shutting down connection to server\n");
+		chan_close(config->chan0);
+		chan_close(config->chan1);
+		chan_wait(config->chan0);
+		chan_wait(config->chan1);
+		mux_shutdown(m, NULL, STATUS_SUCCESS);
+	}
+	killer_stop(&killer);
 	fixups_free(config->fixups);
-	fattr_fini();
-	return (error);
+	status = mux_close(m);
+	if (status == STATUS_SUCCESS) {
+		lprintf(1, "Finished successfully\n");
+	} else if (status == STATUS_INTERRUPTED) {
+		lprintf(-1, "Interrupted\n");
+		if (killer.killedby != -1)
+			kill(getpid(), killer.killedby);
+	}
+	return (status);
 }
 
 /*
@@ -780,4 +848,62 @@ proto_get_time(char **s, time_t *val)
 		return (-1);
 	*val = (time_t)tmp;
 	return (0);
+}
+
+/* Start the killer thread.  It is used to protect against some signals
+   during the multi-threaded run so that we can gracefully fail.  */
+static void
+killer_start(struct killer *k, struct mux *m)
+{
+	int error;
+
+	k->mux = m;
+	k->killedby = -1;
+	sigemptyset(&k->sigset);
+	sigaddset(&k->sigset, SIGINT);
+	sigaddset(&k->sigset, SIGHUP);
+	sigaddset(&k->sigset, SIGTERM);
+	sigaddset(&k->sigset, SIGPIPE);
+	pthread_sigmask(SIG_BLOCK, &k->sigset, NULL);
+	error = pthread_create(&k->thread, NULL, killer_run, k);
+	if (error)
+		err(1, "pthread_create");
+}
+
+/* The main loop of the killer thread. */
+static void *
+killer_run(void *arg)
+{
+	struct killer *k;
+	int error, sig, old;
+
+	k = arg;
+again:
+	error = sigwait(&k->sigset, &sig);
+	assert(!error);
+	if (sig == SIGINT || sig == SIGHUP || sig == SIGTERM) {
+		if (k->killedby == -1) {
+			k->killedby = sig;
+			/* Ensure we don't get canceled during the shutdown. */
+			pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &old);
+			mux_shutdown(k->mux, "Cleaning up ...",
+			    STATUS_INTERRUPTED);
+			pthread_setcancelstate(old, NULL);
+		}
+	}
+	goto again;
+}
+
+/* Stop the killer thread. */
+static void
+killer_stop(struct killer *k)
+{
+	void *val;
+	int error;
+
+	error = pthread_cancel(k->thread);
+	assert(!error);
+	pthread_join(k->thread, &val);
+	assert(val == PTHREAD_CANCELED);
+	pthread_sigmask(SIG_UNBLOCK, &k->sigset, NULL);
 }
