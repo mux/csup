@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.67 2006/02/21 18:37:34 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.68 2006/02/22 21:27:01 mux Exp $
  */
 
 #include <sys/param.h>
@@ -1090,7 +1090,7 @@ receiver_loop(void *arg)
 		}
 	}
 bad:
-	if (errno == ECONNRESET)
+	if (errno == ECONNRESET || errno == ECONNABORTED)
 		mux_shutdown(m, strerror(errno), STATUS_TRANSIENTFAILURE);
 	else
 		mux_shutdown(m, strerror(errno), STATUS_FAILURE);
