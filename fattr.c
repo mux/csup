@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.36 2006/02/18 01:38:52 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.37 2006/02/23 23:03:52 mux Exp $
  */
 
 #include <sys/time.h>
@@ -551,6 +551,7 @@ static char *
 fattr_scanattr(struct fattr *fa, int type, const char *attr)
 {
 	struct passwd *pw;
+	struct group *gr;
 	char *attrend, *attrstart, *end;
 	size_t len;
 	unsigned long attrlen;
@@ -615,9 +616,9 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 			fa->mask &= ~FA_OWNER;
 		break;
 	case FA_GROUP:
-		pw = getgrnam(attrstart);
-		if (pw != NULL)
-			fa->gid = pw->pw_gid;
+		gr = getgrnam(attrstart);
+		if (gr != NULL)
+			fa->gid = gr->gr_gid;
 		else
 			fa->mask &= ~FA_GROUP;
 		break;
