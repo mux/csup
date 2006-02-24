@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.69 2006/02/22 22:46:17 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.70 2006/02/22 23:22:04 mux Exp $
  */
 
 #include <sys/param.h>
@@ -724,7 +724,7 @@ mux_shutdown(struct mux *m, const char *errmsg, int status)
 		else
 			lprintf(-1, "%s: %s\n", name, errmsg);
 	}
-	
+
 	for (i = 0; i < MUX_MAXCHAN; i++) {
 		if (m->channels[i] != NULL) {
 			chan = m->channels[i];

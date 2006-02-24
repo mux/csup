@@ -175,7 +175,7 @@ pathcomp_finish(struct pathcomp *pc)
 void
 pathcomp_free(struct pathcomp *pc)
 {
-	
+
 	if (pc->prev != NULL)
 		free(pc->prev);
 	free(pc);
