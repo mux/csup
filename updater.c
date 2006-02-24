@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/updater.c,v 1.75 2006/02/18 10:41:08 mux Exp $
+ * $FreeBSD: projects/csup/updater.c,v 1.76 2006/02/22 21:27:01 mux Exp $
  */
 
 #include <sys/types.h>
@@ -494,7 +494,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			if (error)
 				return (UPDATER_ERR_PROTO);
 			updater_delete(fup);
-			error = status_delete(fup->st, fup->destpath, 0);
+			error = status_delete(fup->st, name, 0);
 			if (error) {
 				up->errmsg = status_errmsg(fup->st);
 				return (UPDATER_ERR_MSG);
