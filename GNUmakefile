@@ -2,10 +2,12 @@
 # be used elsewhere because it assumes that the target system doesn't
 # support BSD extended file flags.
 #
-# $FreeBSD: projects/csup/GNUmakefile,v 1.2 2006/02/18 12:02:03 mux Exp $
+# $FreeBSD: projects/csup/GNUmakefile,v 1.3 2006/02/24 05:05:32 mux Exp $
 #
 
 PREFIX?=/usr/local
+OWNER?=	0
+GROUP?=	0
 
 UNAME=	$(shell uname -s)
 
@@ -57,5 +59,5 @@ csup.1.gz: csup.1
 	gzip -cn $< > $@
 
 install: csup csup.1.gz
-	install -s -o 0 -g 0 csup $(PREFIX)/bin
-	install -s -o 0 -g 0 csup.1.gz $(PREFIX)/share/man/man1
+	install -s -o $(OWNER) -g $(GROUP) csup $(PREFIX)/bin
+	install -s -o $(OWNER) -g $(GROUP) csup.1.gz $(PREFIX)/share/man/man1
