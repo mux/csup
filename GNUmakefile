@@ -2,7 +2,7 @@
 # be used elsewhere because it assumes that the target system doesn't
 # support BSD extended file flags.
 #
-# $FreeBSD: projects/csup/GNUmakefile,v 1.1 2006/02/18 11:56:27 mux Exp $
+# $FreeBSD: projects/csup/GNUmakefile,v 1.2 2006/02/18 12:02:03 mux Exp $
 #
 
 PREFIX?=/usr/local
@@ -19,7 +19,7 @@ WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
 	-Wcast-align -Wunused-parameter -Wchar-subscripts -Winline \
 	-Wnested-externs -Wredundant-decls -Wno-format-y2k
 
-CFLAGS+= -g -O -pipe -DNDEBUG
+CFLAGS+= -g -O -pipe -DNDEBUG -I$(PREFIX)/include
 ifeq ($(UNAME), "Linux")
 	CFLAGS+= -D_XOPEN_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
 endif
@@ -27,7 +27,7 @@ ifeq ($(UNAME), "Darwin")
 	CFLAGS+= -DHAVE_FFLAGS
 endif
 CFLAGS+= $(WARNS)
-LDFLAGS= -lcrypto -lz -lpthread
+LDFLAGS= -L$(PREFIX)/lib -lcrypto -lz -lpthread
 
 .PHONY: all clean install
 
