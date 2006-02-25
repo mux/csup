@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.h,v 1.22 2006/02/11 19:09:28 mux Exp $
+ * $FreeBSD: projects/csup/fattr.h,v 1.23 2006/02/11 19:28:57 mux Exp $
  */
 #ifndef _FATTR_H_
 #define _FATTR_H_
@@ -96,7 +96,7 @@ struct fattr	*fattr_fromfd(int);
 struct fattr	*fattr_decode(char *);
 struct fattr	*fattr_forcheckout(const struct fattr *, mode_t);
 struct fattr	*fattr_dup(const struct fattr *);
-char		*fattr_encode(const struct fattr *, fattr_support_t);
+char		*fattr_encode(const struct fattr *, fattr_support_t, int);
 int		 fattr_type(const struct fattr *);
 void		 fattr_maskout(struct fattr *, int);
 int		 fattr_getmask(const struct fattr *);

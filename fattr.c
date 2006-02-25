@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.37 2006/02/23 23:03:52 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.38 2006/02/23 23:11:40 mux Exp $
  */
 
 #include <sys/time.h>
@@ -328,7 +328,7 @@ bad:
 }
 
 char *
-fattr_encode(const struct fattr *fa, fattr_support_t support)
+fattr_encode(const struct fattr *fa, fattr_support_t support, int ignore)
 {
 	struct {
 		char val[32];
@@ -349,6 +349,7 @@ fattr_encode(const struct fattr *fa, fattr_support_t support)
 		mask = fa->mask;
 	else
 		mask = fa->mask & support[fa->type];
+	mask &= ~ignore;
 	/* XXX - Use getpwuid_r() and getgrgid_r(). */
 	if (fa->mask & FA_OWNER) {
 		pw = getpwuid(fa->uid);

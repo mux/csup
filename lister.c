@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.23 2006/02/10 18:18:47 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.24 2006/02/22 21:27:01 mux Exp $
  */
 
 #include <assert.h>
@@ -254,7 +254,7 @@ lister_dodirdown(struct lister *l, struct coll *coll, struct statusrec *sr,
 		/* Report it as something bogus so
 		 * that it will be replaced. */
 		error = proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file),
-		    fattr_bogus, config->fasupport);
+		    fattr_bogus, config->fasupport, coll->co_attrignore);
 		if (error)
 			return (LISTER_ERR_WRITE);
 		return (1);
@@ -292,7 +292,8 @@ lister_dodirup(struct lister *l, struct coll *coll, struct statusrec *sr,
 		sendattr = fa;
 	else
 		sendattr = fattr_bogus;
-	error = proto_printf(wr, "U %F\n", sendattr, config->fasupport);
+	error = proto_printf(wr, "U %F\n", sendattr, config->fasupport,
+	    coll->co_attrignore);
 	if (error)
 		return (LISTER_ERR_WRITE);
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE))
@@ -370,7 +371,7 @@ lister_dofile(struct lister *l, struct coll *coll, struct statusrec *sr)
 		fattr_free(rfa);
 send:
 	error = proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), sendattr,
-	    config->fasupport);
+	    config->fasupport, coll->co_attrignore);
 	if (error)
 		return (LISTER_ERR_WRITE);
 	return (0);
@@ -410,7 +411,7 @@ lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 			fattr_free(fa);
 			error = proto_printf(wr, "F %s %F\n",
 			    pathlast(sr->sr_file), fattr_bogus,
-			    config->fasupport);
+			    config->fasupport, coll->co_attrignore);
 			if (error)
 				return (LISTER_ERR_WRITE);
 			return (0);
@@ -423,7 +424,7 @@ lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 	else
 		sendattr = sr->sr_serverattr;
 	error = proto_printf(wr, "f %s %F\n", pathlast(sr->sr_file), sendattr,
-	    config->fasupport);
+	    config->fasupport, coll->co_attrignore);
 	if (error)
 		return (LISTER_ERR_WRITE);
 	return (0);

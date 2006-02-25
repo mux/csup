@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.76 2006/02/23 01:20:53 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.77 2006/02/25 22:30:35 mux Exp $
  */
 
 #include <sys/param.h>
@@ -417,9 +417,18 @@ proto_xchgcoll(struct config *config)
 					goto bad;
 			}
 		}
-		keyword_prepare(coll->co_keyword);
 		if (line == NULL)
 			goto bad;
+		keyword_prepare(coll->co_keyword);
+		/* Set up a mask of file attribes that we don't want to sync
+		   with the server. */
+		assert(coll->co_attrignore == 0);
+		if (!(coll->co_options & CO_SETOWNER))
+			coll->co_attrignore |= FA_OWNER | FA_GROUP;
+		if (!(coll->co_options & CO_SETMODE))
+			coll->co_attrignore |= FA_MODE;
+		if (!(coll->co_options & CO_SETFLAGS))
+			coll->co_attrignore |= FA_FLAGS;
 	}
 	return (STATUS_SUCCESS);
 bad:
@@ -654,7 +663,7 @@ proto_printf(struct stream *wr, const char *format, ...)
 	va_list ap;
 	char *cp, *s, *attr;
 	ssize_t n;
-	int rv, val;
+	int rv, val, ignore;
 	char c;
 
 	n = 0;
@@ -703,14 +712,15 @@ proto_printf(struct stream *wr, const char *format, ...)
 			break;
 		case 'f':
 			fa = va_arg(ap, struct fattr *);
-			attr = fattr_encode(fa, NULL);
+			attr = fattr_encode(fa, NULL, 0);
 			rv = proto_escape(wr, attr);
 			free(attr);
 			break;
 		case 'F':
 			fa = va_arg(ap, struct fattr *);
 			support = va_arg(ap, fattr_support_t *);
-			attr = fattr_encode(fa, *support);
+			ignore = va_arg(ap, int);
+			attr = fattr_encode(fa, *support, ignore);
 			rv = proto_escape(wr, attr);
 			free(attr);
 			break;

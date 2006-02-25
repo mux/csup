@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.40 2006/02/02 23:22:25 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.41 2006/02/11 02:48:44 mux Exp $
  */
 
 #include <sys/types.h>
@@ -131,6 +131,8 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			cur->co_prefix = prefix;
 		}
 		cur->co_prefixlen = strlen(cur->co_prefix);
+		/* In recent versions, we always try to set the file modes. */
+		cur->co_options |= CO_SETMODE;
 		if (compress > 0)
 			cur->co_options |= CO_COMPRESS;
 		else if (compress < 0)
