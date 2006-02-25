@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.75 2006/02/22 23:22:04 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.76 2006/02/23 01:20:53 mux Exp $
  */
 
 #include <sys/param.h>
@@ -339,44 +339,42 @@ bad:
 static int
 proto_xchgcoll(struct config *config)
 {
-	struct coll *cur;
+	struct coll *coll;
 	struct stream *s;
-	char *line, *cmd, *coll, *options;
+	char *line, *cmd, *collname, *options;
 	char *msg, *release, *ident, *rcskey, *prefix;
 	int error, opts;
 
 	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
-	STAILQ_FOREACH(cur, &config->colls, co_next)
-		proto_printf(s, "COLL %s %s %o %d\n.\n", cur->co_name,
-		    cur->co_release, cur->co_umask, cur->co_options);
+	STAILQ_FOREACH(coll, &config->colls, co_next)
+		proto_printf(s, "COLL %s %s %o %d\n.\n", coll->co_name,
+		    coll->co_release, coll->co_umask, coll->co_options);
 	proto_printf(s, ".\n");
 	stream_flush(s);
-	STAILQ_FOREACH(cur, &config->colls, co_next) {
-		if (cur->co_options & CO_SKIP)
+	STAILQ_FOREACH(coll, &config->colls, co_next) {
+		if (coll->co_options & CO_SKIP)
 			continue;
 		line = stream_getln(s, NULL);
 		if (line == NULL)
 			goto bad;
 		cmd = proto_get_ascii(&line);
-		coll = proto_get_ascii(&line);
+		collname = proto_get_ascii(&line);
 		release = proto_get_ascii(&line);
 		options = proto_get_ascii(&line);
 		if (options == NULL || line != NULL)
 			goto bad;
-		if (strcmp(cmd, "COLL") != 0)
-			goto bad;
-		if (strcmp(coll, cur->co_name) != 0)
-			goto bad;
-		if (strcmp(release, cur->co_release) != 0)
+		if (strcmp(cmd, "COLL") != 0 ||
+		    strcmp(collname, coll->co_name) != 0 ||
+		    strcmp(release, coll->co_release) != 0)
 			goto bad;
 		errno = 0;
 		opts = strtol(options, NULL, 10);
 		if (errno)
 			goto bad;
-		cur->co_options = (cur->co_options | (opts & CO_SERVMAYSET)) &
+		coll->co_options = (coll->co_options | (opts & CO_SERVMAYSET)) &
 		    ~(~opts & CO_SERVMAYCLEAR);
-		cur->co_keyword = keyword_new();
+		coll->co_keyword = keyword_new();
 		while ((line = stream_getln(s, NULL)) != NULL) {
 		 	if (strcmp(line, ".") == 0)
 				break;
@@ -392,13 +390,13 @@ proto_xchgcoll(struct config *config)
 				prefix = proto_get_ascii(&line);
 				if (prefix == NULL || line != NULL)
 					goto bad;
-				cur->co_cvsroot = xstrdup(prefix);
+				coll->co_cvsroot = xstrdup(prefix);
 			} else if (strcmp(cmd, "KEYALIAS") == 0) {
 				ident = proto_get_ascii(&line);
 				rcskey = proto_get_ascii(&line);
 				if (rcskey == NULL || line != NULL)
 					goto bad;
-				error = keyword_alias(cur->co_keyword, ident,
+				error = keyword_alias(coll->co_keyword, ident,
 				    rcskey);
 				if (error)
 					goto bad;
@@ -406,19 +404,20 @@ proto_xchgcoll(struct config *config)
 				ident = proto_get_ascii(&line);
 				if (ident == NULL || line != NULL)
 					goto bad;
-				error = keyword_enable(cur->co_keyword, ident);
+				error = keyword_enable(coll->co_keyword, ident);
 				if (error)
 					goto bad;
 			} else if (strcmp(cmd, "KEYOFF") == 0) {
 				ident = proto_get_ascii(&line);
 				if (ident == NULL || line != NULL)
 					goto bad;
-				error = keyword_disable(cur->co_keyword, ident);
+				error = keyword_disable(coll->co_keyword,
+				    ident);
 				if (error)
 					goto bad;
 			}
 		}
-		keyword_prepare(cur->co_keyword);
+		keyword_prepare(coll->co_keyword);
 		if (line == NULL)
 			goto bad;
 	}
