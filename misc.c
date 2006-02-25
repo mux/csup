@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.24 2006/02/07 04:00:30 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.25 2006/02/10 17:03:25 mux Exp $
  */
 
 #include <sys/types.h>
@@ -73,6 +73,7 @@ lprintf(int level, const char *fmt, ...)
 	va_start(ap, fmt);
 	ret = vfprintf(to, fmt, ap);
 	va_end(ap);
+	fflush(to);
 	return (ret);
 }
 
