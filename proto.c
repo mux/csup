@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.78 2006/02/25 22:46:53 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.79 2006/02/26 20:34:43 mux Exp $
  */
 
 #include <sys/param.h>
@@ -415,7 +415,7 @@ proto_xchgcoll(struct config *config)
 		if (line == NULL)
 			goto bad;
 		keyword_prepare(coll->co_keyword);
-		/* Set up a mask of file attribes that we don't want to sync
+		/* Set up a mask of file attributes that we don't want to sync
 		   with the server. */
 		assert(coll->co_attrignore == 0);
 		if (!(coll->co_options & CO_SETOWNER))
