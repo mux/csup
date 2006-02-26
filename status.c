@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/status.c,v 1.14 2006/02/26 04:31:13 mux Exp $
  */
 
 #include <assert.h>
@@ -448,7 +448,7 @@ status_fromrd(char *path, struct stream *file)
 		return (NULL);
 	}
 	id = proto_get_ascii(&line);
-	error = proto_get_int(&line, &ver);
+	error = proto_get_int(&line, &ver, 10);
 	if (error) {
 		stream_close(file);
 		return (NULL);

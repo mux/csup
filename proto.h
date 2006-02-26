@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.h,v 1.11 2006/02/02 19:44:10 mux Exp $
+ * $FreeBSD: projects/csup/proto.h,v 1.12 2006/02/22 21:27:01 mux Exp $
  */
 #ifndef _PROTO_H_
 #define _PROTO_H_
@@ -39,7 +39,7 @@ int	 proto_run(struct config *);
 int	 proto_printf(struct stream *, const char *, ...);
 char	*proto_get_ascii(char **);
 char	*proto_get_rest(char **);
-int	 proto_get_int(char **, int *);
+int	 proto_get_int(char **, int *, int);
 int	 proto_get_time(char **, time_t *);
 
 #endif /* !_PROTO_H_ */

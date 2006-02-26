@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.77 2006/02/25 22:30:35 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.78 2006/02/25 22:46:53 mux Exp $
  */
 
 #include <sys/param.h>
@@ -228,9 +228,9 @@ proto_negproto(struct config *config)
 		return (1);
 	} else if (strcmp(cmd, "PROTO") != 0)
 		goto bad;
-	error = proto_get_int(&line, &maj);
+	error = proto_get_int(&line, &maj, 10);
 	if (!error)
-		error = proto_get_int(&line, &min);
+		error = proto_get_int(&line, &min, 10);
 	if (error)
 		goto bad;
 	if (maj != PROTO_MAJ || min != PROTO_MIN) {
@@ -294,7 +294,7 @@ proto_fileattr(struct config *config)
 	fattr_support_t support;
 	struct stream *s;
 	char *line, *cmd;
-	int i, n, attr;
+	int error, i, n, attr;
 
 	s = config->server;
 	lprintf(2, "Negotiating file attribute support\n");
@@ -304,20 +304,18 @@ proto_fileattr(struct config *config)
 	proto_printf(s, ".\n");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
-	cmd = proto_get_ascii(&line);
-	if (line == NULL || strcmp(cmd, "ATTR") != 0)
+	if (line == NULL)
 		goto bad;
-	errno = 0;
-	n = strtol(line, NULL, 10);
-	if (errno || n > FT_NUMBER)
+	cmd = proto_get_ascii(&line);
+	error = proto_get_int(&line, &n, 10);
+	if (error || line != NULL || strcmp(cmd, "ATTR") != 0 || n > FT_NUMBER)
 		goto bad;
 	for (i = 0; i < n; i++) {
 		line = stream_getln(s, NULL);
 		if (line == NULL)
 			goto bad;
-		errno = 0;
-		attr = strtol(line, NULL, 16);
-		if (errno)
+		error = proto_get_int(&line, &attr, 16);
+		if (error)
 			goto bad;
 		support[i] = fattr_supported(i) & attr;
 	}
@@ -341,9 +339,9 @@ proto_xchgcoll(struct config *config)
 {
 	struct coll *coll;
 	struct stream *s;
-	char *line, *cmd, *collname, *options;
+	char *line, *cmd, *collname;
 	char *msg, *release, *ident, *rcskey, *prefix;
-	int error, opts;
+	int error, options;
 
 	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
@@ -361,19 +359,16 @@ proto_xchgcoll(struct config *config)
 		cmd = proto_get_ascii(&line);
 		collname = proto_get_ascii(&line);
 		release = proto_get_ascii(&line);
-		options = proto_get_ascii(&line);
-		if (options == NULL || line != NULL)
+		error = proto_get_int(&line, &options, 10);
+		if (error || line != NULL)
 			goto bad;
 		if (strcmp(cmd, "COLL") != 0 ||
 		    strcmp(collname, coll->co_name) != 0 ||
 		    strcmp(release, coll->co_release) != 0)
 			goto bad;
-		errno = 0;
-		opts = strtol(options, NULL, 10);
-		if (errno)
-			goto bad;
-		coll->co_options = (coll->co_options | (opts & CO_SERVMAYSET)) &
-		    ~(~opts & CO_SERVMAYCLEAR);
+		coll->co_options =
+		    (coll->co_options | (options & CO_SERVMAYSET)) &
+		    ~(~options & CO_SERVMAYCLEAR);
 		coll->co_keyword = keyword_new();
 		while ((line = stream_getln(s, NULL)) != NULL) {
 		 	if (strcmp(line, ".") == 0)
@@ -821,7 +816,7 @@ proto_get_rest(char **s)
  * Get an int token.
  */
 int
-proto_get_int(char **s, int *val)
+proto_get_int(char **s, int *val, int base)
 {
 	char *cp, *end;
 
@@ -829,7 +824,7 @@ proto_get_int(char **s, int *val)
 	if (cp == NULL)
 		return (-1);
 	errno = 0;
-	*val = strtol(cp, &end, 10);
+	*val = strtol(cp, &end, base);
 	if (errno || *end != '\0')
 		return (-1);
 	return (0);
