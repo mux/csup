@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/globtree.c,v 1.1 2006/02/26 04:52:27 mux Exp $
  */
 
 #include <assert.h>
@@ -339,10 +339,9 @@ doleft:
 
 /*
  * We could de-recursify this function using a stack, but it would be
- * overkill to reuse the one from globtree_state() since we don't need
- * to push a state.  Since this is never called from a thread context
- * with a restricted stack size nor used in a critical path, I think
- * we just can afford keeping this recursive.
+ * overkill since it is never called from a thread context with a
+ * limited stack size nor used in a critical path, so I think we can
+ * afford keeping it recursive.
  */
 void
 globtree_free(struct globtree *gt)
