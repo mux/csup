@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.42 2006/02/25 22:46:53 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.43 2006/02/27 19:40:01 mux Exp $
  */
 
 #include <sys/types.h>
@@ -154,7 +154,9 @@ config_init(const char *file, char *host, char *base, char *colldir,
 		cur->co_accepts = pattlist_new();
 		cur->co_refusals = pattlist_new();
 		cur->co_attrignore = FA_DEV | FA_INODE;
-		config_parse_refusefiles(cur);
+		error = config_parse_refusefiles(cur);
+		if (error)
+			exit(1);
 	}
 
 	/* Override host if necessary. */
@@ -233,6 +235,11 @@ config_parse_refusefiles(struct coll *coll)
 	return (error);
 }
 
+/*
+ * Parses a "refuse" file, and records the relevant information in
+ * coll->co_refusals.  If the file does not exist, it is silently
+ * ignored.
+ */
 static int
 config_parse_refusefile(struct coll *coll, char *path)
 {
@@ -246,6 +253,8 @@ config_parse_refusefile(struct coll *coll, char *path)
 		pattlist_add(coll->co_refusals, line);
 	if (!stream_eof(rd)) {
 		stream_close(rd);
+		lprintf(-1, "Read failure from \"%s\": %s\n", path,
+		    strerror(errno));
 		return (-1);
 	}
 	stream_close(rd);
