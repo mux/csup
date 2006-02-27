@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/globtree.c,v 1.1 2006/02/26 04:52:27 mux Exp $
+ * $FreeBSD: projects/csup/globtree.c,v 1.2 2006/02/27 05:32:54 mux Exp $
  */
 
 #include <assert.h>
@@ -245,46 +245,75 @@ typedef enum {
 	STATE_DOINGRIGHT
 } walkstate_t;
 
+struct stack {
+	struct stackelem *stack;
+	size_t size;
+	size_t in;
+};
+
 struct stackelem {
 	struct globtree *node;
 	walkstate_t state;
-	struct stackelem *next;
 };
 
 static void
-stack_push(struct stackelem **stack, struct globtree *node, walkstate_t state)
+stack_init(struct stack *stack)
 {
-	struct stackelem *e;
 
-	e = xmalloc(sizeof(struct stackelem));
-	e->node = node;
-	e->state = state;
-	e->next = *stack;
-	*stack = e;
+	stack->in = 0;
+	stack->size = 8;	/* Initial size. */
+	stack->stack = xmalloc(sizeof(struct stackelem) * stack->size);
+}
+
+static size_t
+stack_size(struct stack *stack)
+{
+
+	return (stack->in);
 }
 
 static void
-stack_pop(struct stackelem **stack, struct globtree **node, walkstate_t *state)
+stack_push(struct stack *stack, struct globtree *node, walkstate_t state)
 {
 	struct stackelem *e;
 
-	e = *stack;
-	assert(e != NULL);
+	if (stack->in == stack->size) {
+		stack->size *= 2;
+		stack->stack = xrealloc(stack->stack,
+		    sizeof(struct stackelem) * stack->size);
+	}
+	e = stack->stack + stack->in++;
+	e->node = node;
+	e->state = state;
+}
+
+static void
+stack_pop(struct stack *stack, struct globtree **node, walkstate_t *state)
+{
+	struct stackelem *e;
+
+	assert(stack->in > 0);
+	e = stack->stack + --stack->in;
 	*node = e->node;
 	*state = e->state;
-	*stack = e->next;
-	free(e);
+}
+
+static void
+stack_free(struct stack *s)
+{
+
+	free(s->stack);
 }
 
 /* Tests if the supplied filename matches. */
 int
 globtree_test(struct globtree *gt, const char *path)
 {
-	struct stackelem *stack;
+	struct stack stack;
 	walkstate_t state;
 	int val;
 
-	stack = NULL;
+	stack_init(&stack);
 	for (;;) {
 doleft:
 		/* Descend to the left until we hit bottom. */
@@ -297,8 +326,10 @@ doleft:
 		val = globtree_eval(gt, path);
 		/* Ascend, propagating the value through operator nodes. */
 		for (;;) {
-			if (stack == NULL)
+			if (stack_size(&stack) == 0) {
+				stack_free(&stack);
 				return (val);
+			}
 			stack_pop(&stack, &gt, &state);
 			switch (gt->type) {
 			case GLOBTREE_NOT:
