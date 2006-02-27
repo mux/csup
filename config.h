@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.h,v 1.30 2006/02/18 10:41:08 mux Exp $
+ * $FreeBSD: projects/csup/config.h,v 1.31 2006/02/25 22:46:53 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -76,6 +76,10 @@ struct coll {
 	char *co_tag;
 	char *co_cvsroot;
 	int co_attrignore;
+	struct pattlist *co_accepts;
+	struct pattlist *co_refusals;
+	struct globtree *co_dirfilter;
+	struct globtree *co_filefilter;
 	const char *co_colldir;
 	char *co_listsuffix;
 	time_t co_scantime;		/* Set by the detailer thread. */
@@ -101,6 +105,7 @@ int		 config_sethost(char *);
 
 struct coll	*coll_new(void);
 char		*coll_statuspath(struct coll *);
+char		*coll_statussuffix(struct coll *);
 void		 coll_add(char *);
 void		 coll_free(struct coll *);
 void		 coll_setdef(void);

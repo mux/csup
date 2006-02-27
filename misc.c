@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.25 2006/02/10 17:03:25 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.26 2006/02/25 23:50:30 mux Exp $
  */
 
 #include <sys/types.h>
@@ -45,6 +45,12 @@
 #include "fattr.h"
 #include "main.h"
 #include "misc.h"
+
+struct pattlist {
+	char **patterns;
+	size_t size;
+	size_t in;
+};
 
 struct backoff_timer {
 	time_t min;
@@ -364,6 +370,56 @@ xasprintf(char **ret, const char *format, ...)
 	if (*ret == NULL)
 		err(1, "asprintf");
 	return (rv);
+}
+
+struct pattlist *
+pattlist_new(void)
+{
+	struct pattlist *p;
+
+	p = xmalloc(sizeof(struct pattlist));
+	p->size = 4;		/* Initial size. */
+	p->patterns = xmalloc(p->size * sizeof(char *));
+	p->in = 0;
+	return (p);
+}
+
+void
+pattlist_add(struct pattlist *p, const char *pattern)
+{
+
+	if (p->in == p->size) {
+		p->size *= 2;
+		p->patterns = xrealloc(p->patterns, p->size * sizeof(char *));
+	}
+	assert(p->in < p->size);
+	p->patterns[p->in++] = xstrdup(pattern);
+}
+
+char *
+pattlist_get(struct pattlist *p, size_t i)
+{
+
+	assert(i < p->in);
+	return (p->patterns[i]);
+}
+
+size_t
+pattlist_size(struct pattlist *p)
+{
+
+	return (p->in);
+}
+
+void
+pattlist_free(struct pattlist *p)
+{
+	size_t i;
+	
+	for (i = 0; i < p->in; i++)
+		free(p->patterns[i]);
+	free(p->patterns);
+	free(p);
 }
 
 /* Creates a backoff timer. */

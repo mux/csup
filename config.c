@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.41 2006/02/11 02:48:44 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.42 2006/02/25 22:46:53 mux Exp $
  */
 
 #include <sys/types.h>
@@ -36,12 +36,17 @@
 #include <string.h>
 
 #include "config.h"
+#include "globtree.h"
 #include "keyword.h"
 #include "misc.h"
 #include "parse.h"
+#include "stream.h"
 #include "token.h"
 
-static struct coll *coll_alloc(void);
+static int		 config_parse_refusefiles(struct coll *);
+static int		 config_parse_refusefile(struct coll *, char *);
+
+static struct coll	*coll_alloc(void);
 
 extern FILE *yyin;
 
@@ -145,6 +150,11 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			cur->co_colldir = colldir;
 		else
 			cur->co_colldir = "sup";
+		cur->co_keyword = keyword_new();
+		cur->co_accepts = pattlist_new();
+		cur->co_refusals = pattlist_new();
+		cur->co_attrignore = FA_DEV | FA_INODE;
+		config_parse_refusefiles(cur);
 	}
 
 	/* Override host if necessary. */
@@ -181,6 +191,67 @@ config_sethost(char *host)
 	return (0);
 }
 
+static int
+config_parse_refusefiles(struct coll *coll)
+{
+	char *collstem, *suffix, *supdir, *path;
+	int error;
+
+	if (coll->co_colldir[0] == '/')
+		supdir = xstrdup(coll->co_colldir);
+	else
+		xasprintf(&supdir, "%s/%s", coll->co_base, coll->co_colldir);
+
+	/* First, the global refuse file that applies to all collections. */
+	xasprintf(&path, "%s/refuse", supdir);
+	error = config_parse_refusefile(coll, path);
+	free(path);
+	if (error) {
+		free(supdir);
+		return (error);
+	}
+
+	/* Next the per-collection refuse files that applies to all release/tag
+	   combinations. */
+	xasprintf(&collstem, "%s/%s/refuse", supdir, coll->co_name);
+	free(supdir);
+	error = config_parse_refusefile(coll, collstem);
+	if (error) {
+		free(collstem);
+		return (error);
+	}
+
+	/* Finally, the per-release and per-tag refuse file. */
+	suffix = coll_statussuffix(coll);
+	if (suffix != NULL) {
+		xasprintf(&path, "%s%s", collstem, suffix);
+		free(suffix);
+		error = config_parse_refusefile(coll, path);
+		free(path);
+	}
+	free(collstem);
+	return (error);
+}
+
+static int
+config_parse_refusefile(struct coll *coll, char *path)
+{
+	struct stream *rd;
+	char *line;
+
+	rd = stream_open_file(path, O_RDONLY);
+	if (rd == NULL)
+		return (0);
+	while ((line = stream_getln(rd, NULL)) != NULL)
+		pattlist_add(coll->co_refusals, line);
+	if (!stream_eof(rd)) {
+		stream_close(rd);
+		return (-1);
+	}
+	stream_close(rd);
+	return (0);
+}
+
 /* Create a new collection, inheriting options from the default collection. */
 struct coll *
 coll_new(void)
@@ -206,21 +277,55 @@ coll_new(void)
 }
 
 char *
-coll_statuspath(struct coll *coll)
+coll_statussuffix(struct coll *coll)
 {
-	char *path;
+	const char *tag;
+	char *suffix;
 
 	if (coll->co_listsuffix != NULL) {
-		xasprintf(&path, "%s/%s/%s/checkouts.%s", coll->co_base,
-		    coll->co_colldir, coll->co_name, coll->co_listsuffix);
+		xasprintf(&suffix, ".%s", coll->co_listsuffix);
 	} else if (coll->co_options & CO_USERELSUFFIX) {
-		xasprintf(&path, "%s/%s/%s/checkouts.%s:%s", coll->co_base,
-		    coll->co_colldir, coll->co_name, coll->co_release,
-		    coll->co_tag);
+		if (coll->co_tag == NULL)
+			tag = ".";
+		else
+			tag = coll->co_tag;
+		if (coll->co_release != NULL) {
+			if (coll->co_options & CO_CHECKOUTMODE) {
+				xasprintf(&suffix, ".%s:%s",
+				    coll->co_release, tag);
+			} else {
+				xasprintf(&suffix, ".%s", coll->co_release);
+			}
+		} else if (coll->co_options & CO_CHECKOUTMODE) {
+			xasprintf(&suffix, ":%s", tag);
+		}
+	} else
+		suffix = NULL;
+	return (suffix);
+}
+
+char *
+coll_statuspath(struct coll *coll)
+{
+	char *path, *suffix;
+
+	suffix = coll_statussuffix(coll);
+	if (suffix != NULL) {
+		if (coll->co_colldir[0] == '/')
+			xasprintf(&path, "%s/%s/checkouts%s", coll->co_colldir,
+			    coll->co_name, suffix);
+		else
+			xasprintf(&path, "%s/%s/%s/checkouts%s", coll->co_base,
+			    coll->co_colldir, coll->co_name, suffix);
 	} else {
-		xasprintf(&path, "%s/%s/%s/checkouts", coll->co_base,
-		    coll->co_colldir, coll->co_name);
+		if (coll->co_colldir[0] == '/')
+			xasprintf(&path, "%s/%s/checkouts", coll->co_colldir,
+			    coll->co_name);
+		else
+			xasprintf(&path, "%s/%s/%s/checkouts", coll->co_base,
+			    coll->co_colldir, coll->co_name);
 	}
+	free(suffix);
 	return (path);
 }
 
@@ -256,6 +361,14 @@ coll_free(struct coll *coll)
 	if (coll->co_listsuffix != NULL)
 		free(coll->co_listsuffix);
 	keyword_free(coll->co_keyword);
+	if (coll->co_dirfilter != NULL)
+		globtree_free(coll->co_dirfilter);
+	if (coll->co_dirfilter != NULL)
+		globtree_free(coll->co_filefilter);
+	if (coll->co_accepts != NULL)
+		pattlist_free(coll->co_accepts);
+	if (coll->co_refusals != NULL)
+		pattlist_free(coll->co_refusals);
 	free(coll);
 }
 

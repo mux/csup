@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.79 2006/02/26 20:34:43 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.80 2006/02/26 20:39:38 mux Exp $
  */
 
 #include <sys/param.h>
@@ -49,6 +49,7 @@
 #include "detailer.h"
 #include "fattr.h"
 #include "fixups.h"
+#include "globtree.h"
 #include "keyword.h"
 #include "lister.h"
 #include "misc.h"
@@ -339,15 +340,28 @@ proto_xchgcoll(struct config *config)
 {
 	struct coll *coll;
 	struct stream *s;
-	char *line, *cmd, *collname;
+	struct globtree *diraccept, *dirrefuse;
+	struct globtree *fileaccept, *filerefuse;
+	char *line, *cmd, *collname, *pat;
 	char *msg, *release, *ident, *rcskey, *prefix;
-	int error, options;
+	size_t i, len;
+	int error, flags, options;
 
 	s = config->server;
 	lprintf(2, "Exchanging collection information\n");
-	STAILQ_FOREACH(coll, &config->colls, co_next)
-		proto_printf(s, "COLL %s %s %o %d\n.\n", coll->co_name,
+	STAILQ_FOREACH(coll, &config->colls, co_next) {
+		proto_printf(s, "COLL %s %s %o %d\n", coll->co_name,
 		    coll->co_release, coll->co_umask, coll->co_options);
+		for (i = 0; i < pattlist_size(coll->co_accepts); i++) {
+		    proto_printf(s, "ACC %s\n",
+			pattlist_get(coll->co_accepts, i));
+		}
+		for (i = 0; i < pattlist_size(coll->co_refusals); i++) {
+		    proto_printf(s, "REF %s\n",
+			pattlist_get(coll->co_refusals, i));
+		}
+		proto_printf(s, ".\n");
+	}
 	proto_printf(s, ".\n");
 	stream_flush(s);
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
@@ -369,7 +383,6 @@ proto_xchgcoll(struct config *config)
 		coll->co_options =
 		    (coll->co_options | (options & CO_SERVMAYSET)) &
 		    ~(~options & CO_SERVMAYCLEAR);
-		coll->co_keyword = keyword_new();
 		while ((line = stream_getln(s, NULL)) != NULL) {
 		 	if (strcmp(line, ".") == 0)
 				break;
@@ -415,9 +428,73 @@ proto_xchgcoll(struct config *config)
 		if (line == NULL)
 			goto bad;
 		keyword_prepare(coll->co_keyword);
+
+		diraccept = globtree_true();
+		fileaccept = globtree_true();
+		dirrefuse = globtree_false();
+		filerefuse = globtree_false();
+
+		if (pattlist_size(coll->co_accepts) > 0) {
+			globtree_free(diraccept);
+			globtree_free(fileaccept);
+			diraccept = globtree_false();
+			fileaccept = globtree_false();
+			flags = FNM_PATHNAME | FNM_LEADING_DIR;
+			for (i = 0; i < pattlist_size(coll->co_accepts); i++) {
+				pat = pattlist_get(coll->co_accepts, i);
+				diraccept = globtree_or(diraccept,
+				    globtree_match(pat, flags));
+
+				len = strlen(pat);
+				if (coll->co_options & CO_CHECKOUTMODE &&
+				    (len == 0 || pat[len - 1] != '*')) {
+					/* We must modify the pattern so that it
+					   refers to the RCS file, rather than
+					   the checked-out file. */
+					xasprintf(&pat, "%s,v", pat);
+					fileaccept = globtree_or(fileaccept,
+					    globtree_match(pat, flags));
+					free(pat);
+				} else {
+					fileaccept = globtree_or(fileaccept,
+					    globtree_match(pat, flags));
+				}
+			}
+		}
+
+		for (i = 0; i < pattlist_size(coll->co_refusals); i++) {
+			pat = pattlist_get(coll->co_refusals, i);
+			dirrefuse = globtree_or(dirrefuse,
+			    globtree_match(pat, 0));
+			len = strlen(pat);
+			if (coll->co_options & CO_CHECKOUTMODE &&
+			    (len == 0 || pat[len - 1] != '*')) {
+				/* We must modify the pattern so that it refers
+				   to the RCS file, rather than the checked-out
+				   file. */
+				xasprintf(&pat, "%s,v", pat);
+				filerefuse = globtree_or(filerefuse,
+				    globtree_match(pat, 0));
+				free(pat);
+			} else {
+				filerefuse = globtree_or(filerefuse,
+				    globtree_match(pat, 0));
+			}
+		}
+
+		coll->co_dirfilter = globtree_and(diraccept,
+		    globtree_not(dirrefuse));
+		coll->co_filefilter = globtree_and(fileaccept,
+		    globtree_not(filerefuse));
+
+		/* At this point we don't need the pattern lists anymore. */
+		pattlist_free(coll->co_accepts);
+		pattlist_free(coll->co_refusals);
+		coll->co_accepts = NULL;
+		coll->co_refusals = NULL;
+
 		/* Set up a mask of file attributes that we don't want to sync
 		   with the server. */
-		assert(coll->co_attrignore == 0);
 		if (!(coll->co_options & CO_SETOWNER))
 			coll->co_attrignore |= FA_OWNER | FA_GROUP;
 		if (!(coll->co_options & CO_SETMODE))

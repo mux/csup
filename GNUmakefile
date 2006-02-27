@@ -2,7 +2,7 @@
 # be used elsewhere because it assumes that the target system doesn't
 # support BSD extended file flags.
 #
-# $FreeBSD: projects/csup/GNUmakefile,v 1.3 2006/02/24 05:05:32 mux Exp $
+# $FreeBSD: projects/csup/GNUmakefile,v 1.4 2006/02/24 05:14:55 mux Exp $
 #
 
 PREFIX?=/usr/local
@@ -11,9 +11,9 @@ GROUP?=	0
 
 UNAME=	$(shell uname -s)
 
-SRCS=	attrstack.c config.c detailer.c diff.c fattr.c fixups.c keyword.c \
-	lister.c main.c misc.c mux.c pathcomp.c parse.c proto.c status.c \
-	stream.c threads.c token.c updater.c
+SRCS=	attrstack.c config.c detailer.c diff.c fattr.c fixups.c globtree.c \
+	keyword.c lister.c main.c misc.c mux.c pathcomp.c parse.c proto.c \
+	status.c stream.c threads.c token.c updater.c
 OBJS=	$(SRCS:.c=.o)
 
 WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \

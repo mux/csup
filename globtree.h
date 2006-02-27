@@ -23,10 +23,12 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/globtree.h,v 1.1 2006/02/26 04:52:27 mux Exp $
  */
 #ifndef _GLOBTREE_H_
 #define	_GLOBTREE_H_
+
+#include <fnmatch.h>
 
 struct globtree;
 

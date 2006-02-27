@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.24 2006/02/22 21:27:01 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.25 2006/02/25 22:46:53 mux Exp $
  */
 
 #include <assert.h>
@@ -36,6 +36,7 @@
 #include "attrstack.h"
 #include "config.h"
 #include "fattr.h"
+#include "globtree.h"
 #include "lister.h"
 #include "misc.h"
 #include "mux.h"
@@ -223,6 +224,8 @@ lister_dodirdown(struct lister *l, struct coll *coll, struct statusrec *sr,
 
 	config = l->config;
 	wr = l->wr;
+	if (!globtree_test(coll->co_dirfilter, sr->sr_file))
+		return (1);
 	if (coll->co_options & CO_TRUSTSTATUSFILE) {
 		fa = fattr_new(FT_DIRECTORY, -1);
 	} else {
@@ -315,6 +318,8 @@ lister_dofile(struct lister *l, struct coll *coll, struct statusrec *sr)
 	char *path, *spath;
 	int error;
 
+	if (!globtree_test(coll->co_filefilter, sr->sr_file))
+		return (0);
 	config = l->config;
 	wr = l->wr;
 	rfa = NULL;
@@ -388,6 +393,8 @@ lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 	char *path, *spath;
 	int error;
 
+	if (!globtree_test(coll->co_filefilter, sr->sr_file))
+		return (0);
 	config = l->config;
 	wr = l->wr;
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE)) {
