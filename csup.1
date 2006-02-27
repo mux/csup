@@ -22,7 +22,7 @@
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
 .\" $Id$
-.\" $FreeBSD: projects/csup/csup.1,v 1.2 2006/02/04 20:07:22 mux Exp $
+.\" $FreeBSD: projects/csup/csup.1,v 1.3 2006/02/06 01:44:23 mux Exp $
 .\"
 .Dd February 1, 2006
 .Os FreeBSD
@@ -555,6 +555,192 @@ would produce a list file named
 regardless of the release, tag, or
 .Cm use-rel-suffix
 keyword.
+.El
+.Sh REFUSE FILES
+The user can specify sets of files that he does not wish to receive.
+The files are specified as file name patterns in so-called
+.Em refuse
+files.
+The patterns are separated by whitespace, and multiple patterns are
+permitted on each line.
+Files and directories matching the patterns are neither updated nor
+deleted; they are simply ignored.
+.Pp
+There is currently no provision for comments in refuse files.
+.Pp
+The patterns are similar to those of
+.Xr sh 1 ,
+except that there is no special treatment for slashes or for
+filenames that begin with a period.
+For example, the pattern
+.Ql *.c
+will match any file name ending with
+.Ql \&.c
+including those in subdirectories, such as
+.Ql foo/bar/lam.c .
+All patterns are interpreted relative to the collection's prefix
+directory.
+.Pp
+If the files are coming from a CVS repository, as is usually
+the case, then they will be RCS files. These have a
+.Ql \&,v
+suffix which must be taken into account in the patterns. For
+example, the FreeBSD documentation files are in a sub-directory of
+.Ar base
+called
+.Ql doc .
+If
+.Ql Makefile
+from that directory is not required then the line
+.Pp 
+.Bl -item -compact -offset indent
+.It 
+.Pa doc/Makefile
+.El
+.Pp
+will not work because the file on the server is called
+.Ql Makefile,v.
+A better solution would be
+.Pp
+.Bl -item -compact -offset indent
+.It
+.Pa doc/Makefile*
+.El 
+.Pp 
+which will match whether
+.Ql Makefile
+is an RCS file or not.
+.Pp
+As another example, to receive the FreeBSD documentation files without
+the Japanese, Russian, and Chinese translations, create a refuse file
+containing the following lines:
+.Pp
+.Bl -item -compact -offset indent
+.It
+.Pa doc/ja*
+.It
+.Pa doc/ru*
+.It
+.Pa doc/zh*
+.El 
+.Pp
+As many as three refuse files are examined for each
+.Ar supfile
+line.
+There can be a global refuse file named
+.Sm off
+.Ar base / Ar collDir Pa /refuse
+.Sm on
+which applies to all collections and releases.
+There can be a per-collection refuse file named
+.Sm off
+.Xo Ar base / Ar collDir / Ar collection
+.Pa /refuse
+.Xc
+.Sm on
+which applies to a specific collection.
+Finally, there can be a per-release and tag refuse file which applies only
+to a given release/tag combination within a collection.
+The name of the latter is formed by suffixing the name of the
+per-collection refuse file in the same manner as described above for the
+list file.
+None of the refuse files are required to exist.
+.Pp
+.Nm
+has a built-in default value of
+.Ar /usr/local/etc/cvsup
+for
+.Ar base
+and
+.Ar sup
+for 
+.Ar collDir
+but it is possible to override both of these. The value of
+.Ar base
+can be changed using the
+.Fl b
+option or a
+.Ar base=pathname
+entry in the
+.Ar supfile .
+(If both are used the 
+.Fl b
+option will override the
+.Ar supfile
+entry.)  The value of 
+.Ar collDir
+can only be changed with the
+.Fl c
+option; there is no
+.Ar supfile
+command to change it.
+.Pp
+As an example, suppose that the
+.Ar base
+and
+.Ar collDir
+both have their default values, and that the collection and release are
+.Ql src-all
+and
+.Ql cvs ,
+respectively.
+Assume further that checkout mode is being used with
+.Ql tag=RELENG_3 .
+The three possible refuse files would then be named:
+.Pp
+.Bl -item -compact -offset indent
+.It
+.Pa /usr/local/etc/cvsup/sup/refuse
+.It
+.Pa /usr/local/etc/cvsup/sup/src-all/refuse
+.It
+.Pa /usr/local/etc/cvsup/sup/src-all/refuse.cvs:RELENG_3
+.El
+.Pp
+If the
+.Ar supfile
+includes the command
+.Ar base=/foo
+the refuse files would be:
+.Pp
+.Bl -item -compact -offset indent
+.It
+.Pa /foo/sup/refuse
+.It
+.Pa /foo/sup/src-all/refuse
+.It
+.Pa /foo/sup/src-all/refuse.cvs:RELENG_3
+.El
+.Pp
+If
+.Fl b
+.Ar /bar
+is used (even with
+.Ar base=/foo
+in the
+.Ar supfile ) :
+.Pp
+.Bl -item -compact -offset indent
+.It
+.Pa /bar/sup/refuse                
+.It
+.Pa /bar/sup/src-all/refuse                
+.It
+.Pa /bar/sup/src-all/refuse.cvs:RELENG_3                
+.El
+.Pp
+and with
+.Fl c
+.Ar stool
+as well:
+.Pp
+.Bl -item -compact -offset indent
+.It
+.Pa /bar/stool/refuse
+.It 
+.Pa /bar/stool/src-all/refuse
+.It
+.Pa /bar/stool/src-all/refuse.cvs:RELENG_3
 .El
 .Sh csup AND FIREWALLS
 In its default mode,
