@@ -1,4 +1,4 @@
-$FreeBSD: projects/csup/TODO,v 1.35 2006/01/27 17:13:49 mux Exp $
+$FreeBSD: projects/csup/TODO,v 1.36 2006/02/22 21:40:55 mux Exp $
 
 BUGS:
 
@@ -22,15 +22,14 @@ BUGS:
 
 MISSING FEATURES:
 
-- Add support for refuse files.
 - Add support for authentication.
 - Add support for shell commands sent by the server.
-- Add missing support for various CVSup options : -A, -k, -1 and -r,
-  -d, -i, -a (requires authentication support), -e and -E (requires shell
+- Add missing support for various CVSup options : -A, -k, -d, -i,
+  -a (requires authentication support), -e and -E (requires shell
   commands support) and the destDir parameter.
 - Write a manual page (the CVSup one should probably be reused).
-- For now, this code should build fine on FreeBSD, NetBSD and OpenBSD.
-  Linux, Solaris and Darwin support would also be nice at some point.
+- For now, this code should build fine on FreeBSD, NetBSD, OpenBSD,
+  Linux and Darwin.  Solaris support would also be nice at some point.
 - Implement some new useful options : the ability to generate CVS
   checkout files (files in CVS/ subdirectores), a command line override
   to only update a specific collection and a third verbosity level to
