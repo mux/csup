@@ -22,7 +22,7 @@
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
 .\" $Id$
-.\" $FreeBSD: projects/csup/csup.1,v 1.4 2006/02/27 20:07:17 mux Exp $
+.\" $FreeBSD: projects/csup/csup.1,v 1.5 2006/03/01 02:36:00 mux Exp $
 .\"
 .Dd February 1, 2006
 .Os FreeBSD
@@ -33,6 +33,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl 146svzZ
+.Op Fl A Ar addr
 .Op Fl b Ar base
 .Op Fl c Ar collDir
 .Op Fl h Ar host
@@ -104,6 +105,10 @@ to use IPv4 addresses only.
 Forces
 .Nm
 to use IPv6 addresses only.
+.It Fl A Ar addr
+Specifies a local address (dotted quad or hostname) to bind to when
+connecting to the server.  This may be useful on hosts which have
+multiple IP addresses.
 .It Fl b Ar base
 Specifies the base directory under which
 .Nm
