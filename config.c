@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.44 2006/02/27 19:56:29 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.45 2006/03/01 02:29:56 mux Exp $
  */
 
 #include <sys/types.h>
@@ -226,6 +226,8 @@ config_free(struct config *config)
 	    coll_free(coll);
 	if (config->server != NULL)
 		stream_close(config->server);
+	if (config->laddr != NULL)
+		free(config->laddr);
 	free(config);
 }
 

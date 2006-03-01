@@ -23,16 +23,18 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.h,v 1.32 2006/02/27 19:40:01 mux Exp $
+ * $FreeBSD: projects/csup/config.h,v 1.33 2006/03/01 02:29:56 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
+#include <sys/socket.h>
+
+#include <time.h>
+
 #include "fattr.h"
 #include "queue.h"
 #include "misc.h"
-
-#include <time.h>
 
 /*
  * Collection options.
@@ -96,6 +98,8 @@ struct config {
 	STAILQ_HEAD(, coll) colls;
 	struct fixups *fixups;
 	char *host;
+	struct sockaddr *laddr;
+	socklen_t laddrlen;
 	int socket;
 	struct chan *chan0;
 	struct chan *chan1;

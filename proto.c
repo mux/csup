@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.82 2006/03/01 02:29:56 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.83 2006/03/01 03:11:50 mux Exp $
  */
 
 #include <sys/param.h>
@@ -124,7 +124,7 @@ proto_connect(struct config *config, int family, uint16_t port)
 	/* Enough to hold sizeof("cvsup") or any port number. */
 	char servname[8];
 	struct addrinfo *res, *ai, hints;
-	int error, s;
+	int error, opt, s;
 
 	s = -1;
 	if (port != 0)
@@ -154,9 +154,19 @@ proto_connect(struct config *config, int family, uint16_t port)
 	for (ai = res; ai != NULL; ai = ai->ai_next) {
 		s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (s != -1) {
-			error = connect(s, ai->ai_addr, ai->ai_addrlen);
-			if (error && errno == EINTR)
-				error = proto_waitconnect(s);
+			error = 0;
+			if (config->laddr != NULL) {
+				opt = 1;
+				(void)setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
+				    &opt, sizeof(opt));
+				error = bind(s, config->laddr,
+				    config->laddrlen);
+			}
+			if (!error) {
+				error = connect(s, ai->ai_addr, ai->ai_addrlen);
+				if (error && errno == EINTR)
+					error = proto_waitconnect(s);
+			}
 			if (error)
 				close(s);
 		}

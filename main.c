@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.32 2006/02/22 21:27:01 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.33 2006/03/01 02:29:56 mux Exp $
  */
 
 #include <sys/file.h>
@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +60,8 @@ usage(char *argv0)
 	    "(same as \"-r 0\")");
 	lprintf(-1, USAGE_OPTFMT, "-4", "Force usage of IPv4 addresses");
 	lprintf(-1, USAGE_OPTFMT, "-6", "Force usage of IPv6 addresses");
+	lprintf(-1, USAGE_OPTFMT, "-A addr",
+	    "Bind local socket to a specific address");
 	lprintf(-1, USAGE_OPTFMT, "-b base",
 	    "Override supfile's \"base\" directory");
 	lprintf(-1, USAGE_OPTFMT, "-c collDir",
@@ -94,6 +97,9 @@ main(int argc, char *argv[])
 	struct backoff_timer *timer;
 	struct config *config;
 	struct coll *override;
+	struct addrinfo *res;
+	struct sockaddr *laddr;
+	socklen_t laddrlen;
 	struct stream *lock;
 	char *argv0, *file, *lockfile;
 	uint16_t port;
@@ -109,11 +115,13 @@ main(int argc, char *argv[])
 	nexttry = 0;
 	retries = -1;
 	argv0 = argv[0];
+	laddr = NULL;
+	laddrlen = 0;
 	lockfile = NULL;
 	override = coll_new(NULL);
 	overridemask = 0;
 
-	while ((c = getopt(argc, argv, "146b:c:gh:i:l:L:p:P:r:svzZ")) != -1) {
+	while ((c = getopt(argc, argv, "146A:b:c:gh:i:l:L:p:P:r:svzZ")) != -1) {
 		switch (c) {
 		case '1':
 			retries = 0;
@@ -123,6 +131,18 @@ main(int argc, char *argv[])
 			break;
 		case '6':
 			family = AF_INET6;
+			break;
+		case 'A':
+			error = getaddrinfo(optarg, NULL, NULL, &res);
+			if (error) {
+				lprintf(-1, "%s: %s\n", optarg,
+				    gai_strerror(error));
+				return (1);
+			}
+			laddrlen = res->ai_addrlen;
+			laddr = xmalloc(laddrlen);
+			memcpy(laddr, res->ai_addr, laddrlen);
+			freeaddrinfo(res);
 			break;
 		case 'b':
 			if (override->co_base != NULL)
@@ -242,6 +262,10 @@ main(int argc, char *argv[])
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
 	config = config_init(file, override, overridemask);
+	if (laddr != NULL) {
+		config->laddr = laddr;
+		config->laddrlen = laddrlen;
+	}
 	coll_free(override);
 	if (config == NULL)
 		return (1);
