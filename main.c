@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.34 2006/03/01 04:08:08 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.35 2006/03/01 04:33:17 mux Exp $
  */
 
 #include <sys/file.h>
@@ -266,13 +266,18 @@ main(int argc, char *argv[])
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
 	config = config_init(file, override, overridemask);
+	coll_free(override);
+	if (config == NULL)
+		return (1);
+
 	if (laddr != NULL) {
 		config->laddr = laddr;
 		config->laddrlen = laddrlen;
 	}
-	coll_free(override);
-	if (config == NULL)
+	if (config_checkcolls(config) == 0) {
+		lprintf(-1, "No collections selected\n");
 		return (1);
+	}
 
 	lprintf(2, "Connecting to %s\n", config->host);
 

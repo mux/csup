@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.h,v 1.33 2006/03/01 02:29:56 mux Exp $
+ * $FreeBSD: projects/csup/config.h,v 1.34 2006/03/01 04:08:08 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -108,7 +108,7 @@ struct config {
 };
 
 struct config	*config_init(const char *, struct coll *, int);
-int		 config_sethost(char *);
+int		 config_checkcolls(struct config *);
 void		 config_free(struct config *);
 
 struct coll	*coll_new(struct coll *);

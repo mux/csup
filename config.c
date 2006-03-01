@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.45 2006/03/01 02:29:56 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.46 2006/03/01 04:08:08 mux Exp $
  */
 
 #include <sys/types.h>
@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "globtree.h"
@@ -147,6 +148,35 @@ bad:
 	coll_free(defaults);
 	config_free(config);
 	return (NULL);
+}
+
+int
+config_checkcolls(struct config *config)
+{
+	char linkname[4];
+	struct stat sb;
+	struct coll *coll;
+	int error, numvalid, ret;
+
+	numvalid = 0;
+	STAILQ_FOREACH(coll, &config->colls, co_next) {
+		error = stat(coll->co_prefix, &sb);
+		if (error || !S_ISDIR(sb.st_mode)) {
+			/* Skip this collection, and warn about it unless its
+			   prefix is a symbolic link pointing to "SKIP". */
+			coll->co_options |= CO_SKIP;
+			ret = readlink(coll->co_prefix, linkname,
+			    sizeof(linkname));
+			if (ret != 4 || memcmp(linkname, "SKIP", 4) != 0) {
+				lprintf(-1,"Nonexistent prefix \"%s\" for "
+				    "%s/%s\n", coll->co_prefix, coll->co_name,
+				    coll->co_release);
+			}
+			continue;
+		}
+		numvalid++;
+	}
+	return (numvalid);
 }
 
 static int
