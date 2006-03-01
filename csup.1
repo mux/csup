@@ -22,7 +22,7 @@
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
 .\" $Id$
-.\" $FreeBSD: projects/csup/csup.1,v 1.3 2006/02/06 01:44:23 mux Exp $
+.\" $FreeBSD: projects/csup/csup.1,v 1.4 2006/02/27 20:07:17 mux Exp $
 .\"
 .Dd February 1, 2006
 .Os FreeBSD
@@ -36,6 +36,7 @@
 .Op Fl b Ar base
 .Op Fl c Ar collDir
 .Op Fl h Ar host
+.Op Fl i Ar pattern
 .Op Fl l Ar lockfile
 .Op Fl L Ar verbosity
 .Op Fl p Ar port
@@ -121,6 +122,26 @@ Specifies the server host to contact, overriding any
 .Cm host
 specifications in the
 .Ar supfile .
+.It Fl i Ar pattern
+Causes
+.Nm
+to include only files and directories matching
+.Ar pattern
+in the update.  If a directory matches the pattern, then the entire
+subtree rooted at the directory is included.  If this option is
+specified multiple times, the patterns are combined using the
+.Ql or
+operation.  If no
+.Fl i
+options are given, the default is to update all files in each
+collection.
+.Pp
+The
+.Ar pattern
+is a standard file name pattern.
+It is interpreted relative to the collection's prefix directory.
+Slash characters are matched only by explicit slashes in the pattern.
+Leading periods in file name are not treated specially.
 .It Fl l Ar lockfile
 Creates and locks the
 .Ar lockfile
