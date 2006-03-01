@@ -1,4 +1,4 @@
-$FreeBSD: projects/csup/TODO,v 1.40 2006/03/01 04:38:07 mux Exp $
+$FreeBSD: projects/csup/TODO,v 1.41 2006/03/01 04:39:03 mux Exp $
 
 BUGS:
 
@@ -17,9 +17,6 @@ BUGS:
   some of them.  Also, we're not supposed to choke on unknown keywords
   to stay in line with CVSup, which just ignores them in order to
   maintain compatibility with sup configuration files.
-- If the prefix directory is a symbolic link pointing to a nonexistent
-  file named `SKIP', then we should skip the collection, as described in
-  the CVSup manual page.
 
 MISSING FEATURES:
 
