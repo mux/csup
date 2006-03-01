@@ -1,4 +1,4 @@
-$FreeBSD: projects/csup/TODO,v 1.39 2006/03/01 04:17:39 mux Exp $
+$FreeBSD: projects/csup/TODO,v 1.40 2006/03/01 04:38:07 mux Exp $
 
 BUGS:
 
@@ -28,7 +28,6 @@ MISSING FEATURES:
 - Add missing support for various CVSup options : -k, -d, -D,
   -a (requires authentication support), -e and -E (requires shell
   commands support) and the destDir parameter.
-- Write a manual page (the CVSup one should probably be reused).
 - For now, this code should build fine on FreeBSD, NetBSD, OpenBSD,
   Linux and Darwin.  Solaris support would also be nice at some point.
 - Implement some new useful options : the ability to generate CVS
