@@ -1,4 +1,4 @@
-# $FreeBSD: projects/csup/Makefile,v 1.41 2006/02/18 10:41:08 mux Exp $
+# $FreeBSD: projects/csup/Makefile,v 1.42 2006/02/27 19:40:01 mux Exp $
 
 PREFIX?=	/usr/local
 BINDIR?=	${PREFIX}/bin
@@ -13,6 +13,7 @@ SRCS=	attrstack.c attrstack.h \
 	diff.c diff.h \
 	fattr.c fattr.h fattr_bsd.h \
 	fixups.c fixups.h \
+	fnmatch.c fnmatch.h \
 	globtree.c globtree.h \
 	keyword.c keyword.h \
 	lister.c lister.h \

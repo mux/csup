@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.81 2006/02/27 19:40:01 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.82 2006/03/01 02:29:56 mux Exp $
  */
 
 #include <sys/param.h>
@@ -439,7 +439,8 @@ proto_xchgcoll(struct config *config)
 			globtree_free(fileaccept);
 			diraccept = globtree_false();
 			fileaccept = globtree_false();
-			flags = FNM_PATHNAME | FNM_LEADING_DIR;
+			flags = FNM_PATHNAME | FNM_LEADING_DIR |
+			    FNM_PREFIX_DIRS;
 			for (i = 0; i < pattlist_size(coll->co_accepts); i++) {
 				pat = pattlist_get(coll->co_accepts, i);
 				diraccept = globtree_or(diraccept,
