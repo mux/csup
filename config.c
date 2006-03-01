@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.46 2006/03/01 04:08:08 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.47 2006/03/01 05:07:41 mux Exp $
  */
 
 #include <sys/types.h>
@@ -63,7 +63,7 @@ struct config *
 config_init(const char *file, struct coll *override, int overridemask)
 {
 	struct config *config;
-	struct coll *cur;
+	struct coll *coll;
 	size_t slen;
 	char *prefix;
 	int error;
@@ -100,41 +100,41 @@ config_init(const char *file, struct coll *override, int overridemask)
 	}
 
 	/* Fixup the list of collections. */
-	STAILQ_FOREACH(cur, &config->colls, co_next) {
-		coll_override(cur, override, overridemask);
-		cur->co_options |= CO_CHECKOUTMODE;
- 		if (cur->co_base == NULL)
-			cur->co_base = xstrdup("/usr/local/etc/cvsup");
-		if (cur->co_colldir == NULL)
-			cur->co_colldir = "sup";
-		if (cur->co_prefix == NULL) {
-			cur->co_prefix = xstrdup(cur->co_base);
+	STAILQ_FOREACH(coll, &config->colls, co_next) {
+		coll_override(coll, override, overridemask);
+		coll->co_options |= CO_CHECKOUTMODE;
+ 		if (coll->co_base == NULL)
+			coll->co_base = xstrdup("/usr/local/etc/cvsup");
+		if (coll->co_colldir == NULL)
+			coll->co_colldir = "sup";
+		if (coll->co_prefix == NULL) {
+			coll->co_prefix = xstrdup(coll->co_base);
 		/*
 		 * If prefix is not an absolute pathname, it is
 		 * interpreted relative to base.
 		 */
-		} else if (cur->co_prefix[0] != '/') {
-			slen = strlen(cur->co_base);
-			if (slen > 0 && cur->co_base[slen - 1] != '/')
-				xasprintf(&prefix, "%s/%s", cur->co_base,
-				    cur->co_prefix);
+		} else if (coll->co_prefix[0] != '/') {
+			slen = strlen(coll->co_base);
+			if (slen > 0 && coll->co_base[slen - 1] != '/')
+				xasprintf(&prefix, "%s/%s", coll->co_base,
+				    coll->co_prefix);
 			else
-				xasprintf(&prefix, "%s%s", cur->co_base,
-				    cur->co_prefix);
-			free(cur->co_prefix);
-			cur->co_prefix = prefix;
+				xasprintf(&prefix, "%s%s", coll->co_base,
+				    coll->co_prefix);
+			free(coll->co_prefix);
+			coll->co_prefix = prefix;
 		}
-		cur->co_prefixlen = strlen(cur->co_prefix);
+		coll->co_prefixlen = strlen(coll->co_prefix);
 		/* Determine whether to checksum RCS files or not. */
-		if (cur->co_options & CO_EXACTRCS)
-			cur->co_options |= CO_CHECKRCS;
+		if (coll->co_options & CO_EXACTRCS)
+			coll->co_options |= CO_CHECKRCS;
 		else
-			cur->co_options &= ~CO_CHECKRCS;
+			coll->co_options &= ~CO_CHECKRCS;
 		/* In recent versions, we always try to set the file modes. */
-		cur->co_options |= CO_SETMODE;
+		coll->co_options |= CO_SETMODE;
 		/* XXX We don't support the rsync updating algorithm yet. */
-		cur->co_options |= CO_NORSYNC;
-		error = config_parse_refusefiles(cur);
+		coll->co_options |= CO_NORSYNC;
+		error = config_parse_refusefiles(coll);
 		if (error)
 			goto bad;
 	}
