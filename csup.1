@@ -22,7 +22,7 @@
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
 .\" $Id$
-.\" $FreeBSD: projects/csup/csup.1,v 1.5 2006/03/01 02:36:00 mux Exp $
+.\" $FreeBSD: projects/csup/csup.1,v 1.6 2006/03/01 04:17:39 mux Exp $
 .\"
 .Dd February 1, 2006
 .Os FreeBSD
@@ -298,6 +298,13 @@ directory must already exist;
 .Nm
 will not create it.
 .Pp
+As a special case, if
+.Ar prefix
+is a symbolic link pointing to a nonexistent file named
+.Ql SKIP ,
+then
+.Nm
+will skip the collection.
 The parameters associated with the collection are still checked for
 validity, but none of its files will be updated.
 This feature allows a site to use a standard
