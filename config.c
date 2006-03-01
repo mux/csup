@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.47 2006/03/01 05:07:41 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.48 2006/03/01 05:18:16 mux Exp $
  */
 
 #include <sys/types.h>
@@ -252,8 +252,11 @@ config_free(struct config *config)
 {
 	struct coll *coll;
 
-	STAILQ_FOREACH(coll, &config->colls, co_next)
-	    coll_free(coll);
+	while (!STAILQ_EMPTY(&config->colls)) {
+		coll = STAILQ_FIRST(&config->colls);
+		STAILQ_REMOVE_HEAD(&config->colls, co_next);
+		coll_free(coll);
+	}
 	if (config->server != NULL)
 		stream_close(config->server);
 	if (config->laddr != NULL)
