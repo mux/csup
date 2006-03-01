@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.31 2006/02/10 18:18:47 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.32 2006/02/22 21:27:01 mux Exp $
  */
 
 #include <sys/file.h>
@@ -45,6 +45,7 @@
 #include "stream.h"
 
 #define	USAGE_OPTFMT	"    %-12s %s\n"
+#define	USAGE_OPTFMTSUB	"    %-14s %s\n", ""
 
 int verbose = 1;
 
@@ -64,6 +65,11 @@ usage(char *argv0)
 	    "Subdirectory of \"base\" for collections (default \"sup\")");
 	lprintf(-1, USAGE_OPTFMT, "-h host",
 	    "Override supfile's \"host\" name");
+	lprintf(-1, USAGE_OPTFMT, "-i pattern",
+	    "Include only files/directories matching pattern.");
+	lprintf(-1, USAGE_OPTFMTSUB,
+	    "May be repeated for an OR operation.  Default is");
+	lprintf(-1, USAGE_OPTFMTSUB, "to include each entire collection.");
 	lprintf(-1, USAGE_OPTFMT, "-l lockfile",
 	    "Lock file during update; fail if already locked");
 	lprintf(-1, USAGE_OPTFMT, "-L n",
@@ -87,25 +93,27 @@ main(int argc, char *argv[])
 	struct tm tm;
 	struct backoff_timer *timer;
 	struct config *config;
+	struct coll *override;
 	struct stream *lock;
-	char *argv0, *base, *colldir, *host, *file, *lockfile;
+	char *argv0, *file, *lockfile;
 	uint16_t port;
-	int family, compress, error, lockfd, lflag, truststatus;
+	int family, error, lockfd, lflag, overridemask;
 	int c, i, retries, status;
 	time_t nexttry;
 
 	error = 0;
 	family = PF_UNSPEC;
 	port = 0;
-	compress = 0;
-	truststatus = 0;
 	lflag = 0;
 	lockfd = 0;
 	nexttry = 0;
 	retries = -1;
 	argv0 = argv[0];
-	base = colldir = host = lockfile = NULL;
-	while ((c = getopt(argc, argv, "146b:c:gh:l:L:p:P:r:svzZ")) != -1) {
+	lockfile = NULL;
+	override = coll_new(NULL);
+	overridemask = 0;
+
+	while ((c = getopt(argc, argv, "146b:c:gh:i:l:L:p:P:r:svzZ")) != -1) {
 		switch (c) {
 		case '1':
 			retries = 0;
@@ -117,16 +125,23 @@ main(int argc, char *argv[])
 			family = AF_INET6;
 			break;
 		case 'b':
-			base = optarg;
+			if (override->co_base != NULL)
+				free(override->co_base);
+			override->co_base = xstrdup(optarg);
 			break;
 		case 'c':
-			colldir = optarg;
+			override->co_colldir = optarg;
 			break;
 		case 'g':
 			/* For compatibility. */
 			break;
 		case 'h':
-			host = optarg;
+			if (override->co_host != NULL)
+				free(override->co_host);
+			override->co_host = xstrdup(optarg);
+			break;
+		case 'i':
+			pattlist_add(override->co_accepts, optarg);
 			break;
 		case 'l':
 			lockfile = optarg;
@@ -192,7 +207,8 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 's':
-			truststatus = 1;
+			override->co_options |= CO_TRUSTSTATUSFILE;
+			overridemask |= CO_TRUSTSTATUSFILE;
 			break;
 		case 'v':
 			lprintf(-1, "Csup version 0.1\n");
@@ -200,11 +216,13 @@ main(int argc, char *argv[])
 			break;
 		case 'z':
 			/* Force compression on all collections. */
-			compress = 1;
+			override->co_options |= CO_COMPRESS;
+			overridemask |= CO_COMPRESS;
 			break;
 		case 'Z':
 			/* Disables compression on all collections. */
-			compress = -1;
+			override->co_options &= ~CO_COMPRESS;
+			overridemask &= ~CO_COMPRESS;
 			break;
 		case '?':
 		default:
@@ -223,7 +241,11 @@ main(int argc, char *argv[])
 
 	file = argv[0];
 	lprintf(2, "Parsing supfile \"%s\"\n", file);
-	config = config_init(file, host, base, colldir, compress, truststatus);
+	config = config_init(file, override, overridemask);
+	coll_free(override);
+	if (config == NULL)
+		return (1);
+
 	lprintf(2, "Connecting to %s\n", config->host);
 
 	i = 0;
@@ -253,6 +275,7 @@ main(int argc, char *argv[])
 		flock(lockfd, LOCK_UN);
 		close(lockfd);
 	}
+	config_free(config);
 	if (status != STATUS_SUCCESS)
 		return (1);
 	return (0);

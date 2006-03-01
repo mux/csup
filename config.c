@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.43 2006/02/27 19:40:01 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.44 2006/02/27 19:56:29 mux Exp $
  */
 
 #include <sys/types.h>
@@ -46,14 +46,12 @@
 static int		 config_parse_refusefiles(struct coll *);
 static int		 config_parse_refusefile(struct coll *, char *);
 
-static struct coll	*coll_alloc(void);
-
 extern FILE *yyin;
 
 /* These are globals because I can't think of a better way with yacc. */
+static STAILQ_HEAD(, coll) colls;
 static struct coll *cur_coll;
 static struct coll *defaults;
-static struct config *config;
 static const char *cfgfile;
 
 /*
@@ -61,33 +59,32 @@ static const char *cfgfile;
  * file and some command line parameters.
  */
 struct config *
-config_init(const char *file, char *host, char *base, char *colldir,
-    int compress, int truststatus)
+config_init(const char *file, struct coll *override, int overridemask)
 {
+	struct config *config;
 	struct coll *cur;
-	mode_t mask;
 	size_t slen;
 	char *prefix;
 	int error;
+	mode_t mask;
 
 	config = xmalloc(sizeof(struct config));
-	config->host = NULL;
-	STAILQ_INIT(&config->colls);
+	memset(config, 0, sizeof(struct config));
+	STAILQ_INIT(&colls);
 
-	/* Set default collection options. */
-	defaults = coll_alloc();
+	defaults = coll_new(NULL);
+	/* Set the default umask. */
 	mask = umask(0);
 	umask(mask);
 	defaults->co_umask = mask;
-	defaults->co_options = CO_SETMODE | CO_EXACTRCS | CO_CHECKRCS;
 
 	/* Extract a list of collections from the configuration file. */
-	cur_coll = coll_new();
+	cur_coll = coll_new(defaults);
 	yyin = fopen(file, "r");
 	if (yyin == NULL) {
 		lprintf(-1, "Cannot open \"%s\": %s\n", file,
 		    strerror(errno));
-		exit(1);
+		goto bad;
 	}
 	cfgfile = file;
 	error = yyparse();
@@ -95,29 +92,20 @@ config_init(const char *file, char *host, char *base, char *colldir,
 	if (error)
 		goto bad;
 
+	memcpy(&config->colls, &colls, sizeof(colls));
+	if (STAILQ_EMPTY(&config->colls)) {
+		lprintf(-1, "Empty supfile\n");
+		goto bad;
+	}
+
 	/* Fixup the list of collections. */
 	STAILQ_FOREACH(cur, &config->colls, co_next) {
-		if (cur->co_release == NULL) {
-			lprintf(-1, "Release not specified for collection "
-			    "\"%s\"\n", cur->co_name);
-			exit(1);
-		}
-		if (cur->co_tag == NULL && cur->co_date == NULL) {
-			lprintf(-1, "Client only supports checkout mode\n");
-			exit(1);
-		}
+		coll_override(cur, override, overridemask);
 		cur->co_options |= CO_CHECKOUTMODE;
-		if (cur->co_tag == NULL)
-			cur->co_tag = xstrdup(".");
-		if (cur->co_date == NULL)
-			cur->co_date = xstrdup(".");
-		if (base != NULL) {
-			if (cur->co_base != NULL)
-				free(cur->co_base);
-			cur->co_base = xstrdup(base);
- 		} else if (cur->co_base == NULL) {
+ 		if (cur->co_base == NULL)
 			cur->co_base = xstrdup("/usr/local/etc/cvsup");
-		}
+		if (cur->co_colldir == NULL)
+			cur->co_colldir = "sup";
 		if (cur->co_prefix == NULL) {
 			cur->co_prefix = xstrdup(cur->co_base);
 		/*
@@ -136,61 +124,29 @@ config_init(const char *file, char *host, char *base, char *colldir,
 			cur->co_prefix = prefix;
 		}
 		cur->co_prefixlen = strlen(cur->co_prefix);
+		/* Determine whether to checksum RCS files or not. */
+		if (cur->co_options & CO_EXACTRCS)
+			cur->co_options |= CO_CHECKRCS;
+		else
+			cur->co_options &= ~CO_CHECKRCS;
 		/* In recent versions, we always try to set the file modes. */
 		cur->co_options |= CO_SETMODE;
-		if (compress > 0)
-			cur->co_options |= CO_COMPRESS;
-		else if (compress < 0)
-			cur->co_options &= ~CO_COMPRESS;
-		if (truststatus)
-			cur->co_options |= CO_TRUSTSTATUSFILE;
 		/* XXX We don't support the rsync updating algorithm yet. */
 		cur->co_options |= CO_NORSYNC;
-		if (colldir)
-			cur->co_colldir = colldir;
-		else
-			cur->co_colldir = "sup";
-		cur->co_keyword = keyword_new();
-		cur->co_accepts = pattlist_new();
-		cur->co_refusals = pattlist_new();
-		cur->co_attrignore = FA_DEV | FA_INODE;
 		error = config_parse_refusefiles(cur);
 		if (error)
-			exit(1);
+			goto bad;
 	}
 
-	/* Override host if necessary. */
-	if (host) {
-		free(config->host);
-		config->host = host;
-	}
 	coll_free(cur_coll);
 	coll_free(defaults);
+	config->host = STAILQ_FIRST(&config->colls)->co_host;
 	return (config);
 bad:
 	coll_free(cur_coll);
 	coll_free(defaults);
-	if (config->host != host)
-		free(config->host);
-	free(config);
+	config_free(config);
 	return (NULL);
-}
-
-/*
- * Kludge because it seems I can't pass anything nor get anything back
- * from the yacc parser properly, without resorting to global variables.
- */
-int
-config_sethost(char *host)
-{
-
-	if (config->host != NULL) {
-		lprintf(-1, "All \"host\" fields in the supfile "
-		    "must be the same\n");
-		exit(1);
-	}
-	config->host = host;
-	return (0);
 }
 
 static int
@@ -261,28 +217,111 @@ config_parse_refusefile(struct coll *coll, char *path)
 	return (0);
 }
 
+void
+config_free(struct config *config)
+{
+	struct coll *coll;
+
+	STAILQ_FOREACH(coll, &config->colls, co_next)
+	    coll_free(coll);
+	if (config->server != NULL)
+		stream_close(config->server);
+	free(config);
+}
+
 /* Create a new collection, inheriting options from the default collection. */
 struct coll *
-coll_new(void)
+coll_new(struct coll *def)
 {
 	struct coll *new;
 
-	new = coll_alloc();
-	new->co_options = defaults->co_options;
-	new->co_umask = defaults->co_umask;
-	if (defaults->co_base != NULL)
-		new->co_base = xstrdup(defaults->co_base);
-	if (defaults->co_date != NULL)
-		new->co_date = xstrdup(defaults->co_date);
-	if (defaults->co_prefix != NULL)
-		new->co_prefix = xstrdup(defaults->co_prefix);
-	if (defaults->co_release != NULL)
-		new->co_release = xstrdup(defaults->co_release);
-	if (defaults->co_tag != NULL)
-		new->co_tag = xstrdup(defaults->co_tag);
-	if (defaults->co_listsuffix != NULL)
-		new->co_listsuffix = xstrdup(defaults->co_listsuffix);
+	new = xmalloc(sizeof(struct coll));
+	memset(new, 0, sizeof(struct coll));
+	if (def != NULL) {
+		new->co_options = def->co_options;
+		new->co_umask = def->co_umask;
+		if (def->co_host != NULL)
+			new->co_host = xstrdup(def->co_host);
+		if (def->co_base != NULL)
+			new->co_base = xstrdup(def->co_base);
+		if (def->co_date != NULL)
+			new->co_date = xstrdup(def->co_date);
+		if (def->co_prefix != NULL)
+			new->co_prefix = xstrdup(def->co_prefix);
+		if (def->co_release != NULL)
+			new->co_release = xstrdup(def->co_release);
+		if (def->co_tag != NULL)
+			new->co_tag = xstrdup(def->co_tag);
+		if (def->co_listsuffix != NULL)
+			new->co_listsuffix = xstrdup(def->co_listsuffix);
+	} else {
+		new->co_tag = xstrdup(".");
+		new->co_date = xstrdup(".");
+	}
+	new->co_keyword = keyword_new();
+	new->co_accepts = pattlist_new();
+	new->co_refusals = pattlist_new();
+	new->co_attrignore = FA_DEV | FA_INODE;
 	return (new);
+}
+
+void
+coll_override(struct coll *coll, struct coll *from, int mask)
+{
+	size_t i;
+	int newoptions, oldoptions;
+
+	newoptions = from->co_options & mask;
+	oldoptions = coll->co_options & (CO_MASK & ~mask);
+
+	if (from->co_release != NULL) {
+		if (coll->co_release != NULL)
+			free(coll->co_release);
+		coll->co_release = xstrdup(from->co_release);
+	}
+	if (from->co_host != NULL) {
+		if (coll->co_host != NULL)
+			free(coll->co_host);
+		coll->co_host = xstrdup(from->co_host);
+	}
+	if (from->co_base != NULL) {
+		if (coll->co_base != NULL)
+			free(coll->co_base);
+		coll->co_base = xstrdup(from->co_base);
+	}
+	if (from->co_colldir != NULL)
+		coll->co_colldir = from->co_colldir;
+	if (from->co_prefix != NULL) {
+		if (coll->co_prefix != NULL)
+			free(coll->co_prefix);
+		coll->co_prefix = xstrdup(from->co_prefix);
+	}
+	if (newoptions & CO_CHECKOUTMODE) {
+		if (from->co_tag != NULL) {
+			if (coll->co_tag != NULL)
+				free(coll->co_tag);
+			coll->co_tag = xstrdup(from->co_tag);
+		}
+		if (from->co_date != NULL) {
+			if (coll->co_date != NULL)
+				free(coll->co_date);
+			coll->co_date = xstrdup(from->co_date);
+		}
+	}
+	if (from->co_listsuffix != NULL) {
+		if (coll->co_listsuffix != NULL)
+			free(coll->co_listsuffix);
+		coll->co_listsuffix = xstrdup(from->co_listsuffix);
+	}
+	for (i = 0; i < pattlist_size(from->co_accepts); i++) {
+		pattlist_add(coll->co_accepts,
+		    pattlist_get(from->co_accepts, i));
+	}
+	for (i = 0; i < pattlist_size(from->co_refusals); i++) {
+		pattlist_add(coll->co_refusals,
+		    pattlist_get(from->co_refusals, i));
+	}
+	coll->co_options = oldoptions | newoptions;
 }
 
 char *
@@ -341,10 +380,33 @@ coll_statuspath(struct coll *coll)
 void
 coll_add(char *name)
 {
+	struct coll *coll;
 
 	cur_coll->co_name = name;
-	STAILQ_INSERT_TAIL(&config->colls, cur_coll, co_next);
-	cur_coll = coll_new();
+	if (cur_coll->co_release == NULL) {
+		lprintf(-1, "Release not specified for collection "
+		    "\"%s\"\n", cur_coll->co_name);
+		exit(1);
+	}
+	if (cur_coll->co_host == NULL) {
+		lprintf(-1, "Host not specified for collection "
+		    "\"%s\"\n", cur_coll->co_name);
+		exit(1);
+	}
+	if (cur_coll->co_tag == NULL && cur_coll->co_date == NULL) {
+		lprintf(-1, "Client only supports checkout mode\n");
+		exit(1);
+	}
+	if (!STAILQ_EMPTY(&colls)) {
+		coll = STAILQ_LAST(&colls, coll, co_next);
+		if (strcmp(coll->co_host, cur_coll->co_host) != 0) {
+			lprintf(-1, "All \"host\" fields in the supfile "
+			    "must be the same\n");
+			exit(1);
+		}
+	}
+	STAILQ_INSERT_TAIL(&colls, cur_coll, co_next);
+	cur_coll = coll_new(defaults);
 }
 
 void
@@ -353,6 +415,8 @@ coll_free(struct coll *coll)
 
 	if (coll == NULL)
 		return;
+	if (coll->co_host != NULL)
+		free(coll->co_host);
 	if (coll->co_base != NULL)
 		free(coll->co_base);
 	if (coll->co_date != NULL)
@@ -388,6 +452,11 @@ coll_setopt(int opt, char *value)
 
 	coll = cur_coll;
 	switch (opt) {
+	case PT_HOST:
+		if (coll->co_host != NULL)
+			free(coll->co_host);
+		coll->co_host = value;
+		break;
 	case PT_BASE:
 		if (coll->co_base != NULL)
 			free(coll->co_base);
@@ -437,7 +506,7 @@ coll_setopt(int opt, char *value)
 		coll->co_options |= CO_USERELSUFFIX;
 		break;
 	case PT_DELETE:
-		coll->co_options |= CO_DELETE;
+		coll->co_options |= CO_DELETE | CO_EXACTRCS;
 		break;
 	case PT_COMPRESS:
 		coll->co_options |= CO_COMPRESS;
@@ -452,16 +521,5 @@ coll_setdef(void)
 
 	coll_free(defaults);
 	defaults = cur_coll;
-	cur_coll = coll_new();
-}
-
-/* Allocate a zero'ed collection structure. */
-static struct coll *
-coll_alloc(void)
-{
-	struct coll *new;
-
-	new = xmalloc(sizeof(struct coll));
-	memset(new, 0, sizeof(struct coll));
-	return (new);
+	cur_coll = coll_new(defaults);
 }

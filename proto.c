@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.80 2006/02/26 20:39:38 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.81 2006/02/27 19:40:01 mux Exp $
  */
 
 #include <sys/param.h>
@@ -540,7 +540,6 @@ proto_mux(struct config *config)
 		mux_close(m);
 		return (NULL);
 	}
-	stream_close(config->server);
 	config->chan0 = chan0;
 	config->chan1 = chan1;
 	return (m);
@@ -587,6 +586,8 @@ proto_run(struct config *config)
 	if (m == NULL)
 		return (STATUS_FAILURE);
 
+	stream_close(config->server);
+	config->server = NULL;
 	config->fixups = fixups_new();
 	killer_start(&killer, m);
 

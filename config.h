@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.h,v 1.31 2006/02/25 22:46:53 mux Exp $
+ * $FreeBSD: projects/csup/config.h,v 1.32 2006/02/27 19:40:01 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -61,6 +61,8 @@
 #define	CO_DODELETESONLY	0x00200000
 #define	CO_DETAILALLRCSFILES	0x00400000
 
+#define	CO_MASK			0x007fffff
+
 /* Options that the server is allowed to set. */
 #define	CO_SERVMAYSET		(CO_SKIP | CO_NORSYNC | CO_NORCS)
 /* Options that the server is allowed to clear. */
@@ -68,6 +70,7 @@
 
 struct coll {
 	char *co_name;
+	char *co_host;
 	char *co_base;
 	char *co_date;
 	char *co_prefix;
@@ -100,10 +103,12 @@ struct config {
 	fattr_support_t fasupport;
 };
 
-struct config	*config_init(const char *, char *, char *, char *, int, int);
+struct config	*config_init(const char *, struct coll *, int);
 int		 config_sethost(char *);
+void		 config_free(struct config *);
 
-struct coll	*coll_new(void);
+struct coll	*coll_new(struct coll *);
+void		 coll_override(struct coll *, struct coll *, int);
 char		*coll_statuspath(struct coll *);
 char		*coll_statussuffix(struct coll *);
 void		 coll_add(char *);

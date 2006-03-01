@@ -24,7 +24,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/parse.y,v 1.14 2006/01/27 17:13:49 mux Exp $
  */
 
 #include <sys/types.h>
@@ -85,12 +85,7 @@ option
 
 value
 	: NAME EQUAL STRING
-		{
-		  if ($1 == PT_HOST)
-		  	config_sethost($3);
-		  else
-		  	coll_setopt($1, $3);
-		}
+		{ coll_setopt($1, $3); }
 	;
 
 %%
