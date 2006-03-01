@@ -27,13 +27,16 @@
  * SUCH DAMAGE.
  *
  *	@(#)queue.h	8.5 (Berkeley) 8/20/94
- * $FreeBSD: projects/csup/queue.h,v 1.2 2005/05/22 20:50:06 mux Exp $
+ * $FreeBSD: projects/csup/queue.h,v 1.3 2006/01/27 17:13:49 mux Exp $
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/queue.h,v 1.3 2006/01/27 17:13:49 mux Exp $
  */
 
 #ifndef _QUEUE_H_
 #define	_QUEUE_H_
+
+#undef __ofsetof
+#define	__offsetof(type, field)	((size_t)(&((type *)0)->field))
 
 /*
  * Singly-linked Tail queue declarations.
