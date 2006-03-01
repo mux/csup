@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.35 2006/03/01 04:33:17 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.36 2006/03/01 05:07:41 mux Exp $
  */
 
 #include <sys/file.h>
@@ -231,7 +231,7 @@ main(int argc, char *argv[])
 			overridemask |= CO_TRUSTSTATUSFILE;
 			break;
 		case 'v':
-			lprintf(0, "CVSup client\n");
+			lprintf(0, "CVSup client written in C\n");
 			lprintf(0, "Software version: %s\n", PROTO_SWVER);
 			lprintf(0, "Protocol version: %d.%d\n",
 			    PROTO_MAJ, PROTO_MIN);
