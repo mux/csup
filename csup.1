@@ -22,7 +22,7 @@
 .\" THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .\"
 .\" $Id$
-.\" $FreeBSD: projects/csup/csup.1,v 1.6 2006/03/01 04:17:39 mux Exp $
+.\" $FreeBSD: projects/csup/csup.1,v 1.7 2006/03/01 05:12:14 mux Exp $
 .\"
 .Dd February 1, 2006
 .Os FreeBSD
@@ -106,9 +106,10 @@ Forces
 .Nm
 to use IPv6 addresses only.
 .It Fl A Ar addr
-Specifies a local address (dotted quad or hostname) to bind to when
-connecting to the server.  This may be useful on hosts which have
-multiple IP addresses.
+Specifies a local address to bind to when connecting to the server.
+The local address might be a hostname or a numeric host address string
+consisting of a dotted decimal IPv4 address or an IPv6 address.
+This may be useful on hosts which have multiple IP addresses.
 .It Fl b Ar base
 Specifies the base directory under which
 .Nm
