@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.83 2006/03/01 03:11:50 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.84 2006/03/01 04:08:08 mux Exp $
  */
 
 #include <sys/param.h>
@@ -59,10 +59,6 @@
 #include "stream.h"
 #include "threads.h"
 #include "updater.h"
-
-#define	PROTO_MAJ	17
-#define	PROTO_MIN	0
-#define	PROTO_SWVER	"CSUP_0_1"
 
 struct killer {
 	pthread_t thread;

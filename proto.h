@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.h,v 1.12 2006/02/22 21:27:01 mux Exp $
+ * $FreeBSD: projects/csup/proto.h,v 1.13 2006/02/26 20:34:43 mux Exp $
  */
 #ifndef _PROTO_H_
 #define _PROTO_H_
@@ -31,6 +31,10 @@
 #include <time.h>
 
 #include "misc.h"
+
+#define	PROTO_MAJ	17
+#define	PROTO_MIN	0
+#define	PROTO_SWVER	"CSUP_1_0"
 
 struct stream;
 
