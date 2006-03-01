@@ -24,7 +24,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/token.l,v 1.15 2006/01/27 17:13:50 mux Exp $
+ * $FreeBSD: projects/csup/token.l,v 1.16 2006/02/02 23:15:03 mux Exp $
  */
 
 #include <err.h>
@@ -46,7 +46,7 @@ int lineno = 1;
 %%
 
 [ \t]+			;
-#.*$			;
+#.*			;
 \*default		{ return DEFAULT; }
 base			{ yylval.i = PT_BASE; return NAME; }
 date			{ yylval.i = PT_DATE; return NAME; }
