@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.48 2006/03/01 05:18:16 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.49 2006/03/01 18:17:45 mux Exp $
  */
 
 #include <sys/types.h>
@@ -102,7 +102,6 @@ config_init(const char *file, struct coll *override, int overridemask)
 	/* Fixup the list of collections. */
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		coll_override(coll, override, overridemask);
-		coll->co_options |= CO_CHECKOUTMODE;
  		if (coll->co_base == NULL)
 			coll->co_base = xstrdup("/usr/local/etc/cvsup");
 		if (coll->co_colldir == NULL)
@@ -428,7 +427,7 @@ coll_add(char *name)
 		    "\"%s\"\n", cur_coll->co_name);
 		exit(1);
 	}
-	if (cur_coll->co_tag == NULL && cur_coll->co_date == NULL) {
+	if (!(cur_coll->co_options & CO_CHECKOUTMODE)) {
 		lprintf(-1, "Client only supports checkout mode\n");
 		exit(1);
 	}
@@ -501,6 +500,7 @@ coll_setopt(int opt, char *value)
 		if (coll->co_date != NULL)
 			free(coll->co_date);
 		coll->co_date = value;
+		coll->co_options |= CO_CHECKOUTMODE;
 		break;
 	case PT_PREFIX:
 		if (coll->co_prefix != NULL)
@@ -516,6 +516,7 @@ coll_setopt(int opt, char *value)
 		if (coll->co_tag != NULL)
 			free(coll->co_tag);
 		coll->co_tag = value;
+		coll->co_options |= CO_CHECKOUTMODE;
 		break;
 	case PT_LIST:
 		if (strchr(value, '/') != NULL) {
