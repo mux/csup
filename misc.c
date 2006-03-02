@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.26 2006/02/25 23:50:30 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.27 2006/02/27 19:40:01 mux Exp $
  */
 
 #include <sys/types.h>
@@ -194,18 +194,37 @@ pathlast(char *path)
 	return (++s);
 }
 
-time_t
-rcsdatetotime(char *revdate)
+int
+rcsdatetotm(const char *revdate, struct tm *tm)
 {
-	struct tm tm;
 	char *cp;
-	time_t t;
+	size_t len;
 
-	cp = strptime(revdate, "%Y.%m.%d.%H.%M.%S", &tm);
+	cp = strchr(revdate, '.');
 	if (cp == NULL)
-		cp = strptime(revdate, "%y.%m.%d.%H.%M.%S", &tm);
+		return (-1);
+	len = cp - revdate;
+	if (len == 4)
+		cp = strptime(revdate, "%Y.%m.%d.%H.%M.%S", tm);
+	else if (len == 2)
+		cp = strptime(revdate, "%y.%m.%d.%H.%M.%S", tm);
+	else
+		return (-1);
 	if (cp == NULL || *cp != '\0')
 		return (-1);
+	return (0);
+}
+
+time_t
+rcsdatetotime(const char *revdate)
+{
+	struct tm tm;
+	time_t t;
+	int error;
+
+	error = rcsdatetotm(revdate, &tm);
+	if (error)
+		return (error);
 	t = timegm(&tm);
 	return (t);
 }

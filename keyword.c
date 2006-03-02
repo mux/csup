@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/keyword.c,v 1.30 2006/02/17 20:50:12 mux Exp $
+ * $FreeBSD: projects/csup/keyword.c,v 1.31 2006/02/18 10:41:08 mux Exp $
  */
 
 #include <assert.h>
@@ -435,12 +435,11 @@ tag_expand(struct tag *tag, struct diffinfo *di)
 	 */
 	char cvsdate[32];
 	struct tm tm;
-	char *cp, *filename, *val;
+	char *filename, *val;
+	int error;
 
-	cp = strptime(di->di_revdate, "%Y.%m.%d.%H.%M.%S", &tm);
-	if (cp == NULL)
-		cp = strptime(di->di_revdate, "%y.%m.%d.%H.%M.%S", &tm);
-	if (cp == NULL || *cp != '\0')
+	error = rcsdatetotm(di->di_revdate, &tm);
+	if (error)
 		err(1, "strptime");
 	if (strftime(cvsdate, sizeof(cvsdate), "%Y/%m/%d %H:%M:%S", &tm) == 0)
 		err(1, "strftime");

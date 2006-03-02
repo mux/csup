@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.h,v 1.23 2006/02/22 21:27:01 mux Exp $
+ * $FreeBSD: projects/csup/misc.h,v 1.24 2006/02/27 19:40:01 mux Exp $
  */
 #ifndef _MISC_H_
 #define _MISC_H_
@@ -97,11 +97,13 @@ struct thread_args {
 
 struct backoff_timer;
 struct pattlist;
+struct tm;
 
 int	 lprintf(int, const char *, ...) __printflike(2, 3);
 int	 MD5_File(char *, char *);
 void	 MD5_End(char *, MD5_CTX *);
-time_t	 rcsdatetotime(char *);
+int	 rcsdatetotm(const char *, struct tm *);
+time_t	 rcsdatetotime(const char *);
 int	 pathcmp(const char *, const char *);
 size_t	 commonpathlength(const char *, size_t, const char *, size_t);
 char	*pathlast(char *);
