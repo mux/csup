@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.49 2006/03/01 18:17:45 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.50 2006/03/02 16:15:45 mux Exp $
  */
 
 #include <sys/types.h>
@@ -53,6 +53,8 @@ extern FILE *yyin;
 static STAILQ_HEAD(, coll) colls;
 static struct coll *cur_coll;
 static struct coll *defaults;
+static struct coll *ovcoll;
+static int ovmask;
 static const char *cfgfile;
 
 /*
@@ -78,13 +80,14 @@ config_init(const char *file, struct coll *override, int overridemask)
 	mask = umask(0);
 	umask(mask);
 	defaults->co_umask = mask;
+	ovcoll = override;
+	ovmask = overridemask;
 
 	/* Extract a list of collections from the configuration file. */
 	cur_coll = coll_new(defaults);
 	yyin = fopen(file, "r");
 	if (yyin == NULL) {
-		lprintf(-1, "Cannot open \"%s\": %s\n", file,
-		    strerror(errno));
+		lprintf(-1, "Cannot open \"%s\": %s\n", file, strerror(errno));
 		goto bad;
 	}
 	cfgfile = file;
@@ -101,7 +104,6 @@ config_init(const char *file, struct coll *override, int overridemask)
 
 	/* Fixup the list of collections. */
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
-		coll_override(coll, override, overridemask);
  		if (coll->co_base == NULL)
 			coll->co_base = xstrdup("/usr/local/etc/cvsup");
 		if (coll->co_colldir == NULL)
@@ -417,6 +419,7 @@ coll_add(char *name)
 	struct coll *coll;
 
 	cur_coll->co_name = name;
+	coll_override(cur_coll, ovcoll, ovmask);
 	if (cur_coll->co_release == NULL) {
 		lprintf(-1, "Release not specified for collection "
 		    "\"%s\"\n", cur_coll->co_name);
