@@ -23,11 +23,12 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.h,v 1.34 2006/03/01 04:08:08 mux Exp $
+ * $FreeBSD: projects/csup/config.h,v 1.35 2006/03/01 05:07:41 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
+#include <sys/types.h>
 #include <sys/socket.h>
 
 #include <time.h>
