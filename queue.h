@@ -27,9 +27,9 @@
  * SUCH DAMAGE.
  *
  *	@(#)queue.h	8.5 (Berkeley) 8/20/94
- * $FreeBSD: projects/csup/queue.h,v 1.3 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/queue.h,v 1.4 2006/03/01 16:18:46 mux Exp $
  *
- * $FreeBSD: projects/csup/queue.h,v 1.3 2006/01/27 17:13:49 mux Exp $
+ * $FreeBSD: projects/csup/queue.h,v 1.4 2006/03/01 16:18:46 mux Exp $
  */
 
 #ifndef _QUEUE_H_
@@ -107,7 +107,7 @@ struct {								\
 #define	STAILQ_LAST(head, type, field)					\
 	(STAILQ_EMPTY((head)) ?						\
 		NULL :							\
-	        ((struct type *)					\
+	        ((struct type *)(void *)				\
 		((char *)((head)->stqh_last) - __offsetof(struct type, field))))
 
 #undef STAILQ_NEXT
