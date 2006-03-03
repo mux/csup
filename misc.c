@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.c,v 1.27 2006/02/27 19:40:01 mux Exp $
+ * $FreeBSD: projects/csup/misc.c,v 1.28 2006/03/02 17:40:04 mux Exp $
  */
 
 #include <sys/types.h>
@@ -204,7 +204,7 @@ rcsdatetotm(const char *revdate, struct tm *tm)
 	if (cp == NULL)
 		return (-1);
 	len = cp - revdate;
-	if (len == 4)
+	if (len >= 4)
 		cp = strptime(revdate, "%Y.%m.%d.%H.%M.%S", tm);
 	else if (len == 2)
 		cp = strptime(revdate, "%y.%m.%d.%H.%M.%S", tm);
