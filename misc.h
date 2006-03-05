@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.h,v 1.24 2006/02/27 19:40:01 mux Exp $
+ * $FreeBSD: projects/csup/misc.h,v 1.25 2006/03/02 17:40:04 mux Exp $
  */
 #ifndef _MISC_H_
 #define _MISC_H_
@@ -125,4 +125,5 @@ struct backoff_timer	*bt_new(time_t, time_t, float, float);
 time_t			 bt_get(struct backoff_timer *);
 void			 bt_pause(struct backoff_timer *);
 void			 bt_free(struct backoff_timer *);
+
 #endif /* !_MISC_H_ */
