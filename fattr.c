@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.38 2006/02/23 23:11:40 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.39 2006/02/25 22:46:53 mux Exp $
  */
 
 #include <sys/time.h>
@@ -32,14 +32,13 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <grp.h>
-#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "fattr.h"
+#include "idcache.h"
 #include "misc.h"
 
 /*
@@ -126,6 +125,8 @@ fattr_init(void)
 		fa->mask |= FA_MODE;
 		defaults[i] = fa;
 	}
+	/* Initialize the uid/gid lookup cache. */
+	idcache_init();
 }
 
 void
@@ -133,6 +134,7 @@ fattr_fini(void)
 {
 	int i;
 
+	idcache_fini();
 	for (i = 0; i < FT_NUMBER; i++)
 		fattr_free(defaults[i]);
 }
@@ -336,29 +338,26 @@ fattr_encode(const struct fattr *fa, fattr_support_t support, int ignore)
 		int extval;
 		char *ext;
 	} pieces[FA_NUMBER], *piece;
-	struct passwd *pw;
-	struct group *gr;
-	char *cp, *s;
+	char *cp, *s, *username, *groupname;
 	size_t len, vallen;
 	mode_t mode, modemask;
 	int mask, n, i;
 
-	pw = NULL;
-	gr = NULL;
+	username = NULL;
+	groupname = NULL;
 	if (support == NULL)
 		mask = fa->mask;
 	else
 		mask = fa->mask & support[fa->type];
 	mask &= ~ignore;
-	/* XXX - Use getpwuid_r() and getgrgid_r(). */
 	if (fa->mask & FA_OWNER) {
-		pw = getpwuid(fa->uid);
-		if (pw == NULL)
+		username = getuserbyid(fa->uid);
+		if (username == NULL)
 			mask &= ~FA_OWNER;
 	}
 	if (fa->mask & FA_GROUP) {
-		gr = getgrgid(fa->gid);
-		if (gr == NULL)
+		groupname = getgroupbyid(fa->gid);
+		if (groupname == NULL)
 			mask &= ~FA_GROUP;
 	}
 	if (fa->mask & FA_LINKCOUNT && fa->linkcount == 1)
@@ -408,17 +407,17 @@ fattr_encode(const struct fattr *fa, fattr_support_t support, int ignore)
 		piece++;
 	}
 	if (mask & FA_OWNER) {
-		vallen = strlen(pw->pw_name);
+		vallen = strlen(username);
 		piece->extval = 1;
-		piece->ext = pw->pw_name;
+		piece->ext = username;
 		len += snprintf(piece->len, sizeof(piece->len), "%lld",
 		    (long long)vallen) + vallen + 1;
 		piece++;
 	}
 	if (mask & FA_GROUP) {
-		vallen = strlen(gr->gr_name);
+		vallen = strlen(groupname);
 		piece->extval = 1;
-		piece->ext = gr->gr_name;
+		piece->ext = groupname;
 		len += snprintf(piece->len, sizeof(piece->len), "%lld",
 		    (long long)vallen) + vallen + 1;
 		piece++;
@@ -551,11 +550,10 @@ fattr_getlinkcount(const struct fattr *fa)
 static char *
 fattr_scanattr(struct fattr *fa, int type, const char *attr)
 {
-	struct passwd *pw;
-	struct group *gr;
 	char *attrend, *attrstart, *end;
 	size_t len;
 	unsigned long attrlen;
+	int error;
 	mode_t modemask;
 	char tmp;
 
@@ -606,21 +604,13 @@ fattr_scanattr(struct fattr *fa, int type, const char *attr)
 			goto bad;
 		break;
 	case FA_OWNER:
-		/*
-		 * XXX - We need to use getpwnam_r() since getpwnam()
-		 * is not thread-safe, and we also need to use a cache.
-		 */
-		pw = getpwnam(attrstart);
-		if (pw != NULL)
-			fa->uid = pw->pw_uid;
-		else
+		error = getuidbyname(attrstart, &fa->uid);
+		if (error)
 			fa->mask &= ~FA_OWNER;
 		break;
 	case FA_GROUP:
-		gr = getgrnam(attrstart);
-		if (gr != NULL)
-			fa->gid = gr->gr_gid;
-		else
+		error = getgidbyname(attrstart, &fa->gid);
+		if (error)
 			fa->mask &= ~FA_GROUP;
 		break;
 	case FA_MODE:

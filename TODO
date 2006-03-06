@@ -1,4 +1,4 @@
-$FreeBSD: projects/csup/TODO,v 1.41 2006/03/01 04:39:03 mux Exp $
+$FreeBSD: projects/csup/TODO,v 1.42 2006/03/01 05:08:11 mux Exp $
 
 BUGS:
 
@@ -9,9 +9,6 @@ BUGS:
   has global variables because of yacc, but I think it should be possible
   to do it better by using YYFUNC_PROTOTYPE or something.  I think it
   should also be possible to completely get rid of the lex file.
-- Some code uses getpwnam() while it should use the thread-safe variant,
-  getpwnam_r().  Same for getpwuid() and getgrgid().  We probably need a
-  UID/GID lookup cache here.
 - The $Log$ CVS keyword is not supported.
 - Add missing support for supfile keywords and add sanity checks for
   some of them.  Also, we're not supposed to choke on unknown keywords
