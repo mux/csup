@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.53 2006/03/07 01:43:01 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.54 2006/03/07 02:13:55 mux Exp $
  */
 
 #include <sys/types.h>
@@ -231,13 +231,27 @@ static int
 config_parse_refusefile(struct coll *coll, char *path)
 {
 	struct stream *rd;
-	char *line;
+	char *cp, *line, *pat;
 
 	rd = stream_open_file(path, O_RDONLY);
 	if (rd == NULL)
 		return (0);
-	while ((line = stream_getln(rd, NULL)) != NULL)
-		pattlist_add(coll->co_refusals, line);
+	while ((line = stream_getln(rd, NULL)) != NULL) {
+		pat = line;
+		for (;;) {
+			/* Trim leading whitespace. */
+			pat += strspn(pat, " \t");
+			if (pat[0] == '\0')
+				break;
+			cp = strpbrk(pat, " \t");
+			if (cp != NULL)
+				*cp = '\0';
+			pattlist_add(coll->co_refusals, pat);
+			if (cp == NULL)
+				break;
+			pat = cp + 1;
+		}
+	}
 	if (!stream_eof(rd)) {
 		stream_close(rd);
 		lprintf(-1, "Read failure from \"%s\": %s\n", path,
