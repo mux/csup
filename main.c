@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.37 2006/03/01 05:36:01 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.38 2006/03/07 01:43:01 mux Exp $
  */
 
 #include <sys/file.h>
@@ -66,6 +66,8 @@ usage(char *argv0)
 	    "Override supfile's \"base\" directory");
 	lprintf(-1, USAGE_OPTFMT, "-c collDir",
 	    "Subdirectory of \"base\" for collections (default \"sup\")");
+	lprintf(-1, USAGE_OPTFMT, "-d delLimit",
+	    "Allow at most \"delLimit\" file deletions (default unlimited)");
 	lprintf(-1, USAGE_OPTFMT, "-h host",
 	    "Override supfile's \"host\" name");
 	lprintf(-1, USAGE_OPTFMT, "-i pattern",
@@ -73,6 +75,8 @@ usage(char *argv0)
 	lprintf(-1, USAGE_OPTFMTSUB,
 	    "May be repeated for an OR operation.  Default is");
 	lprintf(-1, USAGE_OPTFMTSUB, "to include each entire collection.");
+	lprintf(-1, USAGE_OPTFMT, "-k",
+	    "Keep bad temporary files when fixups are required");
 	lprintf(-1, USAGE_OPTFMT, "-l lockfile",
 	    "Lock file during update; fail if already locked");
 	lprintf(-1, USAGE_OPTFMT, "-L n",
@@ -103,11 +107,12 @@ main(int argc, char *argv[])
 	struct stream *lock;
 	char *argv0, *file, *lockfile;
 	int family, error, lockfd, lflag, overridemask;
-	int c, i, port, retries, status;
+	int c, i, deletelim, port, retries, status;
 	time_t nexttry;
 
 	error = 0;
 	family = PF_UNSPEC;
+	deletelim = -1;
 	port = 0;
 	lflag = 0;
 	lockfd = 0;
@@ -120,7 +125,8 @@ main(int argc, char *argv[])
 	override = coll_new(NULL);
 	overridemask = 0;
 
-	while ((c = getopt(argc, argv, "146A:b:c:gh:i:l:L:p:P:r:svzZ")) != -1) {
+	while ((c = getopt(argc, argv,
+	    "146A:b:c:d:gh:i:kl:L:p:P:r:svzZ")) != -1) {
 		switch (c) {
 		case '1':
 			retries = 0;
@@ -151,6 +157,14 @@ main(int argc, char *argv[])
 		case 'c':
 			override->co_colldir = optarg;
 			break;
+		case 'd':
+			error = asciitoint(optarg, &deletelim, 0);
+			if (error || deletelim < 0) {
+				lprintf(-1, "Invalid deletion limit\n");
+				usage(argv0);
+				return (1);
+			}
+			break;
 		case 'g':
 			/* For compatibility. */
 			break;
@@ -161,6 +175,10 @@ main(int argc, char *argv[])
 			break;
 		case 'i':
 			pattlist_add(override->co_accepts, optarg);
+			break;
+		case 'k':
+			override->co_options |= CO_KEEPBADFILES;
+			overridemask |= CO_KEEPBADFILES;
 			break;
 		case 'l':
 			lockfile = optarg;
@@ -275,15 +293,16 @@ main(int argc, char *argv[])
 	if (config == NULL)
 		return (1);
 
-	if (laddr != NULL) {
-		config->laddr = laddr;
-		config->laddrlen = laddrlen;
-	}
 	if (config_checkcolls(config) == 0) {
 		lprintf(-1, "No collections selected\n");
 		return (1);
 	}
 
+	if (laddr != NULL) {
+		config->laddr = laddr;
+		config->laddrlen = laddrlen;
+	}
+	config->deletelim = deletelim;
 	lprintf(2, "Connecting to %s\n", config->host);
 
 	i = 0;

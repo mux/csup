@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.h,v 1.36 2006/03/03 00:20:12 mux Exp $
+ * $FreeBSD: projects/csup/config.h,v 1.37 2006/03/07 01:14:21 mux Exp $
  */
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
@@ -102,6 +102,7 @@ struct config {
 	char *host;
 	struct sockaddr *laddr;
 	socklen_t laddrlen;
+	int deletelim;
 	int socket;
 	struct chan *chan0;
 	struct chan *chan1;
