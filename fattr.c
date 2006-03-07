@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/fattr.c,v 1.39 2006/02/25 22:46:53 mux Exp $
+ * $FreeBSD: projects/csup/fattr.c,v 1.40 2006/03/06 00:36:23 mux Exp $
  */
 
 #include <sys/time.h>
@@ -802,35 +802,35 @@ fattr_install(struct fattr *fa, const char *topath, const char *frompath)
 		inplace = 1;
 	}
 	old = fattr_frompath(topath, FATTR_NOFOLLOW);
-	if (old == NULL)
-		return (-1);
-	if (inplace && fattr_equal(fa, old)) {
-		fattr_free(old);
-		return (0);
-	}
+	if (old != NULL) {
+		if (inplace && fattr_equal(fa, old)) {
+			fattr_free(old);
+			return (0);
+		}
 
 #ifdef HAVE_FFLAGS
-	/*
-	 * Determine whether we need to clear the flags of the target.
-	 * This is bogus in that it assumes a value of 0 is safe and
-	 * that non-zero is unsafe.  I'm not really worried by that
-	 * since as far as I know that's the way things are.
-	 */
-	if ((old->mask & FA_FLAGS) && old->flags > 0) {
-		(void)chflags(topath, 0);
-		old->flags = 0;
-	}
+		/*
+		 * Determine whether we need to clear the flags of the target.
+		 * This is bogus in that it assumes a value of 0 is safe and
+		 * that non-zero is unsafe.  I'm not really worried by that
+		 * since as far as I know that's the way things are.
+		 */
+		if ((old->mask & FA_FLAGS) && old->flags > 0) {
+			(void)chflags(topath, 0);
+			old->flags = 0;
+		}
 #endif
 
-	/* Determine whether we need to remove the target first. */
-	if (!inplace && (fa->type == FT_DIRECTORY) !=
-	    (old->type == FT_DIRECTORY)) {
-		if (old->type == FT_DIRECTORY)
-			error = rmdir(topath);
-		else
-			error = unlink(topath);
-		if (error)
-			goto bad;
+		/* Determine whether we need to remove the target first. */
+		if (!inplace && (fa->type == FT_DIRECTORY) !=
+		    (old->type == FT_DIRECTORY)) {
+			if (old->type == FT_DIRECTORY)
+				error = rmdir(topath);
+			else
+				error = unlink(topath);
+			if (error)
+				goto bad;
+		}
 	}
 
 	/* Change those attributes that we can before moving the file
@@ -856,8 +856,8 @@ fattr_install(struct fattr *fa, const char *topath, const char *frompath)
 	}
 	if (mask & FA_MODE) {
 		newmode = fa->mode & modemask;
-		/* Merge in set*id bits from the old attribute.  XXX - Why? */
-		if (old->mask & FA_MODE) {
+		/* Merge in set*id bits from the old attribute. */
+		if (old != NULL && old->mask & FA_MODE) {
 			newmode |= (old->mode & ~modemask);
 			newmode &= (FA_SETIDMASK | FA_PERMMASK);
 		}
