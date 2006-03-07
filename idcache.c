@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
+ * $FreeBSD: projects/csup/idcache.c,v 1.1 2006/03/06 00:32:53 mux Exp $
  */
 #include <sys/types.h>
 
@@ -41,7 +41,7 @@
  * Constants and data structures used to implement the thread-safe
  * group and password file caches.  Cache sizes must be prime.
  */
-#define	UIDTONAME_SZ		317	/* Size of uid -> nuser ame cache */
+#define	UIDTONAME_SZ		317	/* Size of uid -> user name cache */
 #define	NAMETOUID_SZ		317	/* Size of user name -> uid cache */
 #define	GIDTONAME_SZ		317	/* Size of gid -> group name cache */
 #define	NAMETOGID_SZ		317	/* Size of group name -> gid cache */
