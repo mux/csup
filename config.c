@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.52 2006/03/07 01:14:21 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.53 2006/03/07 01:43:01 mux Exp $
  */
 
 #include <sys/types.h>
@@ -552,6 +552,9 @@ coll_setopt(int opt, char *value)
 		break;
 	case PT_COMPRESS:
 		coll->co_options |= CO_COMPRESS;
+		break;
+	case PT_NORSYNC:
+		coll->co_options |= CO_NORSYNC;
 		break;
 	}
 }
