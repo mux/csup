@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.51 2006/03/03 21:53:26 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.52 2006/03/07 01:14:21 mux Exp $
  */
 
 #include <sys/types.h>
@@ -488,6 +488,7 @@ void
 coll_setopt(int opt, char *value)
 {
 	struct coll *coll;
+	int error, mask;
 
 	coll = cur_coll;
 	switch (opt) {
@@ -534,14 +535,14 @@ coll_setopt(int opt, char *value)
 		coll->co_listsuffix = value;
 		break;
 	case PT_UMASK:
-		errno = 0;
-		coll->co_umask = strtol(value, NULL, 8);
+		error = asciitoint(value, &mask, 8);
 		free(value);
-		if (errno) {
+		if (error) {
 			lprintf(-1, "Parse error in \"%s\": Invalid "
 			    "umask value\n", cfgfile);
 			exit(1);
 		}
+		coll->co_umask = mask;
 		break;
 	case PT_USE_REL_SUFFIX:
 		coll->co_options |= CO_USERELSUFFIX;

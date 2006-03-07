@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.86 2006/03/01 05:24:15 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.87 2006/03/07 01:14:22 mux Exp $
  */
 
 #include <sys/param.h>
@@ -35,7 +35,6 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
-#include <limits.h>
 #include <netdb.h>
 #include <pthread.h>
 #include <signal.h>
@@ -920,22 +919,14 @@ proto_get_rest(char **s)
 int
 proto_get_int(char **s, int *val, int base)
 {
-	char *cp, *end;
-	long longval;
+	char *cp;
+	int error;
 
 	cp = proto_get_ascii(s);
 	if (cp == NULL)
 		return (-1);
-	errno = 0;
-	longval = strtol(cp, &end, base);
-	if (errno || *end != '\0')
-		return (-1);
-	if (longval > INT_MAX || longval < INT_MIN) {
-		errno = ERANGE;
-		return (-1);
-	}
-	*val = longval;
-	return (0);
+	error = asciitoint(cp, val, base);
+	return (error);
 }
 
 /*

@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/main.c,v 1.36 2006/03/01 05:07:41 mux Exp $
+ * $FreeBSD: projects/csup/main.c,v 1.37 2006/03/01 05:36:01 mux Exp $
  */
 
 #include <sys/file.h>
@@ -102,9 +102,8 @@ main(int argc, char *argv[])
 	socklen_t laddrlen;
 	struct stream *lock;
 	char *argv0, *file, *lockfile;
-	uint16_t port;
 	int family, error, lockfd, lflag, overridemask;
-	int c, i, retries, status;
+	int c, i, port, retries, status;
 	time_t nexttry;
 
 	error = 0;
@@ -191,9 +190,8 @@ main(int argc, char *argv[])
 			stream_close(lock);
 			break;
 		case 'L':
-			errno = 0;
-			verbose = strtol(optarg, NULL, 0);
-			if (errno == EINVAL) {
+			error = asciitoint(optarg, &verbose, 0);
+			if (error) {
 				lprintf(-1, "Invalid verbosity\n");
 				usage(argv0);
 				return (1);
@@ -201,11 +199,19 @@ main(int argc, char *argv[])
 			break;
 		case 'p':
 			/* Use specified server port. */
-			errno = 0;
-			port = strtol(optarg, NULL, 0);
-			if (errno == EINVAL) {
+			error = asciitoint(optarg, &port, 0);
+			if (error) {
 				lprintf(-1, "Invalid server port\n");
 				usage(argv0);
+				return (1);
+			}
+			if (port <= 0 || port >= 65536) {
+				lprintf(-1, "Invalid port %d\n", port);
+				return (1);
+			}
+			if (port < 1024) {
+				lprintf(-1, "Reserved port %d not permitted\n",
+				    port);
 				return (1);
 			}
 			break;
@@ -218,9 +224,8 @@ main(int argc, char *argv[])
 			}
 			break;
 		case 'r':
-			errno = 0;
-			retries = strtol(optarg, NULL, 0);
-			if (errno == EINVAL || retries < 0) {
+			error = asciitoint(optarg, &retries, 0);
+			if (error || retries < 0) {
 				lprintf(-1, "Invalid retry limit\n");
 				usage(argv0);
 				return (1);
