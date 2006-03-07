@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.85 2006/03/01 04:33:17 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.86 2006/03/01 05:24:15 mux Exp $
  */
 
 #include <sys/param.h>
@@ -371,9 +371,11 @@ proto_xchgcoll(struct config *config)
 	}
 	proto_printf(s, ".\n");
 	stream_flush(s);
+
 	STAILQ_FOREACH(coll, &config->colls, co_next) {
 		if (coll->co_options & CO_SKIP)
 			continue;
+		coll->co_norsync = globtree_false();
 		line = stream_getln(s, NULL);
 		if (line == NULL)
 			goto bad;
@@ -430,7 +432,21 @@ proto_xchgcoll(struct config *config)
 				    ident);
 				if (error)
 					goto bad;
-			}
+			} else if (strcmp(cmd, "NORS") == 0) {
+				pat = proto_get_ascii(&line);
+				if (pat == NULL || line != NULL)
+					goto bad;
+				coll->co_norsync = globtree_or(coll->co_norsync,
+				    globtree_match(pat, FNM_PATHNAME));
+			} else if (strcmp(cmd, "RNORS") == 0) {
+				pat = proto_get_ascii(&line);
+				if (pat == NULL || line != NULL)
+					goto bad;
+				coll->co_norsync = globtree_or(coll->co_norsync,
+				    globtree_match(pat, FNM_PATHNAME |
+				    FNM_LEADING_DIR));
+			} else
+				goto bad;
 		}
 		if (line == NULL)
 			goto bad;

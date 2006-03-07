@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/config.c,v 1.50 2006/03/02 16:15:45 mux Exp $
+ * $FreeBSD: projects/csup/config.c,v 1.51 2006/03/03 21:53:26 mux Exp $
  */
 
 #include <sys/types.h>
@@ -475,6 +475,8 @@ coll_free(struct coll *coll)
 		globtree_free(coll->co_dirfilter);
 	if (coll->co_dirfilter != NULL)
 		globtree_free(coll->co_filefilter);
+	if (coll->co_norsync != NULL)
+		globtree_free(coll->co_norsync);
 	if (coll->co_accepts != NULL)
 		pattlist_free(coll->co_accepts);
 	if (coll->co_refusals != NULL)
