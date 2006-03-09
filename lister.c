@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/lister.c,v 1.26 2006/02/27 19:40:01 mux Exp $
+ * $FreeBSD: projects/csup/lister.c,v 1.27 2006/03/07 12:07:00 mux Exp $
  */
 
 #include <assert.h>
@@ -145,6 +145,7 @@ lister_coll(struct lister *l, struct coll *coll, struct status *st)
 	struct attrstack *as;
 	struct statusrec *sr;
 	struct fattr *fa;
+	size_t i;
 	int depth, error, ret, prunedepth;
 
 	wr = l->wr;
@@ -203,11 +204,9 @@ lister_coll(struct lister *l, struct coll *coll, struct status *st)
 		return (LISTER_ERR_WRITE);
 	return (0);
 bad:
-	if (depth > 0) {
-		while (depth-- > 0) {
-			fa = attrstack_pop(as);
-			fattr_free(fa);
-		}
+	for (i = 0; i < attrstack_size(as); i++) {
+		fa = attrstack_pop(as);
+		fattr_free(fa);
 	}
 	attrstack_free(as);
 	return (error);
