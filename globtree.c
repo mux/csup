@@ -23,16 +23,16 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/globtree.c,v 1.3 2006/02/27 19:08:13 mux Exp $
+ * $FreeBSD: projects/csup/globtree.c,v 1.4 2006/03/03 00:50:46 mux Exp $
  */
 
 #include <sys/types.h>
 
 #include <assert.h>
-#include <fnmatch.h>
 #include <regex.h>
 #include <stdlib.h>
 
+#include "fnmatch.h"
 #include "globtree.h"
 #include "misc.h"
 
