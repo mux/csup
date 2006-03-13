@@ -2,7 +2,7 @@
 # be used elsewhere because it assumes that the target system doesn't
 # support BSD extended file flags.
 #
-# $FreeBSD: projects/csup/GNUmakefile,v 1.6 2006/03/01 03:11:50 mux Exp $
+# $FreeBSD: projects/csup/GNUmakefile,v 1.7 2006/03/06 00:36:23 mux Exp $
 #
 
 PREFIX?=/usr/local
@@ -22,10 +22,10 @@ WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
 	-Wnested-externs -Wredundant-decls -Wno-format-y2k
 
 CFLAGS+= -g -O -pipe -DNDEBUG -I$(PREFIX)/include
-ifeq ($(UNAME), "Linux")
+ifeq ($(UNAME), Linux)
 	CFLAGS+= -D_XOPEN_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
 endif
-ifeq ($(UNAME), "Darwin")
+ifeq ($(UNAME), Darwin)
 	CFLAGS+= -DHAVE_FFLAGS
 endif
 CFLAGS+= $(WARNS)
