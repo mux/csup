@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.88 2006/03/07 01:43:01 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.89 2006/03/13 22:49:54 mux Exp $
  */
 
 #include <sys/param.h>
@@ -255,13 +255,20 @@ static int
 proto_login(struct config *config)
 {
 	struct stream *s;
-	char host[MAXHOSTNAMELEN];
-	char *line, *cmd, *realm, *challenge, *msg;
+	char hostbuf[MAXHOSTNAMELEN];
+	char *line, *login, *host, *cmd, *realm, *challenge, *msg;
+	int error;
 
 	s = config->server;
-	gethostname(host, sizeof(host));
-	host[sizeof(host) - 1] = '\0';
-	proto_printf(s, "USER %s %s\n", getlogin(), host);
+	error = gethostname(hostbuf, sizeof(hostbuf));
+	hostbuf[sizeof(hostbuf) - 1] = '\0';
+	if (error)
+		host = NULL;
+	else
+		host = hostbuf;
+	login = getlogin();
+	proto_printf(s, "USER %s %s\n", login != NULL ? login : "?",
+	    host != NULL ? host : "?");
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
@@ -278,6 +285,8 @@ proto_login(struct config *config)
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
+	if (cmd == NULL || line == NULL)
+		goto bad;
 	if (strcmp(cmd, "OK") == 0)
 		return (STATUS_SUCCESS);
 	if (strcmp(cmd, "!") == 0) {
