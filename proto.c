@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.87 2006/03/07 01:14:22 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.88 2006/03/07 01:43:01 mux Exp $
  */
 
 #include <sys/param.h>
@@ -227,7 +227,7 @@ proto_negproto(struct config *config)
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
-	if (line == NULL)
+	if (cmd == NULL || line == NULL)
 		goto bad;
 	if (strcmp(cmd, "!") == 0) {
 		msg = proto_get_rest(&line);
