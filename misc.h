@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/misc.h,v 1.26 2006/03/05 16:30:20 mux Exp $
+ * $FreeBSD: projects/csup/misc.h,v 1.27 2006-03-07 01:43:01 mux Exp $
  */
 #ifndef _MISC_H_
 #define _MISC_H_
@@ -60,7 +60,7 @@
 #undef __packed
 #define	__packed		__attribute__((__packed__))
 
-/* We explicitely don't define this with icc because it defines __GNUC__
+/* We explicitly don't define this with icc because it defines __GNUC__
    but doesn't support it. */
 #undef __printflike
 #if defined(__GNUC__) && !defined(__INTEL_COMPILER) && \

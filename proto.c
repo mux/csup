@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.90 2006/03/13 23:06:22 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.91 2006-03-17 20:19:43 mux Exp $
  */
 
 #include <sys/param.h>
@@ -126,10 +126,8 @@ proto_connect(struct config *config, int family, uint16_t port)
 	s = -1;
 	if (port != 0)
 		snprintf(servname, sizeof(servname), "%d", port);
-	else {
-		strncpy(servname, "cvsup", sizeof(servname) - 1);
-		servname[sizeof(servname) - 1] = '\0';
-	}
+	else
+		snprintf(servname, sizeof(servname), "%s", "cvsup");
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = family;
 	hints.ai_socktype = SOCK_STREAM;
@@ -139,8 +137,7 @@ proto_connect(struct config *config, int family, uint16_t port)
 	 * have cvsup defined in the /etc/services file.
 	 */
 	if (error == EAI_SERVICE) {
-		strncpy(servname, "5999", sizeof(servname) - 1);
-		servname[sizeof(servname) - 1] = '\0';
+		snprintf(servname, sizeof(servname), "%d", 5999);
 		error = getaddrinfo(config->host, servname, &hints, &res);
 	}
 	if (error) {

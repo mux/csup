@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/globtree.c,v 1.4 2006/03/03 00:50:46 mux Exp $
+ * $FreeBSD: projects/csup/globtree.c,v 1.5 2006-03-13 22:02:20 mux Exp $
  */
 
 #include <sys/types.h>
@@ -50,7 +50,7 @@
  * matches everything.
  *
  * A more useful primitive is the matching operation, constructed with
- * globtree_match().  It will call fnmatch() with the suppliedi
+ * globtree_match().  It will call fnmatch() with the supplied
  * shell-style pattern to determine if the filename matches.
  *
  * Expressions can be combined with the boolean operators AND, OR, and
