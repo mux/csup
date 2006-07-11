@@ -27,15 +27,14 @@
  * SUCH DAMAGE.
  *
  *	@(#)queue.h	8.5 (Berkeley) 8/20/94
- * $FreeBSD: projects/csup/queue.h,v 1.4 2006/03/01 16:18:46 mux Exp $
  *
- * $FreeBSD: projects/csup/queue.h,v 1.4 2006/03/01 16:18:46 mux Exp $
+ * $FreeBSD: projects/csup/queue.h,v 1.5 2006/03/03 18:41:59 mux Exp $
  */
 
 #ifndef _QUEUE_H_
 #define	_QUEUE_H_
 
-#undef __ofsetof
+#undef __offsetof
 #define	__offsetof(type, field)	((size_t)(&((type *)0)->field))
 
 /*
