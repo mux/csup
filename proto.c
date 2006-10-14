@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.91 2006-03-17 20:19:43 mux Exp $
+ * $FreeBSD: projects/csup/proto.c,v 1.92 2006-05-18 15:29:43 mux Exp $
  */
 
 #include <sys/param.h>
@@ -171,7 +171,7 @@ proto_connect(struct config *config, int family, uint16_t port)
 			    strerror(errno));
 			continue;
 		}
-		lprintf(1, "Connected to %s\n", addrbuf);
+		lprintf(1, "Connected to %s (%s)\n", config->host, addrbuf);
 		freeaddrinfo(res);
 		config->socket = s;
 		return (STATUS_SUCCESS);
