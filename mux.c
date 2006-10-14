@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/mux.c,v 1.70 2006/02/22 23:22:04 mux Exp $
+ * $FreeBSD: projects/csup/mux.c,v 1.71 2006-02-24 23:01:32 mux Exp $
  */
 
 #include <sys/param.h>
@@ -784,6 +784,7 @@ sender_loop(void *arg)
 	uint16_t hdrsize, size, len;
 	int error, id, iovcnt, what;
 
+	what = 0;	/* Appease GCC4 */
 	m = (struct mux *)arg;
 again:
 	id = sender_waitforwork(m, &what);
