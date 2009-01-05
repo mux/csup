@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2008-2009, Ulf Lilleengen <lulf@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,30 +23,19 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/diff.h,v 1.9 2006/02/18 10:41:08 mux Exp $
+ * $FreeBSD$
  */
-#ifndef _DIFF_H_
-#define _DIFF_H_
 
-struct stream;
-struct keyword;
-struct file_update;
+#ifndef _RSYNCFILE_H_
+#define _RSYNCFILE_H_
 
-/* Description of an RCS delta. */
-struct diffinfo {
-	char *di_rcsfile;			/* RCS filename */
-	char *di_cvsroot;			/* CVS root prefix */
-	char *di_revnum;			/* Revision number */
-	char *di_revdate;			/* Revision date */
-	char *di_author;			/* Author of the delta */
-	char *di_tag;				/* CVS tag, if any */
-	char *di_state;				/* State of the branch */
-	int di_expand;				/* CVS expansion mode */
-};
+struct rsyncfile;
+struct rsyncfile	*rsync_open(char *, size_t, int);
+int			 rsync_nextblock(struct rsyncfile *);
+char			*rsync_rsum(struct rsyncfile *);
+char			*rsync_blockmd5(struct rsyncfile *);
+int			 rsync_close(struct rsyncfile *);
+size_t			 rsync_blocksize(struct rsyncfile *);
+size_t			rsync_filesize(struct rsyncfile *);
 
-int		 diff_apply(struct stream *, struct stream *, struct stream *,
-		     struct keyword *, struct diffinfo *, int);
-int		 diff_reverse(struct stream *, struct stream *,
-		     struct stream *, struct keyword *, struct diffinfo *);
-
-#endif /* !_DIFF_H_ */
+#endif /* !_RSYNCFILE_H_ */

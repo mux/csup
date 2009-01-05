@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2003-2006, Maxime Henrion <mux@FreeBSD.org>
+ * Copyright (c) 2008-2009, Ulf Lilleengen <lulf@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -23,30 +23,19 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/diff.h,v 1.9 2006/02/18 10:41:08 mux Exp $
+ * $FreeBSD$
  */
-#ifndef _DIFF_H_
-#define _DIFF_H_
 
-struct stream;
-struct keyword;
-struct file_update;
+#ifndef _RCSPARSE_H_
+#define _RCSPARSE_H_
+#define ID		0
+#define NUM		1
+#define KEYWORD		2
+#define KEYWORD_TWO	3
+#define STRING		4
+#define SEMIC		5
+#define COLON		6
 
-/* Description of an RCS delta. */
-struct diffinfo {
-	char *di_rcsfile;			/* RCS filename */
-	char *di_cvsroot;			/* CVS root prefix */
-	char *di_revnum;			/* Revision number */
-	char *di_revdate;			/* Revision date */
-	char *di_author;			/* Author of the delta */
-	char *di_tag;				/* CVS tag, if any */
-	char *di_state;				/* State of the branch */
-	int di_expand;				/* CVS expansion mode */
-};
-
-int		 diff_apply(struct stream *, struct stream *, struct stream *,
-		     struct keyword *, struct diffinfo *, int);
-int		 diff_reverse(struct stream *, struct stream *,
-		     struct stream *, struct keyword *, struct diffinfo *);
-
-#endif /* !_DIFF_H_ */
+struct rcsfile;
+int	rcsparse_run(struct rcsfile *, FILE *, int);
+#endif /* !_RCSPARSE_H_ */
