@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <pthread.h>
 #include <signal.h>
@@ -763,7 +764,7 @@ proto_printf(struct stream *wr, const char *format, ...)
 			break;
 		case 'O':
 			off = va_arg(ap, off_t);
-			rv = stream_printf(wr, "%llu", off);
+			rv = stream_printf(wr, "%" PRId64, off);
 			break;
 		case 'S':
 			s = va_arg(ap, char *);
