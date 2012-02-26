@@ -51,18 +51,6 @@
  */
 
 /*
- * Try to quiet warnings as much as possible with GCC while staying
- * compatible with other compilers.
- */
-#ifndef __unused
-#if defined(__GNUC__) && (__GNUC__ > 2 || __GNUC__ == 2 && __GNUC_MINOR__ >= 7)
-#define	__unused	__attribute__((__unused__))
-#else
-#define	__unused
-#endif
-#endif
-
-/*
  * Flags passed to the flush methods.
  *
  * STREAM_FLUSH_CLOSING is passed during the last flush call before

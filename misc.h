@@ -77,6 +77,14 @@
 #define	__printflike(fmtarg, firstvararg)
 #endif
 
+#ifndef __unused
+#if defined(__GNUC__) && (__GNUC__ > 2 || __GNUC__ == 2 && __GNUC_MINOR__ >= 7)
+#define	__unused	__attribute__((__unused__))
+#else
+#define	__unused
+#endif
+#endif
+
 /* Exit codes. */
 #define	STATUS_SUCCESS		0
 #define	STATUS_FAILURE		1
