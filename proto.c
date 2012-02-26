@@ -23,7 +23,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD: projects/csup/proto.c,v 1.92 2006-05-18 15:29:43 mux Exp $
+ * $FreeBSD$
  */
 
 #include <sys/param.h>
@@ -35,7 +35,6 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
-#include <inttypes.h>
 #include <netdb.h>
 #include <pthread.h>
 #include <signal.h>
@@ -64,13 +63,12 @@
 
 struct killer {
 	pthread_t thread;
-	sigset_t *sigset;
+	sigset_t sigset;
 	struct mux *mux;
 	int killedby;
 };
 
-static void		 killer_start(struct killer *, sigset_t *set,
-			     struct mux *);
+static void		 killer_start(struct killer *, struct mux *);
 static void		*killer_run(void *);
 static void		 killer_stop(struct killer *);
 
@@ -127,8 +125,10 @@ proto_connect(struct config *config, int family, uint16_t port)
 	s = -1;
 	if (port != 0)
 		snprintf(servname, sizeof(servname), "%d", port);
-	else
-		snprintf(servname, sizeof(servname), "%s", "cvsup");
+	else {
+		strncpy(servname, "cvsup", sizeof(servname) - 1);
+		servname[sizeof(servname) - 1] = '\0';
+	}
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = family;
 	hints.ai_socktype = SOCK_STREAM;
@@ -138,7 +138,8 @@ proto_connect(struct config *config, int family, uint16_t port)
 	 * have cvsup defined in the /etc/services file.
 	 */
 	if (error == EAI_SERVICE) {
-		snprintf(servname, sizeof(servname), "%d", 5999);
+		strncpy(servname, "5999", sizeof(servname) - 1);
+		servname[sizeof(servname) - 1] = '\0';
 		error = getaddrinfo(config->host, servname, &hints, &res);
 	}
 	if (error) {
@@ -172,7 +173,7 @@ proto_connect(struct config *config, int family, uint16_t port)
 			    strerror(errno));
 			continue;
 		}
-		lprintf(1, "Connected to %s (%s)\n", config->host, addrbuf);
+		lprintf(1, "Connected to %s\n", addrbuf);
 		freeaddrinfo(res);
 		config->socket = s;
 		return (STATUS_SUCCESS);
@@ -538,7 +539,6 @@ proto_run(struct config *config)
 	struct killer killer;
 	struct threads *workers;
 	struct mux *m;
-	sigset_t set;
 	int i, status;
 
 	/*
@@ -559,18 +559,6 @@ proto_run(struct config *config)
 	if (status != STATUS_SUCCESS)
 		return (status);
 
-	/*
-	 * Call pthread_sigmask() prior to creating any thread, or the
-	 * sigwait() of the killer thread won't work properly with some
-	 * libpthread implementations.
-	 */
-	sigemptyset(&set);
-	sigaddset(&set, SIGINT);
-	sigaddset(&set, SIGHUP);
-	sigaddset(&set, SIGTERM);
-	sigaddset(&set, SIGPIPE);
-	pthread_sigmask(SIG_BLOCK, &set, NULL);
-
 	/* Multi-threaded action starts here. */
 	m = proto_mux(config);
 	if (m == NULL)
@@ -579,7 +567,7 @@ proto_run(struct config *config)
 	stream_close(config->server);
 	config->server = NULL;
 	config->fixups = fixups_new();
-	killer_start(&killer, &set, m);
+	killer_start(&killer, m);
 
 	/* Start the worker threads. */
 	workers = threads_new();
@@ -643,7 +631,6 @@ proto_run(struct config *config)
 	killer_stop(&killer);
 	fixups_free(config->fixups);
 	status = mux_close(m);
-	pthread_sigmask(SIG_UNBLOCK, &set, NULL);
 	if (status == STATUS_SUCCESS) {
 		lprintf(1, "Finished successfully\n");
 	} else if (status == STATUS_INTERRUPTED) {
@@ -764,7 +751,7 @@ proto_printf(struct stream *wr, const char *format, ...)
 			break;
 		case 'O':
 			off = va_arg(ap, off_t);
-			rv = stream_printf(wr, "%" PRId64, off);
+			rv = stream_printf(wr, "%llu", off);
 			break;
 		case 'S':
 			s = va_arg(ap, char *);
@@ -954,13 +941,18 @@ proto_get_time(char **s, time_t *val)
 /* Start the killer thread.  It is used to protect against some signals
    during the multi-threaded run so that we can gracefully fail.  */
 static void
-killer_start(struct killer *k, sigset_t *set, struct mux *m)
+killer_start(struct killer *k, struct mux *m)
 {
 	int error;
 
 	k->mux = m;
 	k->killedby = -1;
-	k->sigset = set;
+	sigemptyset(&k->sigset);
+	sigaddset(&k->sigset, SIGINT);
+	sigaddset(&k->sigset, SIGHUP);
+	sigaddset(&k->sigset, SIGTERM);
+	sigaddset(&k->sigset, SIGPIPE);
+	pthread_sigmask(SIG_BLOCK, &k->sigset, NULL);
 	error = pthread_create(&k->thread, NULL, killer_run, k);
 	if (error)
 		err(1, "pthread_create");
@@ -975,7 +967,7 @@ killer_run(void *arg)
 
 	k = arg;
 again:
-	error = sigwait(k->sigset, &sig);
+	error = sigwait(&k->sigset, &sig);
 	assert(!error);
 	if (sig == SIGINT || sig == SIGHUP || sig == SIGTERM) {
 		if (k->killedby == -1) {
@@ -1001,4 +993,5 @@ killer_stop(struct killer *k)
 	assert(!error);
 	pthread_join(k->thread, &val);
 	assert(val == PTHREAD_CANCELED);
+	pthread_sigmask(SIG_UNBLOCK, &k->sigset, NULL);
 }
