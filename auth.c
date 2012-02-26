@@ -284,7 +284,8 @@ auth_makechallenge(struct config *config, char *challenge)
 	struct timeval tv;
 	struct sockaddr_in laddr;
 	pid_t pid, ppid;
-	int error, addrlen;
+	socklen_t addrlen;
+	int error;
 
 	gettimeofday(&tv, NULL);
 	pid = getpid();
