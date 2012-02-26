@@ -66,6 +66,7 @@ struct killer {
 	int killedby;
 };
 
+static void		 killer_init(struct killer *);
 static void		 killer_start(struct killer *, struct mux *);
 static void		*killer_run(void *);
 static void		 killer_stop(struct killer *);
@@ -557,6 +558,7 @@ proto_run(struct config *config)
 	if (status != STATUS_SUCCESS)
 		return (status);
 
+	killer_init(&killer);
 	/* Multi-threaded action starts here. */
 	m = proto_mux(config);
 	if (m == NULL)
@@ -936,6 +938,24 @@ proto_get_time(char **s, time_t *val)
 	return (0);
 }
 
+/* Initialize the killer structure and the thread signal mask. This needs
+   to be called before any other thread is created so that the signal mask is
+   properly inherited. If not, signals intended to get caught by the killer
+   thread could be delivered to other threads and terminate the application
+   abruptly, without letting us a chance to clean things up. */
+static void
+killer_init(struct killer *k)
+{
+	k->mux = NULL;
+	k->killedby = -1;
+	sigemptyset(&k->sigset);
+	sigaddset(&k->sigset, SIGINT);
+	sigaddset(&k->sigset, SIGHUP);
+	sigaddset(&k->sigset, SIGTERM);
+	sigaddset(&k->sigset, SIGPIPE);
+	pthread_sigmask(SIG_BLOCK, &k->sigset, NULL);
+}
+
 /* Start the killer thread.  It is used to protect against some signals
    during the multi-threaded run so that we can gracefully fail.  */
 static void
@@ -944,13 +964,6 @@ killer_start(struct killer *k, struct mux *m)
 	int error;
 
 	k->mux = m;
-	k->killedby = -1;
-	sigemptyset(&k->sigset);
-	sigaddset(&k->sigset, SIGINT);
-	sigaddset(&k->sigset, SIGHUP);
-	sigaddset(&k->sigset, SIGTERM);
-	sigaddset(&k->sigset, SIGPIPE);
-	pthread_sigmask(SIG_BLOCK, &k->sigset, NULL);
 	error = pthread_create(&k->thread, NULL, killer_run, k);
 	if (error)
 		err(1, "pthread_create");
