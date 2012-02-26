@@ -324,4 +324,3 @@ auth_readablesum(unsigned char *md5sum, char *readable)
 		sprintf(s, "%.2x", md5sum[i]);
 	}
 }
-

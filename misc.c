@@ -602,7 +602,7 @@ rcsnum_cmp(char *revision1, char *revision2)
 			return (ret);
 		ptr1 = (*dot1 == '.') ? (dot1 + 1) : dot1;
 		ptr2 = (*dot2 == '.') ? (dot2 + 1) : dot2;
-        } 
+        }
 
         if (*ptr1 != '\0' && *ptr2 == '\0')
                 return (1);

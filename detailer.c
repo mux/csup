@@ -64,7 +64,7 @@ static int	detailer_coll(struct detailer *, struct coll *,
 		    struct status *);
 static int	detailer_dofile_co(struct detailer *, struct coll *,
 		    struct status *, char *);
-static int	detailer_dofile_rcs(struct detailer *, struct coll *, 
+static int	detailer_dofile_rcs(struct detailer *, struct coll *,
 		    char *, char *);
 static int	detailer_dofile_regular(struct detailer *, char *, char *);
 static int	detailer_dofile_rsync(struct detailer *, char *, char *);
@@ -247,7 +247,7 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 			/* Delete file. */
 			file = proto_get_ascii(&line);
 			if (file == NULL || line != NULL)
-				return (DETAILER_ERR_PROTO); 
+				return (DETAILER_ERR_PROTO);
 			error = proto_printf(wr, "D %s\n", file);
 			if (error)
 				return (DETAILER_ERR_WRITE);
@@ -540,7 +540,7 @@ detailer_checkrcsattr(struct detailer *d, struct coll *coll, char *name,
 		return (DETAILER_ERR_PROTO);
 	}
 
-	if (access(path, F_OK) == 0 && 
+	if (access(path, F_OK) == 0 &&
 	    ((client_attr = fattr_frompath(path, FATTR_NOFOLLOW)) != NULL) &&
 	    fattr_equal(client_attr, server_attr)) {
 		attr = fattr_encode(client_attr, NULL, 0);
@@ -576,7 +576,7 @@ detailer_send_details(struct detailer *d, struct coll *coll, char *name,
         * file.
 	*/
 	if (fa == NULL) {
-		path = atticpath(coll->co_prefix, name); 
+		path = atticpath(coll->co_prefix, name);
 		fa = fattr_frompath(path, FATTR_NOFOLLOW);
 	}
 	if (fa == NULL) {

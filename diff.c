@@ -202,7 +202,7 @@ diff_write_reverse(struct stream *dest, struct diffstart *ds)
 	return (0);
 }
 
-/* 
+/*
  * Insert a diff into the list sorted on key. Should perhaps use quicker
  * algorithms than insertion sort, but do this for now.
  */
@@ -233,7 +233,7 @@ diff_insert_edit(struct diffstart *ds, struct editcmd *ec)
 	return (0);
 }
 
-static void 
+static void
 diff_free(struct diffstart *ds)
 {
 	struct editcmd *ec;

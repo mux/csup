@@ -2089,6 +2089,3 @@ void rcsfree (void * ptr , yyscan_t yyscanner)
 #define YYTABLES_NAME "yytables"
 
 #line 73 "rcstokenizer.l"
-
-
-

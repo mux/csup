@@ -1298,4 +1298,3 @@ md5rcsfilter_flush(struct stream *stream, struct buf *buf, stream_flush_t how)
 	error = stream_flush_default(stream, buf, how);
 	return (error);
 }
-

@@ -430,7 +430,7 @@ lister_dorcsfile(struct lister *l, struct coll *coll, struct statusrec *sr)
 		}
 		fa = fattr_frompath(path, FATTR_NOFOLLOW);
 		free(path);
-	} else 
+	} else
 		fa = sr->sr_clientattr;
 	if (fa != NULL && fattr_equal(fa, sr->sr_clientattr)) {
 		/*
@@ -539,7 +539,7 @@ lister_dorcsdead(struct lister *l, struct coll *coll, struct statusrec *sr)
 		}
 		fa = fattr_frompath(path, FATTR_NOFOLLOW);
 		free(path);
-	} else 
+	} else
 		fa = sr->sr_clientattr;
 	if (fattr_equal(fa, sr->sr_clientattr)) {
 		/*

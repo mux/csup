@@ -529,7 +529,7 @@ rcsfile_write_deltatext(struct rcsfile *rf, struct stream *dest)
 		}
 		/*
 		 * Invert the deltalist of a branch, since we're writing them
-		 * the opposite way. 
+		 * the opposite way.
 		 */
 		LIST_FOREACH(d_tmp, &branchlist_datesorted, branch_next_date) {
                         d_tmp->prev = d;
@@ -1032,7 +1032,7 @@ rcsfile_addelta(struct rcsfile *rf, char *revnum, char *revdate, char *author,
 
 	/*
 	 * We didn't find a branch, check if we can find a branchpoint and
-	 * create a branch there. 
+	 * create a branch there.
 	 */
 	if (b == NULL) {
 		brev = rcsrev_prefix(d->revnum);
@@ -1119,7 +1119,7 @@ rcsfile_importdelta(struct rcsfile *rf, char *revnum, char *revdate, char *autho
 
 	/*
 	 * We didn't find a branch, check if we can find a branchpoint and
-	 * create a branch there. 
+	 * create a branch there.
 	 */
 	if (b == NULL) {
 		brev = rcsrev_prefix(d->revnum);
@@ -1140,7 +1140,7 @@ rcsfile_importdelta(struct rcsfile *rf, char *revnum, char *revdate, char *autho
 		rcsdelta_insertbranch(d_bp, b);
 	}
 
-	/* Insert if not a placeholder. */ 
+	/* Insert if not a placeholder. */
 	if (!d->placeholder) {
 		/* Insert both into the tree, and into the lookup list. */
 		if (rcsrev_istrunk(d->revnum))
@@ -1357,7 +1357,7 @@ rcsdelta_appendtext(struct delta *d, char *textline, size_t size)
 	return (error);
 }
 
-static int 
+static int
 rcsdelta_writestring(char *textline, size_t size, struct stream *dest)
 {
 	char buf[3];

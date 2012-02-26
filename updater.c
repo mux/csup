@@ -103,7 +103,7 @@ static int	updater_setdirattrs(struct updater *, struct coll *,
 		     struct file_update *, char *, char *);
 static int	 updater_updatefile(struct updater *, struct file_update *fup,
 		     const char *, int);
-static int	 updater_updatenode(struct updater *, struct coll *, 
+static int	 updater_updatenode(struct updater *, struct coll *,
 		     struct file_update *, char *, char *);
 static int	 updater_diff(struct updater *, struct file_update *);
 static int	 updater_diff_batch(struct updater *, struct file_update *);
@@ -1037,7 +1037,7 @@ updater_setdirattrs(struct updater *up, struct coll *coll,
 	sr->sr_file = xstrdup(name);
 	sr->sr_clientattr = fattr_decode(attr);
 	sr->sr_serverattr = fattr_decode(attr);
-	if (sr->sr_clientattr == NULL || sr->sr_serverattr == NULL) 
+	if (sr->sr_clientattr == NULL || sr->sr_serverattr == NULL)
 		return (UPDATER_ERR_PROTO);
 	fattr_mergedefault(sr->sr_clientattr);
 	fattr_umask(sr->sr_clientattr, coll->co_umask);
@@ -1267,7 +1267,7 @@ updater_updatenode(struct updater *up, struct coll *coll,
 	fa = fattr_decode(attr);
 
 	if (fattr_type(fa) == FT_SYMLINK) {
-		lprintf(1, " Symlink %s -> %s\n", name, 
+		lprintf(1, " Symlink %s -> %s\n", name,
 		    fattr_getlinktarget(fa));
 	} else {
 		lprintf(1, " Mknod %s\n", name);
@@ -1360,7 +1360,7 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr,
 	ssize_t nread;
 	off_t fsize, remains;
 	char *cmd, *line, *path;
-	int error; 
+	int error;
 
 	coll = fup->coll;
 	path = fup->destpath;
@@ -1678,7 +1678,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	dest = stream_open_file(fup->temppath,
 	    O_RDWR | O_CREAT | O_TRUNC, 0600);
 	if (dest == NULL) {
-		xasprintf(&up->errmsg, "Error opening file %s for writing: %s\n", 
+		xasprintf(&up->errmsg, "Error opening file %s for writing: %s\n",
 		    fup->temppath, strerror(errno));
 		return (UPDATER_ERR_MSG);
 	}
@@ -1765,7 +1765,7 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *cmdline)
 				while (logline != NULL) {
 					if (size == 2 && *logline == '.')
 						break;
-					if (size == 3 && 
+					if (size == 3 &&
 					    memcmp(logline, ".+", 2) == 0) {
 						rcsdelta_truncatelog(d, -1);
 						break;

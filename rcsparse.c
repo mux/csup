@@ -200,7 +200,7 @@ parse_admin(struct rcsfile *rf, yyscan_t *sp)
 				free(expand);
 			}
 			asserttoken(sp, SEMIC);
-		} 
+		}
 		/* {newphrase }* */
 		token = rcslex(*sp);
 		while (token == ID) {

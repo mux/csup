@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Copyright 2007. Petar Zhivkov Petrov 
+# Copyright 2007. Petar Zhivkov Petrov
 # pesho.petrov@gmail.com
 #
 
@@ -131,4 +131,3 @@ echo "$serverName:$clientName:XXX:"
 echo "-------------------------------------------------------------------------------"
 echo "Make sure the file is readable and writable only by you!"
 echo ""
-

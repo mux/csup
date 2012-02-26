@@ -33,4 +33,3 @@ struct config;
 int auth_login(struct config *);
 
 #endif /* !_AUTH_H_ */
-
