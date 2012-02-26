@@ -39,8 +39,16 @@ parse.h:	y.tab.h
 
 .endif
 
-DPADD=	${LIBCRYPTO} ${LIBZ}
-LDADD=	-lcrypto -lz
+DPADD=	${LIBZ}
+LDADD=	-lz
+
+.if (${UNAME} == "FreeBSD")
+DPADD+=	${LIBMD}
+LDADD+=	-lmd
+.else
+DPADD+=	${LIBCRYPTO}
+LDADD+=	-lcrypto
+.endif
 
 SCRIPTS=	cpasswd.sh
 MAN=		csup.1 cpasswd.1
