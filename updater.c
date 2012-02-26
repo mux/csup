@@ -1531,7 +1531,7 @@ updater_prunedirs(char *base, char *file)
  */
 static int
 updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
-    char *rcsopt)
+    char __unused *rcsopt)
 {
 	struct coll *coll;
 	struct stream *dest;
