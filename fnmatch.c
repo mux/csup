@@ -29,15 +29,8 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
- *
- * From FreeBSD fnmatch.c 1.11
- * $Id$
+ * Initially taken from FreeBSD's fnmatch.c r1.11
  */
-
-#if defined(LIBC_SCCS) && !defined(lint)
-static char sccsid[] = "@(#)fnmatch.c	8.2 (Berkeley) 4/16/94";
-#endif /* LIBC_SCCS and not lint */
 
 /*
  * Function fnmatch() as specified in POSIX 1003.2-1992, section B.6.

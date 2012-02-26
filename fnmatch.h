@@ -26,14 +26,8 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $FreeBSD$
- *
- *	@(#)fnmatch.h	8.1 (Berkeley) 6/2/93
- *
- * From FreeBSD fnmatch.h 1.7
- * $Id$
+ * Initially taken from FreeBSD's fnmatch.h r1.7
  */
-
 #ifndef	_FNMATCH_H_
 #define	_FNMATCH_H_
 

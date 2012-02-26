@@ -2,8 +2,6 @@
 # be used elsewhere because it assumes that the target system doesn't
 # support BSD extended file flags.
 #
-# $FreeBSD: projects/csup/GNUmakefile,v 1.7 2006/03/06 00:36:23 mux Exp $
-#
 
 PREFIX?=/usr/local
 OWNER?=	0

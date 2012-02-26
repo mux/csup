@@ -22,12 +22,10 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $FreeBSD$
  */
-
 #ifndef _RCSPARSE_H_
 #define _RCSPARSE_H_
+
 #define ID		0
 #define NUM		1
 #define KEYWORD		2
@@ -38,4 +36,5 @@
 
 struct rcsfile;
 int	rcsparse_run(struct rcsfile *, FILE *, int);
+
 #endif /* !_RCSPARSE_H_ */

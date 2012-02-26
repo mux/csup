@@ -3,7 +3,6 @@
 # Copyright 2007. Petar Zhivkov Petrov 
 # pesho.petrov@gmail.com
 #
-# $FreeBSD$
 
 usage() {
 	echo "Usage: $0 clientName serverName"

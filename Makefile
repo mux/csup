@@ -1,5 +1,3 @@
-# $FreeBSD: projects/csup/Makefile,v 1.44 2006/03/06 00:36:23 mux Exp $
-
 PREFIX?=	/usr/local
 BINDIR?=	${PREFIX}/bin
 MANDIR?=	${PREFIX}/man/man
