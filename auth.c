@@ -44,10 +44,8 @@
 #include "proto.h"
 #include "stream.h"
 
-#define MD5_BYTES			16
-
-/* This should be at least 2 * MD5_BYTES + 6 (length of "$md5$" + 1) */
-#define MD5_CHARS_MAX		(2*(MD5_BYTES)+6)
+/* This should be at least 2 * MD5_DIGEST_LENGTH + 6 (length of "$md5$" + 1) */
+#define MD5_CHARS_MAX		(2*(MD5_DIGEST_LENGTH)+6)
 
 struct srvrecord {
 	char server[MAXHOSTNAMELEN];
@@ -235,7 +233,7 @@ auth_makesecret(struct srvrecord *auth, char *secret)
 {
 	char *s, ch;
 	const char *md5salt = "$md5$";
-	unsigned char md5sum[MD5_BYTES];
+	unsigned char md5sum[MD5_DIGEST_LENGTH];
 	MD5_CTX md5;
 
 	MD5_Init(&md5);
@@ -260,7 +258,7 @@ static void
 auth_makeresponse(char *challenge, char *sharedsecret, char *response)
 {
 	MD5_CTX md5;
-	unsigned char md5sum[MD5_BYTES];
+	unsigned char md5sum[MD5_DIGEST_LENGTH];
 
 	MD5_Init(&md5);
 	MD5_Update(&md5, sharedsecret, strlen(sharedsecret));
@@ -281,7 +279,7 @@ static void
 auth_makechallenge(struct config *config, char *challenge)
 {
 	MD5_CTX md5;
-	unsigned char md5sum[MD5_BYTES];
+	unsigned char md5sum[MD5_DIGEST_LENGTH];
 	char buf[128];
 	struct timeval tv;
 	struct sockaddr_in laddr;
@@ -322,7 +320,7 @@ auth_readablesum(unsigned char *md5sum, char *readable)
 	unsigned int i;
 	char *s = readable;
 
-	for (i = 0; i < MD5_BYTES; ++i, s+=2) {
+	for (i = 0; i < MD5_DIGEST_LENGTH; ++i, s+=2) {
 		sprintf(s, "%.2x", md5sum[i]);
 	}
 }
