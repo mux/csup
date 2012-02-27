@@ -31,14 +31,11 @@ Darwin.  It has also been tested successfully on a wide range of
 architectures: x86, amd64, sparc64, alpha, ia64, arm and powerpc.
 If you have a problem building from source, drop me a mail!
 
-There is one Makefile specifically tailored for *BSD systems named
-Makefile and another one that is gmake-specific for Darwin and Linux
-users named GNUmakefile.  You don't really need to worry about that
-since whatever your "make" command is, it should pick up the correct
-Makefile.
-
-As usual, to build the source code, just run "make".  Once this is
-done, just run "make install" to install the binary and manual page.
+As usual, to build the source code, just run "make".  If you're
+running a BSD flavoured system, you will most likely need to run
+"gmake" instead, to invoke the GNU make variant instead of the
+system one. Once this is done, just run "make install" to install
+the csup binary, the cpasswd script and their manual pages.
 
 Be warned however that if the packaging system of your OS knows
 about csup, it is certainly better to install it from there rather
