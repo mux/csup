@@ -7,8 +7,8 @@ CVSup was originally written in Modula-3 by
 Csup is a rewrite of CVSup in C.  It has been mostly written by
 	Maxime Henrion <mux@FreeBSD.org>.
 
-A few contributors have helped him in his task and they are listed here in
-alphabetical order :
+A few contributors have helped him in his task and they are listed
+here in alphabetical order:
 
 	Olivier Houchard <cognet@FreeBSD.org>
 	Ulf Lilleengen <lulf@kerneled.org>
@@ -34,8 +34,23 @@ If you have a problem building from source, drop me a mail!
 As usual, to build the source code, just run "make".  If you're
 running a BSD flavoured system, you will most likely need to run
 "gmake" instead, to invoke the GNU make variant instead of the
-system one. Once this is done, just run "make install" to install
-the csup binary, the cpasswd script and their manual pages.
+system one.  If your system ships with a flex version that is not
+recent enough, you will need to change the FLEX make variable on
+the command line to point at another binary, or the build will fail.
+
+For example, to build csup under FreeBSD, you will need to install
+the textproc/flex port as well as the devel/gmake one and use this
+command line:
+
+	gmake FLEX=/usr/local/bin/flex
+
+Remember however that csup is shipped with FreeBSD in a way that
+doesn't require external dependencies, so you should have no reason
+to build csup if you're running FreeBSD.  However, this is likely
+to apply to most other BSD-like OSes.
+
+Once the build is done, just can run "make install" to install the
+csup binary, the cpasswd script and their manual pages.
 
 Be warned however that if the packaging system of your OS knows
 about csup, it is certainly better to install it from there rather
