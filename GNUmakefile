@@ -4,6 +4,8 @@
 #
 
 PREFIX?=/usr/local
+FLEX?=	flex
+YACC?=	yacc
 OWNER?=	0
 GROUP?=	0
 
@@ -50,8 +52,11 @@ parse.c: parse.y
 
 parse.h: parse.c
 
+lex.rcs.c rcstokenizer.h: rcstokenizer.l
+	$(FLEX) -Prcs $<
+
 clean:
-	rm -f csup $(OBJS) parse.c parse.h token.c csup.1.gz
+	rm -f csup $(OBJS) parse.c parse.h rcstokenizer.h lex.rcs.c token.c csup.1.gz
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
