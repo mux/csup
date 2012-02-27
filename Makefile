@@ -60,6 +60,7 @@ csup: $(OBJS)
 config.c: parse.h
 
 token.c: token.l
+	$(FLEX) -t $< > $@
 
 parse.c: parse.y
 
