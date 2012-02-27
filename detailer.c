@@ -359,7 +359,7 @@ detailer_dofile_regular(struct detailer *d, char *name, char *path)
 	struct stat st;
 	char md5[MD5_DIGEST_SIZE];
 	int error;
-	
+
 	wr = d->wr;
 	error = stat(path, &st);
 	/* If we don't have it or it's unaccessible, we want it again. */

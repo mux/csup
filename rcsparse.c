@@ -85,7 +85,7 @@ rcsparse_run(struct rcsfile *rf, FILE *infp, int ro)
 	yyscan_t scanner;
 	char *desc;
 	int error, tok;
-	
+
 	error = 0;
 	rcslex_init(&scanner);
 	rcsset_in(infp, scanner);

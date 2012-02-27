@@ -712,7 +712,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			if (sr->sr_serverattr == NULL ||
 			    sr->sr_clientattr == NULL)
 				return (UPDATER_ERR_PROTO);
-			
+
 			/* Save space. Described in detail in updatefile. */
 			if (!(fattr_getmask(sr->sr_clientattr) & FA_LINKCOUNT)
 			    || fattr_getlinkcount(sr->sr_clientattr) <= 1)

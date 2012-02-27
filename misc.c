@@ -503,7 +503,7 @@ void
 pattlist_free(struct pattlist *p)
 {
 	size_t i;
-	
+
 	for (i = 0; i < p->in; i++)
 		free(p->patterns[i]);
 	free(p->patterns);

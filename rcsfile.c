@@ -483,7 +483,7 @@ rcsfile_write_deltatext(struct rcsfile *rf, struct stream *dest)
 			return (error);
 		if (stream_printf(dest, "@") < 0)
 			return (-1);
-	
+
 		LIST_INIT(&branchlist_datesorted);
 		d_next = LIST_NEXT(d, delta_next);
 		if (d_next != NULL) {
@@ -687,7 +687,7 @@ rcsfile_getdeltatext(struct rcsfile *rf, struct delta *d, struct buf **buf_dest)
 		lprintf(-1, "Error applying diff: %d\n", error);
 		return (NULL);
 	}
-	
+
 	/* Now reopen the stream for the reading. */
 	dest = stream_open_buf(*buf_dest);
 	return (dest);
@@ -731,7 +731,7 @@ rcsfile_print(struct rcsfile *rf)
 		lprintf(1, "comment: '%s'\n", rf->comment);
 	if (rf->expand != EXPAND_DEFAULT)
 		lprintf(1, "expand: '%s'\n", keyword_encode_expand(rf->expand));
-	
+
 	/* Print all deltas. */
 	LIST_FOREACH(d, &rf->deltatable, table_next) {
 		lprintf(1, "Delta: ");
