@@ -24,11 +24,24 @@ WARNS=	-Wall -W -Wno-unused-parameter -Wmissing-prototypes -Wpointer-arith \
 
 CFLAGS+= -g -O -pipe -DNDEBUG -I$(PREFIX)/include $(WARNS)
 ifeq ($(UNAME), Linux)
-	CFLAGS+= -D_XOPEN_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
+CFLAGS+= -D_XOPEN_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
 endif
 ifeq ($(UNAME), Darwin)
-	CFLAGS+= -DHAVE_FFLAGS
+CFLAGS+= -DHAVE_FFLAGS
 endif
+ifeq ($(UNAME), FreeBSD)
+CFLAGS+= -DHAVE_FFLAGS
+endif
+ifeq ($(UNAME), OpenBSD)
+CFLAGS+= -DHAVE_FFLAGS
+endif
+ifeq ($(UNAME), NetBSD)
+CFLAGS+= -DHAVE_FFLAGS
+endif
+ifeq ($(UNAME), DragonFlyBSD)
+CFLAGS+= -DHAVE_FFLAGS
+endif
+
 LDFLAGS= -L$(PREFIX)/lib -lz -lpthread
 
 ifeq ($(UNAME), FreeBSD)
@@ -39,7 +52,7 @@ endif
 
 .PHONY: all clean install
 
-all: csup csup.1.gz
+all: csup csup.1.gz cpasswd.1.gz
 
 csup: $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -56,7 +69,7 @@ lex.rcs.c rcstokenizer.h: rcstokenizer.l
 	$(FLEX) -Prcs $<
 
 clean:
-	rm -f csup $(OBJS) parse.c parse.h rcstokenizer.h lex.rcs.c token.c csup.1.gz
+	rm -f csup $(OBJS) parse.c parse.h rcstokenizer.h lex.rcs.c token.c csup.1.gz cpasswd.1.gz
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -67,6 +80,11 @@ clean:
 csup.1.gz: csup.1
 	gzip -cn $< > $@
 
-install: csup csup.1.gz
+cpasswd.1.gz: cpasswd.1
+	gzip -cn $< > $@
+
+install: csup csup.1.gz cpasswd.sh cpasswd.1.gz
 	install -s -o $(OWNER) -g $(GROUP) csup $(PREFIX)/bin
+	install -s -o $(OWNER) -g $(GROUP) cpasswd.sh $(PREFIX)/bin/cpasswd
 	install -s -o $(OWNER) -g $(GROUP) csup.1.gz $(PREFIX)/share/man/man1
+	install -s -o $(OWNER) -g $(GROUP) cpasswd.1.gz $(PREFIX)/share/man/man1
