@@ -19,9 +19,17 @@ alphabetical order :
 Building & Installing
 ---------------------
 
-Csup should build and run fine under any *BSD OS (that includes FreeBSD,
-NetBSD, OpenBSD and DragonFlyBSD), as well as Linux and Darwin.  If you
-have a problem building from source, drop me a mail!
+First, in order to build csup, you will need a few dependencies:
+  - GNU make
+  - flex >= 2.5.19
+  - The OpenSSL crypto lib and associated openssl/md5.h header
+  - The zlib library and associated zlib.h header
+
+Csup should build and run fine under any *BSD OS (that includes
+FreeBSD, NetBSD, OpenBSD and DragonFlyBSD), as well as Linux and
+Darwin.  It has also been tested successfully on a wide range of
+architectures: x86, amd64, sparc64, alpha, ia64, arm and powerpc.
+If you have a problem building from source, drop me a mail!
 
 There is one Makefile specifically tailored for *BSD systems named
 Makefile and another one that is gmake-specific for Darwin and Linux
@@ -29,9 +37,9 @@ users named GNUmakefile.  You don't really need to worry about that
 since whatever your "make" command is, it should pick up the correct
 Makefile.
 
-As usual, to build the source code, just run "make".  Once this is done,
-just run "make install" to install the binary and manual page.
+As usual, to build the source code, just run "make".  Once this is
+done, just run "make install" to install the binary and manual page.
 
-Be warned however that if the packaging system of your OS knows about
-csup, it is certainly better to install it from there rather than by
-hand, so that it can then be properly deinstalled.
+Be warned however that if the packaging system of your OS knows
+about csup, it is certainly better to install it from there rather
+than by hand, so that it can then be properly deinstalled.
