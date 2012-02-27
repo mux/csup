@@ -991,6 +991,7 @@ again:
 		}
 	}
 	goto again;
+	return (NULL);
 }
 
 /* Stop the killer thread. */
