@@ -44,14 +44,16 @@ command line:
 
 	gmake FLEX=/usr/local/bin/flex
 
-Remember however that csup is shipped with FreeBSD in a way that
-doesn't require external dependencies, so you should have no reason
-to build csup if you're running FreeBSD.  However, this is likely
-to apply to most other BSD-like OSes.
+However, if you are running FreeBSD, remember that csup is shipped
+in the base system in a way that doesn't require external dependencies,
+so you should have no reason to build from these sources unless you
+intend to do some development work.  You are likely to need a similar
+command line if you're trying to build csup from source on another
+BSD-like system though.
 
 Once the build is done, just can run "make install" to install the
 csup binary, the cpasswd script and their manual pages.
 
 Be warned however that if the packaging system of your OS knows
-about csup, it is certainly better to install it from there rather
-than by hand, so that it can then be properly deinstalled.
+about csup, it is preferable to install it from there rather than
+by hand, so that it can be properly deinstalled afterwards.
