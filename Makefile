@@ -85,6 +85,10 @@ token.o: token.c
 lex.rcs.o: lex.rcs.c
 	$(CC) $(CFLAGS) $(FLEX_NOWARNS) -c -o $@ $<
 
+# Recent versions of yacc seem to define yyparse() while older ones don't...
+parse.o: parse.c
+	$(CC) $(CFLAGS) -Wno-redundant-decls -c -o $@ $<
+
 csup.1.gz: csup.1
 
 cpasswd.1.gz: cpasswd.1
