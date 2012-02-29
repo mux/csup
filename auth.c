@@ -63,7 +63,8 @@ static void		auth_readablesum(unsigned char *, char *);
 static void		auth_makechallenge(struct config *, char *);
 static int		auth_checkresponse(char *, char *, char *);
 
-int auth_login(struct config *config)
+int
+auth_login(struct config *config)
 {
 	struct stream *s;
 	char hostbuf[MAXHOSTNAMELEN];
@@ -89,8 +90,8 @@ static int
 auth_domd5auth(struct config *config)
 {
 	struct stream *s;
-	char *line, *cmd, *challenge, *realm, *client, *srvresponse, *msg;
-	char shrdsecret[MD5_CHARS_MAX], response[MD5_CHARS_MAX];
+	char *line, *cmd, *challenge, *realm, *client, *srvresp, *msg;
+	char shrdsecret[MD5_CHARS_MAX], resp[MD5_CHARS_MAX];
 	char clichallenge[MD5_CHARS_MAX];
 	struct srvrecord auth;
 	int error;
@@ -109,11 +110,12 @@ auth_domd5auth(struct config *config)
 	}
 
 	client = NULL;
-	response[0] = clichallenge[0] = '.';
-	response[1] = clichallenge[1] = 0;
+	resp[0] = clichallenge[0] = '.';
+	resp[1] = clichallenge[1] = 0;
 	if (config->reqauth || (strcmp(challenge, ".") != 0)) {
 		if (strcmp(realm, ".") == 0) {
-			lprintf(-1, "Authentication required, but not enabled on server\n");
+			lprintf(-1, "Authentication required, "
+			    "but not enabled on server\n");
 			return (STATUS_FAILURE);
 		}
 		error = auth_lookuprecord(realm, &auth);
@@ -124,23 +126,24 @@ auth_domd5auth(struct config *config)
 	}
 
 	if (strcmp(challenge, ".") != 0)
-		auth_makeresponse(challenge, shrdsecret, response);
+		auth_makeresponse(challenge, shrdsecret, resp);
 	if (config->reqauth)
 		auth_makechallenge(config, clichallenge);
 	proto_printf(s, "AUTHMD5 %s %s %s\n",
-		client == NULL ? "." : client, response, clichallenge);
+		client == NULL ? "." : client, resp, clichallenge);
 	stream_flush(s);
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
 	if (cmd == NULL || line == NULL)
 		goto bad;
 	if (strcmp(cmd, "OK") == 0) {
-		srvresponse = proto_get_ascii(&line);
-		if (srvresponse == NULL)
+		srvresp = proto_get_ascii(&line);
+		if (srvresp == NULL)
 			goto bad;
 		if (config->reqauth &&
-		    !auth_checkresponse(srvresponse, clichallenge, shrdsecret)) {
-			lprintf(-1, "Server failed to authenticate itself to client\n");
+		    !auth_checkresponse(srvresp, clichallenge, shrdsecret)) {
+			lprintf(-1, "Server failed to authenticate itself "
+			    "to client\n");
 			return (STATUS_FAILURE);
 		}
 		lprintf(2, "MD5 authentication successful\n");
@@ -184,22 +187,26 @@ auth_lookuprecord(char *server, struct srvrecord *auth)
 		error = auth_parsetoken(&line, auth->server,
 		    sizeof(auth->server));
 		if (error != STATUS_SUCCESS) {
-			lprintf(-1, "%s:%d Missing client name\n", authfile, linenum);
+			lprintf(-1, "%s:%d Missing client name\n",
+			    authfile, linenum);
 			goto close;
 		}
-		/* Skip the rest of this line, it isn't what we are looking for. */
+		/* Skip the rest of this line, it isn't what
+ 		   we are looking for. */
 		if (strcasecmp(auth->server, server) != 0)
 			continue;
 		error = auth_parsetoken(&line, auth->client,
 		    sizeof(auth->client));
 		if (error != STATUS_SUCCESS) {
-			lprintf(-1, "%s:%d Missing password\n", authfile, linenum);
+			lprintf(-1, "%s:%d Missing password\n",
+			    authfile, linenum);
 			goto close;
 		}
 		error = auth_parsetoken(&line, auth->password,
 		    sizeof(auth->password));
 		if (error != STATUS_SUCCESS) {
-			lprintf(-1, "%s:%d Missing comment\n", authfile, linenum);
+			lprintf(-1, "%s:%d Missing comment\n",
+			    authfile, linenum);
 			goto close;
 		}
 		stream_close(s);
@@ -256,7 +263,7 @@ auth_makesecret(struct srvrecord *auth, char *secret)
 }
 
 static void
-auth_makeresponse(char *challenge, char *sharedsecret, char *response)
+auth_makeresponse(char *challenge, char *sharedsecret, char *resp)
 {
 	MD5_CTX md5;
 	unsigned char md5sum[MD5_DIGEST_LENGTH];
@@ -266,7 +273,7 @@ auth_makeresponse(char *challenge, char *sharedsecret, char *response)
 	MD5_Update(&md5, ":", 1);
 	MD5_Update(&md5, challenge, strlen(challenge));
 	MD5_Final(md5sum, &md5);
-	auth_readablesum(md5sum, response);
+	auth_readablesum(md5sum, resp);
 }
 
 /*
@@ -293,7 +300,8 @@ auth_makechallenge(struct config *config, char *challenge)
 	ppid = getppid();
 	srandom(tv.tv_usec ^ tv.tv_sec ^ pid);
 	addrlen = sizeof(laddr);
-	error = getsockname(config->socket, (struct sockaddr *)&laddr, &addrlen);
+	error = getsockname(config->socket,
+	    (struct sockaddr *)&laddr, &addrlen);
 	if (error < 0) {
 		memset(&laddr, 0, sizeof(laddr));
 	}
@@ -308,12 +316,12 @@ auth_makechallenge(struct config *config, char *challenge)
 }
 
 static int
-auth_checkresponse(char *response, char *challenge, char *secret)
+auth_checkresponse(char *resp, char *challenge, char *secret)
 {
 	char correctresponse[MD5_CHARS_MAX];
 
 	auth_makeresponse(challenge, secret, correctresponse);
-	return (strcmp(response, correctresponse) == 0);
+	return (strcmp(resp, correctresponse) == 0);
 }
 
 static void
@@ -322,7 +330,7 @@ auth_readablesum(unsigned char *md5sum, char *readable)
 	unsigned int i;
 	char *s = readable;
 
-	for (i = 0; i < MD5_DIGEST_LENGTH; ++i, s+=2) {
+	for (i = 0; i < MD5_DIGEST_LENGTH; ++i, s += 2) {
 		sprintf(s, "%.2x", md5sum[i]);
 	}
 }
