@@ -39,6 +39,7 @@ CFLAGS+= -DHAVE_FFLAGS
 endif
 ifeq ($(UNAME), OpenBSD)
 CFLAGS+= -DHAVE_FFLAGS
+WARNS+=  -Wno-system-headers
 endif
 ifeq ($(UNAME), NetBSD)
 CFLAGS+= -DHAVE_FFLAGS
