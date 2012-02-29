@@ -2,10 +2,12 @@ Authors
 -------
 
 CVSup was originally written in Modula-3 by
-	John Polstra <jdp@polstra.com>.
+
+	John Polstra <jdp@polstra.com>
 
 Csup is a rewrite of CVSup in C.  It has been mostly written by
-	Maxime Henrion <mux@FreeBSD.org>.
+
+	Maxime Henrion <mux@FreeBSD.org>
 
 A few contributors have helped him in his task and they are listed
 here in alphabetical order:
@@ -15,6 +17,16 @@ here in alphabetical order:
 	Christoph Mathys <cmathys@bluewin.ch>	(Google SoC Project)
 	Etienne Vidal <etienne.vidal@gmail.com>
 
+Last but not least, this project would have never been possible
+without the generous donations he received from various people.
+Here they are, in alphabetical order:
+
+	Eric Anholt
+	Garance A Drosehn
+	Paul Gregg
+	Marcel Moolenaar
+	Devon O'Dell
+	Mikko Tyolajarvi
 
 Building & Installing
 ---------------------
