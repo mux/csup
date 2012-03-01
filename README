@@ -1,7 +1,7 @@
 Authors
 -------
 
-CVSup was originally written in Modula-3 by
+The original CVSup code was written in Modula-3 by
 
 	John Polstra <jdp@polstra.com>
 
@@ -64,9 +64,44 @@ intend to do some development work.  You are likely to need a similar
 command line if you're trying to build csup from source on another
 BSD-like system though.
 
-Once the build is done, just can run "make install" to install the
-csup binary, the cpasswd script and their manual pages.
+Once the build is done, just can run "make install" (or alternatively,
+"gmake install") to install the csup binary, the cpasswd script and
+their respective manual pages.
 
 Be warned however that if the packaging system of your OS knows
 about csup, it is preferable to install it from there rather than
 by hand, so that it can be properly deinstalled afterwards.
+
+About
+-----
+
+CVSup is a software for distributing and updating collections of
+files accross a network.  It can efficiently and accurately mirror
+all types of files, including sources, binaries, hard links, symbolic
+links, and even device nodes.  In addition to being a great
+general-purpose mirroring tool, CVSup includes special features and
+optimizations specifically tailored to CVS repositories.
+
+CVSup is being used as the preferred way to update sources within
+the FreeBSD, NetBSD and OpenBSD projects, and by many more projects
+such as PostgreSQL.
+
+This is a rewrite of CVSup in the C language.  This project was
+started for pragmatic reasons rather than religious ones: the
+Modula-3 runtime environment has not been ported to all the
+achitectures supported by the various *BSD projects, plus it was
+increasingly difficult to find people for maintaining the code.
+
+Status
+------
+
+The csup project is now officially completed.  It has proven to be
+a solid CVSup replacement for client-only functionality, and is now
+being shipped along with the FreeBSD operating system, since FreeBSD
+6.2-RELEASE.
+
+It is still being maintained externally as well, mostly for the
+sake of other operating systems.  The code can be found in this
+Mercurial repository:
+
+	https://bitbucket.org/mux/csup
