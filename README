@@ -1,11 +1,11 @@
 Authors
 -------
 
-The original CVSup code was written in Modula-3 by
+The original CVSup code was written in Modula-3 by:
 
 	John Polstra <jdp@polstra.com>
 
-Csup is a rewrite of CVSup in C.  It has been mostly written by
+Csup is a rewrite of CVSup in C.  It has been mostly written by:
 
 	Maxime Henrion <mux@FreeBSD.org>
 
@@ -29,27 +29,30 @@ Here they are, in alphabetical order:
 	Mike Tancsa
 	Mikko Tyolajarvi
 
+
 Building & Installing
 ---------------------
 
 First, in order to build csup, you will need a few dependencies:
-  - GNU make
-  - flex >= 2.5.19
-  - The OpenSSL crypto lib and associated openssl/md5.h header
-  - The zlib library and associated zlib.h header
 
-Csup should build and run fine under any *BSD OS (that includes
-FreeBSD, NetBSD, OpenBSD and DragonFlyBSD), as well as Linux and
-Darwin.  It has also been tested successfully on a wide range of
-architectures: x86, amd64, sparc64, alpha, ia64, arm and powerpc.
-If you have a problem building from source, drop me a mail!
+  * GNU make (anything but very old versions should do)
+  * flex >= 2.5.19
+  * The OpenSSL crypto lib and associated openssl/md5.h header
+  * The zlib library and associated zlib.h header
 
-As usual, to build the source code, just run "make".  If you're
-running a BSD flavoured system, you will most likely need to run
-"gmake" instead, to invoke the GNU make variant instead of the
-system one.  If your system ships with a flex version that is not
-recent enough, you will need to change the FLEX make variable on
-the command line to point at another binary, or the build will fail.
+As usual, to build the source code, run "make".  If you're running
+a BSD flavoured system, you will most likely need to run "gmake"
+instead, to invoke the GNU make variant instead of the system one.
+
+If your system ships with a flex executable that is not recent
+enough, the build will fail with the following errors:
+
+	"rcstokenizer.l", line 37: unrecognized %option: reentrant
+	"rcstokenizer.l", line 38: unrecognized %option: header-file
+	gmake: *** [lex.rcs.c] Error 1
+
+In that case, you need to change the FLEX make variable to point
+at the correct flex binary (or edit the Makefile).
 
 For example, to build csup under FreeBSD, you will need to install
 the textproc/flex port as well as the devel/gmake one and use this
@@ -64,13 +67,20 @@ intend to do some development work.  You are likely to need a similar
 command line if you're trying to build csup from source on another
 BSD-like system though.
 
-Once the build is done, just can run "make install" (or alternatively,
-"gmake install") to install the csup binary, the cpasswd script and
-their respective manual pages.
+Once the build is done, you can run "make install" (or alternatively,
+"gmake install") as root to install the csup binary, the cpasswd
+script and their respective manual pages.
 
 Be warned however that if the packaging system of your OS knows
 about csup, it is preferable to install it from there rather than
 by hand, so that it can be properly deinstalled afterwards.
+
+Csup should build and run fine under any *BSD OS (that includes
+FreeBSD, NetBSD, OpenBSD and DragonFlyBSD), as well as Linux and
+Darwin.  It has also been tested successfully on a wide range of
+architectures: x86, amd64, sparc64, alpha, ia64, arm and powerpc.
+If you have a problem building from source, drop me a mail!
+
 
 About
 -----
@@ -95,6 +105,7 @@ for pragmatic reasons rather than religious ones: the Modula-3
 runtime environment has not been ported to all the achitectures
 supported by the various *BSD projects, plus it was increasingly
 difficult to find people for maintaining the code.
+
 
 Status
 ------
