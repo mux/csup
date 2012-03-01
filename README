@@ -86,11 +86,15 @@ CVSup is being used as the preferred way to update sources within
 the FreeBSD, NetBSD and OpenBSD projects, and by many more projects
 such as PostgreSQL.
 
-This is a rewrite of CVSup in the C language.  This project was
-started for pragmatic reasons rather than religious ones: the
-Modula-3 runtime environment has not been ported to all the
-achitectures supported by the various *BSD projects, plus it was
-increasingly difficult to find people for maintaining the code.
+More information on CVSup can be found at:
+
+	http://www.cvsup.org/
+
+This project is a rewrite of CVSup in the C language.  It was started
+for pragmatic reasons rather than religious ones: the Modula-3
+runtime environment has not been ported to all the achitectures
+supported by the various *BSD projects, plus it was increasingly
+difficult to find people for maintaining the code.
 
 Status
 ------
