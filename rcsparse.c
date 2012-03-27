@@ -97,13 +97,10 @@ rcsparse_run(struct rcsfile *rf, FILE *infp, int ro)
 	free(desc);
 	tok = rcslex(scanner);
 	/* Parse deltatexts if we need to edit. */
-	if (!ro) {
-		error = parse_deltatexts(rf, &scanner, tok);
-		if (error)
-			return (error);
-	}
+	if (!ro)
+		error = parse_deltatexts(rf, scanner, tok);
 	rcslex_destroy(scanner);
-	return (0);
+	return (error);
 }
 
 /*
