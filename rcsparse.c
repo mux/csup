@@ -55,7 +55,6 @@ asserttoken(yyscan_t *sp, int token)
 {
 	int t;
 
-	t = token;
 	t = rcslex(*sp);
 	assert(t == token);
 }
