@@ -78,13 +78,15 @@ rcsparse_run(struct rcsfile *rf, FILE *infp, int ro)
 	rcslex_init(&scanner);
 	rcsset_in(infp, scanner);
 	tok = parse_admin(rf, scanner);
-	if (tok == -1)
+	if (tok == -1) {
 		rcslex_destroy(scanner);
 		return (-1);
+	}
 	tok = parse_deltas(rf, scanner, tok);
-	if (tok != KEYWORD || rcslex(scanner) != STRING)
+	if (tok != KEYWORD || rcslex(scanner) != STRING) {
 		rcslex_destroy(scanner);
 		return (-1);
+	}
 	desc = duptext(scanner, NULL);
 	rcsfile_setval(rf, RCSFILE_DESC, desc);
 	free(desc);
