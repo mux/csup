@@ -24,7 +24,6 @@
  * SUCH DAMAGE.
  */
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -39,7 +38,6 @@
  * is correct as it constructs an RCS file that is used by csup.
  */
 
-static void	asserttoken(yyscan_t, int);
 static int	parse_admin(struct rcsfile *, yyscan_t);
 static int	parse_deltas(struct rcsfile *, yyscan_t, int);
 static int	parse_deltatexts(struct rcsfile *, yyscan_t, int);
@@ -49,15 +47,6 @@ struct string {
 	char *str;
 	STAILQ_ENTRY(string) next;
 };
-
-static void
-asserttoken(yyscan_t sp, int token)
-{
-	int t;
-
-	t = rcslex(sp);
-	assert(t == token);
-}
 
 static char *
 duptext(yyscan_t sp, int *arglen)
@@ -89,9 +78,13 @@ rcsparse_run(struct rcsfile *rf, FILE *infp, int ro)
 	rcslex_init(&scanner);
 	rcsset_in(infp, scanner);
 	tok = parse_admin(rf, scanner);
+	if (tok == -1)
+		rcslex_destroy(scanner);
+		return (-1);
 	tok = parse_deltas(rf, scanner, tok);
-	assert(tok == KEYWORD);
-	asserttoken(scanner, STRING);
+	if (tok != KEYWORD || rcslex(scanner) != STRING)
+		rcslex_destroy(scanner);
+		return (-1);
 	desc = duptext(scanner, NULL);
 	rcsfile_setval(rf, RCSFILE_DESC, desc);
 	free(desc);
@@ -116,60 +109,65 @@ parse_admin(struct rcsfile *rf, yyscan_t sp)
 	branch = NULL;
 
 	/* head {num}; */
-	asserttoken(sp, KEYWORD);
-	asserttoken(sp, NUM);
+	if (rcslex(sp) != KEYWORD || rcslex(sp) != NUM)
+		return (-1);
 	head = duptext(sp, NULL);
 	rcsfile_setval(rf, RCSFILE_HEAD, head);
 	free(head);
-	asserttoken(sp, SEMIC);
+	if (rcslex(sp) != SEMIC)
+		return (-1);
 
 	/* { branch {num}; } */
 	token = rcslex(sp);
 	if (token == KEYWORD_TWO) {
-		asserttoken(sp, NUM);
+		if (rcslex(sp) != NUM)
+			return (-1);
 		branch = duptext(sp, NULL);
 		rcsfile_setval(rf, RCSFILE_BRANCH, branch);
 		free(branch);
-		asserttoken(sp, SEMIC);
+		if (rcslex(sp) != SEMIC)
+			return (-1);
 		token = rcslex(sp);
 	}
 
-	/* access {id]*; */
-	assert(token == KEYWORD);
-	token = rcslex(sp);
-	while (token == ID) {
+	/* access {id}*; */
+	if (token != KEYWORD)
+		return (-1);
+	while ((token = rcslex(sp)) == ID) {
 		id = duptext(sp, NULL);
 		rcsfile_addaccess(rf, id);
 		free(id);
-		token = rcslex(sp);
 	}
-	assert(token == SEMIC);
+	if (token != SEMIC)
+		return (-1);
 
 	/* symbols {sym : num}*; */
-	asserttoken(sp, KEYWORD);
-	token = rcslex(sp);
-	while (token == ID) {
+	if (rcslex(sp) != KEYWORD)
+		return (-1);
+	while ((token = rcslex(sp)) == ID) {
 		tag = duptext(sp, NULL);
-		asserttoken(sp, COLON);
-		asserttoken(sp, NUM);
+		if (rcslex(sp) != COLON || rcslex(sp) != NUM) {
+			free(tag);
+			return (-1);
+		}
 		revnum = duptext(sp, NULL);
 		rcsfile_importtag(rf, tag, revnum);
 		free(tag);
 		free(revnum);
-		token = rcslex(sp);
 	}
-	assert(token == SEMIC);
+	if (token != SEMIC)
+		return (-1);
 
 	/* locks {id : num}*; */
-	asserttoken(sp, KEYWORD);
-	token = rcslex(sp);
-	while (token == ID) {
+	if (rcslex(sp) != KEYWORD)
+		return (-1);
+	while ((token = rcslex(sp)) == ID) {
 		/* XXX: locks field is skipped */
-		asserttoken(sp, COLON);
-		asserttoken(sp, NUM);
-		token = rcslex(sp);
+		if (rcslex(sp) != COLON || rcslex(sp) != NUM)
+			return (-1);
 	}
-	assert(token == SEMIC);
+	if (token != SEMIC)
+		return (-1);
 	token = rcslex(sp);
 	while (token == KEYWORD) {
 		tmp = rcsget_text(sp);
@@ -177,7 +175,8 @@ parse_admin(struct rcsfile *rf, yyscan_t sp)
 		/* {strict  ;} */
 		if (!strcmp(tmp, "strict")) {
 			rcsfile_setval(rf, RCSFILE_STRICT, tmp);
-			asserttoken(sp, SEMIC);
+			if (rcslex(sp) != SEMIC)
+				return (-1);
 		/* { comment {string}; } */
 		} else if (!strcmp(tmp, "comment")) {
 			token = rcslex(sp);
@@ -186,7 +185,8 @@ parse_admin(struct rcsfile *rf, yyscan_t sp)
 				rcsfile_setval(rf, RCSFILE_COMMENT, comment);
 				free(comment);
 			}
-			asserttoken(sp, SEMIC);
+			if (rcslex(sp) != SEMIC)
+				return (-1);
 		/* { expand {string}; } */
 		} else if (!strcmp(tmp, "expand")) {
 			token = rcslex(sp);
@@ -195,19 +195,19 @@ parse_admin(struct rcsfile *rf, yyscan_t sp)
 				rcsfile_setval(rf, RCSFILE_EXPAND, expand);
 				free(expand);
 			}
-			asserttoken(sp, SEMIC);
+			if (rcslex(sp) != SEMIC)
+				return (-1);
 		}
 		/* {newphrase }* */
-		token = rcslex(sp);
-		while (token == ID) {
+		while ((token = rcslex(sp)) == ID) {
 			token = rcslex(sp);
 			/* XXX: newphrases ignored */
 			while (token == ID || token == NUM || token == STRING ||
 			    token == COLON) {
 				token = rcslex(sp);
 			}
-			asserttoken(sp, SEMIC);
-			token = rcslex(sp);
+			if (rcslex(sp) != SEMIC)
+				return (-1);
 		}
 	}
 	return (token);
@@ -230,41 +230,80 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 		state = NULL;
 
 		/* num */
-		assert(token == NUM);
 		revnum = duptext(sp, NULL);
 		/* date num; */
-		asserttoken(sp, KEYWORD);
-		asserttoken(sp, NUM);
+		if (rcslex(sp) != KEYWORD || rcslex(sp) != NUM) {
+			free(revnum);
+			return (-1);
+		}
 		revdate = duptext(sp, NULL);
-		asserttoken(sp, SEMIC);
+		if (rcslex(sp) != SEMIC) {
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		/* author id; */
-		asserttoken(sp, KEYWORD);
-		asserttoken(sp, ID);
+		if (rcslex(sp) != KEYWORD || rcslex(sp) != ID) {
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		author = duptext(sp, NULL);
-		asserttoken(sp, SEMIC);
 		/* state {id}; */
-		asserttoken(sp, KEYWORD);
+		if (rcslex(sp) != SEMIC || rcslex(sp) != KEYWORD) {
+			free(author);
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		token = rcslex(sp);
 		if (token == ID) {
 			state = duptext(sp, NULL);
 			token = rcslex(sp);
 		}
-		assert(token == SEMIC);
+		if (token != SEMIC) {
+			free(author);
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		/* branches {num}*; */
-		asserttoken(sp, KEYWORD);
+		if (rcslex(sp) != KEYWORD) {
+			free(author);
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		token = rcslex(sp);
 		STAILQ_INIT(&branchlist);
 		while (token == NUM)
 			token = rcslex(sp);
-		assert(token == SEMIC);
+		if (token != SEMIC) {
+			free(author);
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		/* next {num}; */
-		asserttoken(sp, KEYWORD);
+		if (rcslex(sp) != KEYWORD) {
+			free(author);
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		token = rcslex(sp);
 		if (token == NUM) {
 			next = duptext(sp, NULL);
 			token = rcslex(sp);
 		}
-		assert(token == SEMIC);
+		if (token != SEMIC) {
+			if (next != NULL)
+				free(next);
+			free(author);
+			free(revdate);
+			free(revnum);
+			return (-1);
+		}
 		/* {newphrase }* */
 		token = rcslex(sp);
 		while (token == ID) {
@@ -274,7 +313,14 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 			    token == COLON) {
 				token = rcslex(sp);
 			}
-			asserttoken(sp, SEMIC);
+			if (rcslex(sp) != SEMIC) {
+				if (next != NULL)
+					free(next);
+				free(author);
+				free(revdate);
+				free(revnum);
+				return (-1);
+			}
 			token = rcslex(sp);
 		}
 		rcsfile_importdelta(rf, revnum, revdate, author, state, next);
@@ -306,7 +352,6 @@ parse_deltatexts(struct rcsfile *rf, yyscan_t sp, int token)
 		return (-1);
 	do {
 		/* num */
-		assert(token == NUM);
 		revnum = duptext(sp, NULL);
 		/* Get delta we're adding text to. */
 		d = rcsfile_getdelta(rf, revnum);
@@ -321,8 +366,8 @@ parse_deltatexts(struct rcsfile *rf, yyscan_t sp, int token)
 			return (0);
 
 		/* log string */
-		asserttoken(sp, KEYWORD);
-		asserttoken(sp, STRING);
+		if (rcslex(sp) != KEYWORD || rcslex(sp) != STRING)
+			return (-1);
 		log = duptext(sp, &len);
 		error = rcsdelta_addlog(d, log, len);
 		free(log);
@@ -337,12 +382,13 @@ parse_deltatexts(struct rcsfile *rf, yyscan_t sp, int token)
 			    token == COLON) {
 				token = rcslex(sp);
 			}
-			asserttoken(sp, SEMIC);
+			if (rcslex(sp) != SEMIC)
+				return (-1);
 			token = rcslex(sp);
 		}
 		/* text string */
-		assert(token == KEYWORD);
-		asserttoken(sp, STRING);
+		if (token != KEYWORD || rcslex(sp) != STRING)
+			return (-1);
 		text = duptext(sp, &len);
 		error = rcsdelta_addtext(d, text, len);
 		/*
