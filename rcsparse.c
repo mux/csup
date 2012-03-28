@@ -227,12 +227,13 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 	if (token != NUM)
 		return (token);
 
-	revnum = NULL;
-	revdate = NULL;
-	author = NULL;
-	state = NULL;
-	next = NULL;
 	do {
+		revnum = NULL;
+		revdate = NULL;
+		author = NULL;
+		state = NULL;
+		next = NULL;
+
 		/* num */
 		revnum = duptext(sp, NULL);
 		/* date num; */
@@ -307,18 +308,27 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 		if (token == -1)
 			break;
 		rcsfile_importdelta(rf, revnum, revdate, author, state, next);
+		free(revnum);
+		free(revdate);
+		free(author);
+		if (state != NULL)
+			free(state);
+		if (next != NULL)
+			free(state);
 	} while (token == NUM);
 
-	if (revnum != NULL)
-		free(revnum);
-	if (revdate != NULL)
-		free(revdate);
-	if (author != NULL)
-		free(author);
-	if (state != NULL)
-		free(state);
-	if (next != NULL)
-		free(next);
+	if (token == -1) {
+		if (revnum != NULL)
+			free(revnum);
+		if (revdate != NULL)
+			free(revdate);
+		if (author != NULL)
+			free(author);
+		if (state != NULL)
+			free(state);
+		if (next != NULL)
+			free(next);
+	}
 	return (token);
 }
 
