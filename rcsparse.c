@@ -219,7 +219,6 @@ parse_admin(struct rcsfile *rf, yyscan_t sp)
 static int
 parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 {
-	STAILQ_HEAD(, string) branchlist;
 	char *revnum, *revdate, *author, *state, *next;
 
 	/* In case we don't have deltas. */
@@ -275,7 +274,6 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 			return (-1);
 		}
 		token = rcslex(sp);
-		STAILQ_INIT(&branchlist);
 		while (token == NUM)
 			token = rcslex(sp);
 		if (token != SEMIC) {
