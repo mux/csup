@@ -240,7 +240,7 @@ rcsfile_send_details(struct rcsfile *rf, struct stream *wr)
 
 	error = proto_printf(wr, "V %s\n", rf->name);
 	if (error)
-		return(error);
+		return (error);
 
 	/* Write default branch. */
 	if (rf->branch == NULL)
@@ -248,22 +248,22 @@ rcsfile_send_details(struct rcsfile *rf, struct stream *wr)
 	else
 		error = proto_printf(wr, "B %s\n", rf->branch);
 	if (error)
-		return(error);
+		return (error);
 
 	/* Write deltas to server. */
 	error = proto_printf(wr, "D\n");
 	if (error)
-		return(error);
+		return (error);
 
 	LIST_FOREACH(d, &rf->deltatable, table_next) {
 		error = proto_printf(wr, "%s %s\n", d->revnum, d->revdate);
 		if (error)
-			return(error);
+			return (error);
 	}
 	error = proto_printf(wr, ".\n");
-
 	if (error)
-		return(error);
+		return (error);
+
 	/* Write expand. */
 	if (rf->expand != EXPAND_DEFAULT) {
 		keyword = keyword_encode_expand(rf->expand);
@@ -271,22 +271,22 @@ rcsfile_send_details(struct rcsfile *rf, struct stream *wr)
 			error = proto_printf(wr, "E %s\n",
 			    keyword_encode_expand(rf->expand));
 			if (error)
-				return(error);
+				return (error);
 		}
 	}
 
 	/* Write tags to server. */
 	error = proto_printf(wr, "T\n");
 	if (error)
-		return(error);
+		return (error);
 	STAILQ_FOREACH(t, &rf->taglist, tag_next) {
 		error = proto_printf(wr, "%s %s\n", t->tag, t->revnum);
 		if (error)
-			return(error);
+			return (error);
 	}
 	error = proto_printf(wr, ".\n");
 	if (error)
-		return(error);
+		return (error);
 	error = proto_printf(wr, ".\n");
 	return (error);
 }
@@ -1062,8 +1062,8 @@ rcsfile_addelta(struct rcsfile *rf, char *revnum, char *revdate, char *author,
 
 /* Adds a delta to a rcsfile struct. Used by the parser. */
 void
-rcsfile_importdelta(struct rcsfile *rf, char *revnum, char *revdate, char *author,
-    char *state, char *next)
+rcsfile_importdelta(struct rcsfile *rf, char *revnum, char *revdate,
+    char *author, char *state, char *next)
 {
 	struct branch *b;
 	struct delta *d, *d_bp, *d_next;
@@ -1190,7 +1190,7 @@ rcsfile_getbranch(struct rcsfile *rf, char *revnum)
 	d = rcsfile_getdelta(rf, bprev);
 	free(bprev);
 	LIST_FOREACH(b, &d->branchlist, branch_next) {
-		if(rcsnum_cmp(b->revnum, branchrev) == 0) {
+		if (rcsnum_cmp(b->revnum, branchrev) == 0) {
 			free(branchrev);
 			return (b);
 		}
