@@ -202,6 +202,7 @@ parse_admin(struct rcsfile *rf, yyscan_t sp)
 		}
 		/* {newphrase }* */
 		while ((token = rcslex(sp)) == ID) {
+			token = rcslex(sp);
 			/* XXX: newphrases ignored */
 			while (token == ID || token == NUM || token == STRING ||
 			    token == COLON) {
