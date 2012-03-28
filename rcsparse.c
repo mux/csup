@@ -226,36 +226,35 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 	/* In case we don't have deltas. */
 	if (token != NUM)
 		return (token);
-	do {
-		next = NULL;
-		state = NULL;
 
+	revnum = NULL;
+	revdate = NULL;
+	author = NULL;
+	state = NULL;
+	next = NULL;
+	do {
 		/* num */
 		revnum = duptext(sp, NULL);
 		/* date num; */
 		if (rcslex(sp) != KEYWORD || rcslex(sp) != NUM) {
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		revdate = duptext(sp, NULL);
 		if (rcslex(sp) != SEMIC) {
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		/* author id; */
 		if (rcslex(sp) != KEYWORD || rcslex(sp) != ID) {
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		author = duptext(sp, NULL);
 		/* state {id}; */
 		if (rcslex(sp) != SEMIC || rcslex(sp) != KEYWORD) {
-			free(author);
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		token = rcslex(sp);
 		if (token == ID) {
@@ -263,33 +262,25 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 			token = rcslex(sp);
 		}
 		if (token != SEMIC) {
-			free(author);
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		/* branches {num}*; */
 		if (rcslex(sp) != KEYWORD) {
-			free(author);
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		token = rcslex(sp);
 		while (token == NUM)
 			token = rcslex(sp);
 		if (token != SEMIC) {
-			free(author);
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		/* next {num}; */
 		if (rcslex(sp) != KEYWORD) {
-			free(author);
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		token = rcslex(sp);
 		if (token == NUM) {
@@ -297,16 +288,11 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 			token = rcslex(sp);
 		}
 		if (token != SEMIC) {
-			if (next != NULL)
-				free(next);
-			free(author);
-			free(revdate);
-			free(revnum);
-			return (-1);
+			token = -1;
+			break;
 		}
 		/* {newphrase }* */
-		token = rcslex(sp);
-		while (token == ID) {
+		while ((token = rcslex(sp)) == ID) {
 			token = rcslex(sp);
 			/* XXX: newphrases ignored. */
 			while (token == ID || token == NUM || token == STRING ||
@@ -314,25 +300,25 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 				token = rcslex(sp);
 			}
 			if (rcslex(sp) != SEMIC) {
-				if (next != NULL)
-					free(next);
-				free(author);
-				free(revdate);
-				free(revnum);
-				return (-1);
+				token = -1;
+				break;
 			}
-			token = rcslex(sp);
 		}
+		if (token == -1)
+			break;
 		rcsfile_importdelta(rf, revnum, revdate, author, state, next);
-		free(revnum);
-		free(revdate);
-		free(author);
-		if (state != NULL)
-			free(state);
-		if (next != NULL)
-			free(next);
 	} while (token == NUM);
 
+	if (revnum != NULL)
+		free(revnum);
+	if (revdate != NULL)
+		free(revdate);
+	if (author != NULL)
+		free(author);
+	if (state != NULL)
+		free(state);
+	if (next != NULL)
+		free(next);
 	return (token);
 }
 
