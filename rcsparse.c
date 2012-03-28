@@ -314,7 +314,7 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 		if (state != NULL)
 			free(state);
 		if (next != NULL)
-			free(state);
+			free(next);
 	} while (token == NUM);
 
 	if (token == -1) {
