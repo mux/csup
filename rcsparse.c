@@ -41,7 +41,7 @@
 static int	parse_admin(struct rcsfile *, yyscan_t);
 static int	parse_deltas(struct rcsfile *, yyscan_t, int);
 static int	parse_deltatexts(struct rcsfile *, yyscan_t, int);
-static char	*duptext(yyscan_t, int *);
+static char	*duptext(yyscan_t, size_t *);
 
 struct string {
 	char *str;
@@ -49,10 +49,10 @@ struct string {
 };
 
 static char *
-duptext(yyscan_t sp, int *arglen)
+duptext(yyscan_t sp, size_t *arglen)
 {
 	char *tmp, *val;
-	int len;
+	size_t len;
 
 	tmp = rcsget_text(sp);
 	len = rcsget_leng(sp);
@@ -330,7 +330,8 @@ parse_deltatexts(struct rcsfile *rf, yyscan_t sp, int token)
 {
 	struct delta *d;
 	char *log, *revnum, *text;
-	int error, len;
+	size_t len;
+	int error;
 
 	error = 0;
 	/* In case we don't have deltatexts. */
