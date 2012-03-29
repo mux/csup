@@ -42,7 +42,7 @@ num		[0-9\.]+
 whitespace	[\t\n ]
 digit		[0-9]
 idchar		[^$,.:;\t\n ]
-string		@([^@]|\n|"@@")*@
+string		@([^@]|@@)*@
 keyword		head|access|symbols|locks|comment|expand|strict|date|author|state|branches|next|desc|log|text
 keyword2	branch
 newline		\n
