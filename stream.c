@@ -673,7 +673,6 @@ stream_flush_int(struct stream *stream, stream_flush_t how)
 
 	buf = stream->wrbuf;
 	error = (*stream->filter->flushfn)(stream, buf, how);
-	assert(buf_count(buf) == 0);
 	return (error);
 }
 
