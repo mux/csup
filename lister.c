@@ -62,10 +62,8 @@ static int	lister_dofile(struct lister *, struct coll *,
 		    struct statusrec *);
 static int	lister_dodead(struct lister *, struct coll *,
 		    struct statusrec *);
-static int	lister_dorcsfile(struct lister *, struct coll *,
-		    struct statusrec *);
-static int	lister_dorcsdead(struct lister *, struct coll *,
-		    struct statusrec *);
+static int	lister_dorcs(struct lister *, struct coll *,
+		    struct statusrec *, int);
 
 void *
 lister(void *arg)
@@ -192,18 +190,11 @@ lister_coll(struct lister *l, struct coll *coll, struct status *st)
 			}
 			break;
 		case SR_FILEDEAD:
-			if (depth < prunedepth) {
-				if (!(coll->co_options & CO_CHECKOUTMODE)) {
-					error = lister_dorcsdead(l, coll, sr);
-					if (error)
-						goto bad;
-				}
-			}
-			break;
 		case SR_FILELIVE:
 			if (depth < prunedepth) {
 				if (!(coll->co_options & CO_CHECKOUTMODE)) {
-					error = lister_dorcsfile(l, coll, sr);
+					error = lister_dorcs(l, coll, sr,
+					    sr->sr_type == SR_FILEDEAD);
 					if (error)
 						goto bad;
 				}
@@ -403,60 +394,6 @@ send:
 	return (0);
 }
 
-/* Handle a rcs file live entry found in the status file. */
-static int
-lister_dorcsfile(struct lister *l, struct coll *coll, struct statusrec *sr)
-{
-	struct config *config;
-	struct stream *wr;
-	const struct fattr *sendattr;
-	struct fattr *fa;
-	char *path, *spath;
-	size_t len;
-	int error;
-
-	if (!globtree_test(coll->co_filefilter, sr->sr_file))
-		return (0);
-	config = l->config;
-	wr = l->wr;
-	if (!(coll->co_options & CO_TRUSTSTATUSFILE)) {
-		path = cvspath(coll->co_prefix, sr->sr_file, 0);
-		if (path == NULL) {
-			spath = coll_statuspath(coll);
-			xasprintf(&l->errmsg, "Error in \"%s\": "
-			    "Invalid filename \"%s\"", spath, sr->sr_file);
-			free(spath);
-			return (LISTER_ERR_STATUS);
-		}
-		fa = fattr_frompath(path, FATTR_NOFOLLOW);
-		free(path);
-	} else
-		fa = sr->sr_clientattr;
-	if (fa != NULL && fattr_equal(fa, sr->sr_clientattr)) {
-		/*
-		 * If the file is an RCS file, we use "loose" equality, so sizes
-		 * may disagress because of differences in whitespace.
-		 */
-		if (isrcs(sr->sr_file, &len) &&
-		    !(coll->co_options & CO_NORCS) &&
-		    !(coll->co_options & CO_STRICTCHECKRCS)) {
-			fattr_maskout(fa, FA_SIZE);
-		}
-		sendattr = fa;
-	} else {
-		/*
-		 * If different, the user may have changed it, so we report
-		 * bogus attributes to force a full comparison.
-		 */
-		sendattr = fattr_bogus;
-	}
-	error = proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), sendattr,
-	    config->fasupport, coll->co_attrignore);
-	if (error)
-		return (LISTER_ERR_WRITE);
-	return (0);
-}
-
 /* Handle a checkout dead entry found in the status file. */
 static int
 lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
@@ -512,24 +449,30 @@ lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 	return (0);
 }
 
-/* Handle a rcs file dead entry found in the status file. */
+/* Handle a rcs file (live or dead) entry found in the status file. */
 static int
-lister_dorcsdead(struct lister *l, struct coll *coll, struct statusrec *sr)
+lister_dorcs(struct lister *l, struct coll *coll, struct statusrec *sr,
+    int isdead)
 {
 	struct config *config;
 	struct stream *wr;
+	char sendcmd;
 	const struct fattr *sendattr;
 	struct fattr *fa;
 	char *path, *spath;
 	size_t len;
 	int error;
 
+	if (!isdead)
+		sendcmd = 'F';
+	else
+		sendcmd = 'f';
 	if (!globtree_test(coll->co_filefilter, sr->sr_file))
 		return (0);
 	config = l->config;
 	wr = l->wr;
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE)) {
-		path = cvspath(coll->co_prefix, sr->sr_file, 1);
+		path = cvspath(coll->co_prefix, sr->sr_file, isdead);
 		if (path == NULL) {
 			spath = coll_statuspath(coll);
 			xasprintf(&l->errmsg, "Error in \"%s\": "
@@ -539,9 +482,22 @@ lister_dorcsdead(struct lister *l, struct coll *coll, struct statusrec *sr)
 		}
 		fa = fattr_frompath(path, FATTR_NOFOLLOW);
 		free(path);
+		if (fa == NULL) {
+			/*
+			 * According to the checkouts file we should have
+			 * this file but we don't.  Maybe the user deleted
+			 * the file, or maybe the checkouts file is wrong.
+			 * List the file with bogus attributes to cause the
+			 * server to get things back in sync again.
+			 *
+			 * The sendattr variable will be set to fattr_bogus
+			 * later on by virtue of fa being NULL.
+			 */
+			sendcmd = 'F';
+		}
 	} else
 		fa = sr->sr_clientattr;
-	if (fattr_equal(fa, sr->sr_clientattr)) {
+	if (fa != NULL && fattr_equal(fa, sr->sr_clientattr)) {
 		/*
 		 * If the file is an RCS file, we use "loose" equality, so sizes
 		 * may disagress because of differences in whitespace.
@@ -559,8 +515,8 @@ lister_dorcsdead(struct lister *l, struct coll *coll, struct statusrec *sr)
 		 */
 		sendattr = fattr_bogus;
 	}
-	error = proto_printf(wr, "f %s %F\n", pathlast(sr->sr_file), sendattr,
-	    config->fasupport, coll->co_attrignore);
+	error = proto_printf(wr, "%c %s %F\n", sendcmd, pathlast(sr->sr_file),
+	    sendattr, config->fasupport, coll->co_attrignore);
 	if (error)
 		return (LISTER_ERR_WRITE);
 	return (0);
