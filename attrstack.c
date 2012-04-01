@@ -82,7 +82,6 @@ void
 attrstack_free(struct attrstack *as)
 {
 
-	assert(as->cur == 0);
 	free(as->stack);
 	free(as);
 }
