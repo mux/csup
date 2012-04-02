@@ -35,37 +35,14 @@ Building & Installing
 
 First, in order to build csup, you will need a few dependencies:
 
-  * GNU make (anything but very old versions should do)
-  * flex >= 2.5.19
   * The OpenSSL crypto lib and associated openssl/md5.h header
   * The zlib library and associated zlib.h header
+  * GNU make
+  * lex/yacc
 
 As usual, to build the source code, run "make".  If you're running
 a BSD flavoured system, you will most likely need to run "gmake"
 instead, to invoke the GNU make variant instead of the system one.
-
-If your system ships with a flex executable that is not recent
-enough, the build will fail with the following errors:
-
-	"rcstokenizer.l", line 37: unrecognized %option: reentrant
-	"rcstokenizer.l", line 38: unrecognized %option: header-file
-	gmake: *** [lex.rcs.c] Error 1
-
-In that case, you need to change the FLEX make variable to point
-at the correct flex binary (or edit the Makefile).
-
-For example, to build csup under FreeBSD, you will need to install
-the textproc/flex port as well as the devel/gmake one and use this
-command line:
-
-	gmake FLEX=/usr/local/bin/flex
-
-However, if you are running FreeBSD, remember that csup is shipped
-in the base system in a way that doesn't require external dependencies,
-so you should have no reason to build from these sources unless you
-intend to do some development work.  You are likely to need a similar
-command line if you're trying to build csup from source on another
-BSD-like system though.
 
 Once the build is done, you can run "make install" (or alternatively,
 "gmake install") as root to install the csup binary, the cpasswd
