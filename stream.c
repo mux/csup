@@ -429,11 +429,11 @@ stream_read_buf(void *cookie, void *buf, size_t size)
 	/* Just return what we have if the request is to large. */
 	avail = b->off - b->in;
 	if (avail < size) {
-		memcpy(buf, (b->buf + b->in), avail);
+		memcpy(buf, b->buf + b->in, avail);
 		b->in += avail;
 		return (avail);
 	}
-	memcpy(buf, (b->buf + b->in), size);
+	memcpy(buf, b->buf + b->in, size);
 	b->in += size;
 	return (size);
 }
@@ -451,7 +451,7 @@ stream_append_buf(void *cookie, const void *buf, size_t size)
 	avail = b->size - b->off;
 	if (size > avail)
 		buf_grow(b, b->size + size);
-	memcpy((b->buf + b->off), buf, size);
+	memcpy(b->buf + b->off, buf, size);
 	b->off += size;
 	b->buf[b->off] = '\0';
 	return (size);
