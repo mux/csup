@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2008-2009, Ulf Lilleengen <lulf@FreeBSD.org>
+ * Copyright (c) 2012, Maxime Henrion <mux@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,77 +25,44 @@
  * SUCH DAMAGE.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 
 #include "misc.h"
-#include "queue.h"
 #include "rcsfile.h"
+#include "rcslex.h"
 #include "rcsparse.h"
-#include "rcstokenizer.h"
 
-/*
- * This is an RCS-parser using lex for tokenizing and makes sure the RCS syntax
- * is correct as it constructs an RCS file that is used by csup.
- */
+static int	parse_admin(struct rcsfile *, struct rcslex *);
+static int	parse_deltas(struct rcsfile *, struct rcslex *);
+static int	parse_deltatexts(struct rcsfile *, struct rcslex *);
 
-static int	parse_admin(struct rcsfile *, yyscan_t);
-static int	parse_deltas(struct rcsfile *, yyscan_t, int);
-static int	parse_deltatexts(struct rcsfile *, yyscan_t, int);
-static char	*duptext(yyscan_t, size_t *);
-
-struct string {
-	char *str;
-	STAILQ_ENTRY(string) next;
-};
-
-static char *
-duptext(yyscan_t sp, size_t *arglen)
-{
-	char *tmp, *val;
-	size_t len;
-
-	tmp = rcsget_text(sp);
-	len = rcsget_leng(sp);
-	val = xmalloc(len + 1);
-	memcpy(val, tmp, len);
-	val[len] = '\0';
-	if (arglen != NULL)
-		*arglen = len;
-	return (val);
-}
-
-/*
- * Start up parser, and use the rcsfile hook to add objects.
- */
 int
-rcsparse_run(struct rcsfile *rf, FILE *infp, int ro)
+rcsparse(struct rcsfile *rf, const char *path, int ro)
 {
-	yyscan_t scanner;
+	struct rcslex *lex;
 	char *desc;
-	int error, tok;
+	size_t len;
+	int error;
 
-	error = 0;
-	rcslex_init(&scanner);
-	rcsset_in(infp, scanner);
-	tok = parse_admin(rf, scanner);
-	if (tok == -1) {
-		rcslex_destroy(scanner);
+	lex = rcslex_new(path);
+	if (lex == NULL)
 		return (-1);
+
+	error = parse_admin(rf, lex);
+	if (!error)
+		error = parse_deltas(rf, lex);
+
+	if (!error) {
+		if (rcslex_want_kw(lex, "desc") == NULL ||
+		    (desc = rcslex_get_string(lex, &len)) == NULL)
+			error = -1;
+		else
+			rcsfile_setval(rf, RCSFILE_DESC, desc, len);
 	}
-	tok = parse_deltas(rf, scanner, tok);
-	if (tok != KEYWORD || rcslex(scanner) != STRING) {
-		rcslex_destroy(scanner);
-		return (-1);
-	}
-	desc = duptext(scanner, NULL);
-	rcsfile_setval(rf, RCSFILE_DESC, desc);
-	free(desc);
-	tok = rcslex(scanner);
-	/* Parse deltatexts if we need to edit. */
-	if (!ro)
-		error = parse_deltatexts(rf, scanner, tok);
-	rcslex_destroy(scanner);
+	/* Parse deltatexts only if we need to edit. */
+	if (!error && !ro)
+		error = parse_deltatexts(rf, lex);
+	rcslex_free(lex);
 	return (error);
 }
 
@@ -102,212 +70,204 @@ rcsparse_run(struct rcsfile *rf, FILE *infp, int ro)
  * Parse the admin part of a RCS file.
  */
 static int
-parse_admin(struct rcsfile *rf, yyscan_t sp)
+parse_admin(struct rcsfile *rf, struct rcslex *lex)
 {
-	char *branch, *comment, *expand, *head, *id, *revnum, *tag, *tmp;
-	int strict, token;
-
-	strict = 0;
-	branch = NULL;
+	struct rcstok *tok;
+	char *num, *id, *sym, *str;
+	size_t len;
 
 	/* head {num}; */
-	if (rcslex(sp) != KEYWORD || rcslex(sp) != NUM)
+	if (rcslex_want_kw(lex, "head") == NULL ||
+	    (num = rcslex_get_num(lex)) == NULL)
 		return (-1);
-	head = duptext(sp, NULL);
-	rcsfile_setval(rf, RCSFILE_HEAD, head);
-	free(head);
-	if (rcslex(sp) != SEMIC)
+	rcsfile_setval(rf, RCSFILE_HEAD, num, 0);
+	if (rcslex_want_scolon(lex) == NULL)
 		return (-1);
 
 	/* { branch {num}; } */
-	token = rcslex(sp);
-	if (token == KEYWORD_TWO) {
-		if (rcslex(sp) != NUM)
+	if ((tok = rcslex_want_id(lex)) == NULL)
+		return (-1);
+	if (rcstok_is_kw(tok, "branch")) {
+		num = rcslex_get_num(lex);
+		if (num == NULL)
 			return (-1);
-		branch = duptext(sp, NULL);
-		rcsfile_setval(rf, RCSFILE_BRANCH, branch);
-		free(branch);
-		if (rcslex(sp) != SEMIC)
+		rcsfile_setval(rf, RCSFILE_BRANCH, num, 0);
+		if (rcslex_want_scolon(lex) == NULL)
 			return (-1);
-		token = rcslex(sp);
+		tok = rcslex_get(lex);
 	}
 
 	/* access {id}*; */
-	if (token != KEYWORD)
+	if (!rcstok_is_kw(tok, "access"))
 		return (-1);
-	while ((token = rcslex(sp)) == ID) {
-		id = duptext(sp, NULL);
+	while ((tok = rcslex_get(lex)) != NULL && tok->type == RCSLEX_ID) {
+		id = rcslex_dup(lex, NULL);
 		rcsfile_addaccess(rf, id);
-		free(id);
 	}
-	if (token != SEMIC)
+	if (tok == NULL || tok->type != RCSLEX_SCOLON)
 		return (-1);
 
 	/* symbols {sym : num}*; */
-	if (rcslex(sp) != KEYWORD)
+	if (rcslex_want_kw(lex, "symbols") == NULL)
 		return (-1);
-	while ((token = rcslex(sp)) == ID) {
-		tag = duptext(sp, NULL);
-		if (rcslex(sp) != COLON || rcslex(sp) != NUM) {
-			free(tag);
+	while ((tok = rcslex_get(lex)) != NULL && tok->type == RCSLEX_ID) {
+		sym = rcslex_dup(lex, NULL);
+		if (sym == NULL)
+			return (-1);
+		if (rcslex_want_colon(lex) == NULL ||
+		    (num = rcslex_get_num(lex)) == NULL) {
+			free(sym);
 			return (-1);
 		}
-		revnum = duptext(sp, NULL);
-		rcsfile_importtag(rf, tag, revnum);
-		free(tag);
-		free(revnum);
+		rcsfile_importtag(rf, sym, num);
 	}
-	if (token != SEMIC)
+	if (tok == NULL || tok->type != RCSLEX_SCOLON)
 		return (-1);
 
 	/* locks {id : num}*; */
-	if (rcslex(sp) != KEYWORD)
+	/* XXX The locks are skipped, is this correct? */
+	if (rcslex_want_kw(lex, "locks") == NULL)
 		return (-1);
-	while ((token = rcslex(sp)) == ID) {
-		/* XXX: locks field is skipped */
-		if (rcslex(sp) != COLON || rcslex(sp) != NUM)
+	while ((tok = rcslex_get(lex)) != NULL && tok->type == RCSLEX_ID) {
+		if (rcslex_want_colon(lex) == NULL ||
+		    /* Technically, the following token is a "num", but we
+		       skip it anyway so we don't validate it. */
+		    rcslex_want_id(lex) == NULL)
 			return (-1);
 	}
-	if (token != SEMIC)
+	if (tok == NULL || tok->type != RCSLEX_SCOLON)
 		return (-1);
-	token = rcslex(sp);
-	while (token == KEYWORD) {
-		tmp = rcsget_text(sp);
 
-		/* {strict  ;} */
-		if (!strcmp(tmp, "strict")) {
-			rcsfile_setval(rf, RCSFILE_STRICT, tmp);
-			if (rcslex(sp) != SEMIC)
+	while ((tok = rcslex_get(lex)) != NULL && tok->type == RCSLEX_ID) {
+		/* { strict; } */
+		if (rcstok_is_kw(tok, "strict")) {
+			rcsfile_setstrict(rf);
+			if (rcslex_want_scolon(lex) == NULL)
 				return (-1);
 		/* { comment {string}; } */
-		} else if (!strcmp(tmp, "comment")) {
-			token = rcslex(sp);
-			if (token == STRING) {
-				comment = duptext(sp, NULL);
-				rcsfile_setval(rf, RCSFILE_COMMENT, comment);
-				free(comment);
-			}
-			if (rcslex(sp) != SEMIC)
+		} else if (rcstok_is_kw(tok, "comment")) {
+			str = rcslex_get_string(lex, &len);
+			if (str == NULL)
+				return (-1);
+			rcsfile_setval(rf, RCSFILE_COMMENT, str, len);
+			if (rcslex_want_scolon(lex) == NULL)
 				return (-1);
 		/* { expand {string}; } */
-		} else if (!strcmp(tmp, "expand")) {
-			token = rcslex(sp);
-			if (token == STRING) {
-				expand = duptext(sp, NULL);
-				rcsfile_setval(rf, RCSFILE_EXPAND, expand);
-				free(expand);
-			}
-			if (rcslex(sp) != SEMIC)
+		} else if (rcstok_is_kw(tok, "expand")) {
+			str = rcslex_get_string(lex, &len);
+			if (str == NULL)
 				return (-1);
-		}
-		/* {newphrase }* */
-		while ((token = rcslex(sp)) == ID) {
-			token = rcslex(sp);
-			/* XXX: newphrases ignored */
-			while (token == ID || token == NUM || token == STRING ||
-			    token == COLON) {
-				token = rcslex(sp);
-			}
-			if (rcslex(sp) != SEMIC)
+			rcsfile_setval(rf, RCSFILE_EXPAND, str, 0);
+			free(str);
+			if (rcslex_want_scolon(lex) == NULL)
 				return (-1);
+		/* { newphrase }* */
+		} else if (rcstok_validate_id(tok)) {
+			while ((tok = rcslex_get(lex)) != NULL &&
+			    (tok->type == RCSLEX_ID ||
+			     tok->type == RCSLEX_STRING ||
+			     tok->type == RCSLEX_COLON))
+				;
+			if (tok == NULL || tok->type != RCSLEX_SCOLON)
+				return (-1);
+		} else {
+			rcslex_unget(lex);
+			break;
 		}
 	}
-	return (token);
+	return (0);
 }
 
 /*
  * Parse RCS deltas.
  */
 static int
-parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
+parse_deltas(struct rcsfile *rf, struct rcslex *lex)
 {
 	char *revnum, *revdate, *author, *state, *next;
+	struct rcstok *tok;
+	int error;
 
-	/* In case we don't have deltas. */
-	if (token != NUM)
-		return (token);
+	revnum = NULL;
+	revdate = NULL;
+	author = NULL;
+	state = NULL;
+	next = NULL;
 
-	do {
-		revnum = NULL;
-		revdate = NULL;
-		author = NULL;
-		state = NULL;
-		next = NULL;
-
+	error = 0;
+	tok = rcslex_get(lex);
+	while (tok != NULL && !error) {
 		/* num */
-		revnum = duptext(sp, NULL);
+		if (!rcstok_validate_num(tok)) {
+			/* We reached the end of the deltas. */
+			rcslex_unget(lex);
+			break;
+		}
+		revnum = rcslex_dup(lex, NULL);
+
+		error = -1;
 		/* date num; */
-		if (rcslex(sp) != KEYWORD || rcslex(sp) != NUM) {
-			token = -1;
+		if (revnum == NULL ||
+		    rcslex_want_kw(lex, "date") == NULL ||
+		    (revdate = rcslex_get_num(lex)) == NULL ||
+		    rcslex_want_scolon(lex) == NULL)
 			break;
-		}
-		revdate = duptext(sp, NULL);
-		if (rcslex(sp) != SEMIC) {
-			token = -1;
-			break;
-		}
 		/* author id; */
-		if (rcslex(sp) != KEYWORD || rcslex(sp) != ID) {
-			token = -1;
+		if (rcslex_want_kw(lex, "author") == NULL ||
+		    (author = rcslex_get_id(lex)) == NULL ||
+		    rcslex_want_scolon(lex) == NULL)
 			break;
-		}
-		author = duptext(sp, NULL);
 		/* state {id}; */
-		if (rcslex(sp) != SEMIC || rcslex(sp) != KEYWORD) {
-			token = -1;
+		if (rcslex_want_kw(lex, "state") == NULL ||
+		    (tok = rcslex_get(lex)) == NULL)
 			break;
+		if (tok->type == RCSLEX_ID && rcstok_validate_id(tok)) {
+			state = rcslex_dup(lex, NULL);
+			tok = rcslex_get(lex);
 		}
-		token = rcslex(sp);
-		if (token == ID) {
-			state = duptext(sp, NULL);
-			token = rcslex(sp);
-		}
-		if (token != SEMIC) {
-			token = -1;
+		if (tok == NULL || tok->type != RCSLEX_SCOLON)
 			break;
-		}
 		/* branches {num}*; */
-		if (rcslex(sp) != KEYWORD) {
-			token = -1;
+		if (rcslex_want_kw(lex, "branches") == NULL ||
+		    (tok = rcslex_get(lex)) == NULL)
 			break;
+		while (tok != NULL && tok->type == RCSLEX_ID &&
+		    rcstok_validate_num(tok)) {
+			/* XXX We ignore branch revisions here, is this ok? */
+			tok = rcslex_get(lex);
 		}
-		token = rcslex(sp);
-		while (token == NUM)
-			token = rcslex(sp);
-		if (token != SEMIC) {
-			token = -1;
+		if (tok == NULL || tok->type != RCSLEX_SCOLON)
 			break;
-		}
 		/* next {num}; */
-		if (rcslex(sp) != KEYWORD) {
-			token = -1;
+		if (rcslex_want_kw(lex, "next") == NULL ||
+		    (tok = rcslex_get(lex)) == NULL)
 			break;
+		if (tok->type == RCSLEX_ID && rcstok_validate_num(tok)) {
+			next = rcslex_dup(lex, NULL);
+			tok = rcslex_get(lex);
 		}
-		token = rcslex(sp);
-		if (token == NUM) {
-			next = duptext(sp, NULL);
-			token = rcslex(sp);
-		}
-		if (token != SEMIC) {
-			token = -1;
+		if (tok == NULL || tok->type != RCSLEX_SCOLON)
 			break;
-		}
-		/* {newphrase }* */
-		while ((token = rcslex(sp)) == ID) {
-			token = rcslex(sp);
-			/* XXX: newphrases ignored. */
-			while (token == ID || token == NUM || token == STRING ||
-			    token == COLON) {
-				token = rcslex(sp);
-			}
-			if (rcslex(sp) != SEMIC) {
-				token = -1;
+		/* { newphrase }* */
+		tok = rcslex_get(lex);
+		while (tok != NULL && !rcstok_is_kw(tok, "desc") &&
+		    rcstok_validate_id(tok)) {
+			while ((tok = rcslex_get(lex)) != NULL &&
+			    (tok->type == RCSLEX_ID ||
+			     tok->type == RCSLEX_STRING ||
+			     tok->type == RCSLEX_COLON))
+				;
+			if (tok == NULL || tok->type != RCSLEX_SCOLON) {
+				tok = NULL;
 				break;
 			}
+			tok = rcslex_get(lex);
 		}
-		if (token == -1)
+		if (tok == NULL)
 			break;
 		rcsfile_importdelta(rf, revnum, revdate, author, state, next);
+		error = 0;
+
 		free(revnum);
 		free(revdate);
 		free(author);
@@ -315,42 +275,39 @@ parse_deltas(struct rcsfile *rf, yyscan_t sp, int token)
 			free(state);
 		if (next != NULL)
 			free(next);
-	} while (token == NUM);
-
-	if (token == -1) {
-		if (revnum != NULL)
-			free(revnum);
-		if (revdate != NULL)
-			free(revdate);
-		if (author != NULL)
-			free(author);
-		if (state != NULL)
-			free(state);
-		if (next != NULL)
-			free(next);
+		revnum = NULL;
+		revdate = NULL;
+		author = NULL;
+		state = NULL;
+		next = NULL;
 	}
-	return (token);
+
+	if (revnum != NULL)
+		free(revnum);
+	if (revdate != NULL)
+		free(revdate);
+	if (author != NULL)
+		free(author);
+	if (state != NULL)
+		free(state);
+	if (next != NULL)
+		free(next);
+	return (error);
 }
 
 /*
  * Parse RCS deltatexts.
  */
 static int
-parse_deltatexts(struct rcsfile *rf, yyscan_t sp, int token)
+parse_deltatexts(struct rcsfile *rf, struct rcslex *lex)
 {
 	struct delta *d;
-	char *log, *revnum, *text;
-	size_t len;
+	char *revnum;
+	struct rcstok *tok;
 	int error;
 
-	error = 0;
-	/* In case we don't have deltatexts. */
-	if (token != NUM)
-		return (-1);
-	do {
-		/* num */
-		revnum = duptext(sp, NULL);
-		/* Get delta we're adding text to. */
+	/* num */
+	while ((revnum = rcslex_get_num(lex)) != NULL) {
 		d = rcsfile_getdelta(rf, revnum);
 		free(revnum);
 
@@ -362,41 +319,42 @@ parse_deltatexts(struct rcsfile *rf, yyscan_t sp, int token)
 		if (d == NULL)
 			return (0);
 
+		error = -1;
 		/* log string */
-		if (rcslex(sp) != KEYWORD || rcslex(sp) != STRING)
+		if (rcslex_want_kw(lex, "log") == NULL ||
+		    (tok = rcslex_want_string(lex)) == NULL)
 			return (-1);
-		log = duptext(sp, &len);
-		error = rcsdelta_addlog(d, log, len);
-		free(log);
+		error = rcsdelta_addlog(d, tok->value, tok->len);
 		if (error)
 			return (-1);
+
 		/* { newphrase }* */
-		token = rcslex(sp);
-		while (token == ID) {
-			token = rcslex(sp);
-			/* XXX: newphrases ignored. */
-			while (token == ID || token == NUM || token == STRING ||
-			    token == COLON) {
-				token = rcslex(sp);
+		tok = rcslex_get(lex);
+		while (tok != NULL && !rcstok_is_kw(tok, "text") &&
+		    rcstok_validate_id(tok)) {
+			while ((tok = rcslex_get(lex)) != NULL &&
+			    (tok->type == RCSLEX_ID ||
+			     tok->type == RCSLEX_STRING ||
+			     tok->type == RCSLEX_COLON))
+				;
+			if (tok == NULL || tok->type != RCSLEX_SCOLON) {
+				tok = NULL;
+				break;
 			}
-			if (rcslex(sp) != SEMIC)
-				return (-1);
-			token = rcslex(sp);
+			tok = rcslex_get(lex);
 		}
 		/* text string */
-		if (token != KEYWORD || rcslex(sp) != STRING)
+		if (tok == NULL || !rcstok_is_kw(tok, "text") ||
+		    (tok = rcslex_want_string(lex)) == NULL)
 			return (-1);
-		text = duptext(sp, &len);
-		error = rcsdelta_addtext(d, text, len);
+		error = rcsdelta_addtext(d, tok->value, tok->len);
 		/*
-		 * If this happens, something is wrong with the RCS file, and it
-		 * should be resent.
+		 * If this happens, something is wrong with the RCS file, and
+		 * it should be resent.
 		 */
-		free(text);
 		if (error)
 			return (-1);
-		token = rcslex(sp);
-	} while (token == NUM);
-
-	return (0);
+	}
+	error = !rcslex_eof(lex);
+	return (error);
 }

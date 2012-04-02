@@ -26,16 +26,8 @@
 #ifndef _RCSPARSE_H_
 #define _RCSPARSE_H_
 
-#define ID		1
-#define NUM		2
-#define KEYWORD		3
-#define KEYWORD_TWO	4
-#define STRING		5
-#define SEMIC		6
-#define COLON		7
-
 struct rcsfile;
 
-int	rcsparse_run(struct rcsfile *, FILE *, int);
+int	rcsparse(struct rcsfile *, const char *, int);
 
 #endif /* !_RCSPARSE_H_ */

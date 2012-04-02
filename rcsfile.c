@@ -27,7 +27,6 @@
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -116,13 +115,14 @@ struct rcsfile {
 	STAILQ_HEAD(, tag) taglist;
 	int strictlock;
 	char *comment;
+	size_t commentlen;
+	char *desc;
+	size_t desclen;
 	int expand;
 	int ro;
 	struct branch *trunk; /* The tip delta. */
 
 	LIST_HEAD(, delta) deltatable;
-
-	char *desc;
 };
 
 static void		 rcsfile_freedelta(struct delta *);
@@ -177,7 +177,6 @@ rcsfile_frompath(const char *path, const char *name, const char *cvsroot,
     const char *colltag, int ro)
 {
 	struct rcsfile *rf;
-	FILE *infp;
 	int error;
 
 	if (path == NULL || name == NULL || cvsroot == NULL || colltag == NULL)
@@ -204,18 +203,13 @@ rcsfile_frompath(const char *path, const char *name, const char *cvsroot,
 	rf->branch = NULL;
 	rf->strictlock = 0;
 	rf->comment = NULL;
+	rf->commentlen = 0;
 	rf->expand = EXPAND_DEFAULT;
 	rf->desc = NULL;
+	rf->desclen = 0;
 	rf->ro = ro;
 
-	infp = fopen(path, "r");
-	if (infp == NULL) {
-		lprintf(-1, "Cannot open \"%s\": %s\n", path, strerror(errno));
-		rcsfile_free(rf);
-		return (NULL);
-	}
-	error = rcsparse_run(rf, infp, ro);
-	fclose(infp);
+	error = rcsparse(rf, path, ro);
 	if (error) {
 		lprintf(-1, "Error parsing \"%s\"\n", name);
 		rcsfile_free(rf);
@@ -354,8 +348,9 @@ rcsfile_write(struct rcsfile *rf, struct stream *dest)
 
 	/* Write out the comment. */
 	if (rf->comment != NULL) {
-		if (stream_printf(dest, "comment%s%s;\n", comment_space,
-		    rf->comment) < 0)
+		if (stream_printf(dest, "comment%s@", comment_space) < 0 ||
+		    stream_write(dest, rf->comment, rf->commentlen) < 0 ||
+		    stream_printf(dest, "@;\n") < 0)
 			return (-1);
 	}
 	if (rf->expand != EXPAND_DEFAULT) {
@@ -430,9 +425,10 @@ rcsfile_write(struct rcsfile *rf, struct stream *dest)
 			return (-1);
 	}
 	/* Write out desc. */
-	if (stream_printf(dest, "\ndesc\n@@") < 0)
+	if (stream_printf(dest, "\ndesc\n@") < 0 ||
+	    stream_write(dest, rf->desc, rf->desclen) < 0 ||
+	    stream_printf(dest, "@") < 0)
 		return (-1);
-	d = LIST_FIRST(&rf->trunk->deltalist);
 
 	/* Write out deltatexts. */
 	error = rcsfile_write_deltatext(rf, dest);
@@ -868,7 +864,7 @@ rcsfile_addaccess(struct rcsfile *rf, char *id)
 	struct string *s;
 
 	s = xmalloc(sizeof(struct string));
-	s->str = xstrdup(id);
+	s->str = id;
 	STAILQ_INSERT_TAIL(&rf->accesslist, s, string_next);
 }
 
@@ -892,8 +888,8 @@ rcsfile_importtag(struct rcsfile *rf, char *tag, char *revnum)
 	struct tag *t;
 
 	t = xmalloc(sizeof(struct tag));
-	t->tag = xstrdup(tag);
-	t->revnum = xstrdup(revnum);
+	t->tag = tag;
+	t->revnum = revnum;
 
 	STAILQ_INSERT_TAIL(&rf->taglist, t, tag_next);
 }
@@ -949,45 +945,46 @@ rcsfile_getdelta(struct rcsfile *rf, char *revnum)
 
 /* Set rcsfile head. */
 void
-rcsfile_setval(struct rcsfile *rf, int field, char *val)
+rcsfile_setval(struct rcsfile *rf, int field, char *val, size_t len)
 {
-	size_t len;
 
 	switch (field) {
 	case RCSFILE_HEAD:
 		if (rf->head != NULL)
 			free(rf->head);
-		rf->head = xstrdup(val);
+		rf->head = val;
 		break;
 	case RCSFILE_BRANCH:
 		if (rf->branch != NULL)
 			free(rf->branch);
-		rf->branch = (val == NULL) ? NULL : xstrdup(val);
-		break;
-	case RCSFILE_STRICT:
-		if (val != NULL)
-			rf->strictlock = 1;
+		rf->branch = val;
 		break;
 	case RCSFILE_COMMENT:
 		if (rf->comment != NULL)
 			free(rf->comment);
-		rf->comment = xstrdup(val);
+		rf->comment = val;
+		rf->commentlen = len;
 		break;
 	case RCSFILE_EXPAND:
-		len = strlen(val) - 1;
-		val++;
-		val[len - 1] = '\0';
 		rf->expand = keyword_decode_expand(val);
 		break;
 	case RCSFILE_DESC:
 		if (rf->desc != NULL)
 			free(rf->desc);
-		rf->desc = xstrdup(val);
+		rf->desc = val;
+		rf->desclen = len;
 		break;
 	default:
 		lprintf(-1, "Setting invalid RCSfile value.\n");
 		break;
 	}
+}
+
+void
+rcsfile_setstrict(struct rcsfile *rf)
+{
+
+	rf->strictlock = 1;
 }
 
 /* Create and initialize a delta. */
@@ -1078,15 +1075,15 @@ rcsfile_importdelta(struct rcsfile *rf, char *revnum, char *revdate,
 	d_next = NULL;
 	d = rcsfile_getdelta(rf, revnum);
 
+	if (d != NULL && d->placeholder == 0) {
+		lprintf(-1, "Trying to import already existing delta\n");
+		return;
+	}
+
 	if (d == NULL) {
 		/* If not, we'll just create a new entry. */
 		d = rcsfile_createdelta(revnum);
 		d->placeholder = 0;
-	} else {
-		if (d->placeholder == 0) {
-			lprintf(-1, "Trying to import already existing delta\n");
-			return;
-		}
 	}
 	/*
 	 * If already exists, assume that only revnum is filled out, and set the
@@ -1299,37 +1296,29 @@ rcsfile_insertdelta(struct branch *b, struct delta *d, int trunk)
 
 /* Add logtext to a delta. Assume the delta already exists. */
 int
-rcsdelta_addlog(struct delta *d, char *log, int len)
+rcsdelta_addlog(struct delta *d, char *log, size_t len)
 {
 	struct stream *dest;
 	int nbytes;
 
 	assert(d != NULL);
-	/* Strip away '@' at beginning and end. */
-	log++;
-	len--;
-	log[len - 1] = '\0';
 	dest = stream_open_buf(d->log);
-	nbytes = stream_write(dest, log, len - 1);
+	nbytes = stream_write(dest, log, len);
 	stream_close(dest);
 	return ((nbytes == -1) ? -1 : 0);
 }
 
 /* Add deltatext to a delta. Assume the delta already exists. */
 int
-rcsdelta_addtext(struct delta *d, char *text, int len)
+rcsdelta_addtext(struct delta *d, char *text, size_t len)
 {
 	struct stream *dest;
 	int nbytes;
 
 	assert(d != NULL);
-	/* Strip away '@' at beginning and end. */
-	text++;
-	len--;
-	text[len - 1] = '\0';
 
 	dest = stream_open_buf(d->text);
-	nbytes = stream_write(dest, text, len - 1);
+	nbytes = stream_write(dest, text, len);
 	stream_close(dest);
 	return ((nbytes == -1) ? -1 : 0);
 }

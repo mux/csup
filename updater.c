@@ -1608,7 +1608,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 			case 'b':
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
-				rcsfile_setval(rf, RCSFILE_BRANCH, NULL);
+				rcsfile_setval(rf, RCSFILE_BRANCH, NULL, 0);
 				break;
 			case 'D':
 				UPDATER_OPENRCS(rf, up, path, name,
@@ -1631,7 +1631,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 					return (UPDATER_ERR_PROTO);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
-				rcsfile_setval(rf, RCSFILE_EXPAND, expand);
+				rcsfile_setval(rf, RCSFILE_EXPAND, expand, 0);
 				break;
 			case 'T':
 				tag = proto_get_ascii(&line);

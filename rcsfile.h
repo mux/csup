@@ -26,13 +26,14 @@
 #ifndef _RCSFILE_H_
 #define _RCSFILE_H_
 
+#include <sys/types.h>
+
 /* RCSFILE fields. */
 #define RCSFILE_HEAD	0
 #define RCSFILE_BRANCH	1
-#define RCSFILE_STRICT	2
-#define RCSFILE_COMMENT	3
-#define RCSFILE_EXPAND	4
-#define RCSFILE_DESC	5
+#define RCSFILE_COMMENT	2
+#define RCSFILE_EXPAND	3
+#define RCSFILE_DESC	4
 
 struct rcsfile;
 struct delta;
@@ -53,7 +54,8 @@ void		 rcsfile_importtag(struct rcsfile *, char *, char *);
 void		 rcsfile_deleterev(struct rcsfile *, char *);
 void		 rcsfile_deletetag(struct rcsfile *, char *, char *);
 struct delta	*rcsfile_getdelta(struct rcsfile *, char *);
-void		 rcsfile_setval(struct rcsfile *, int, char *);
+void		 rcsfile_setval(struct rcsfile *, int, char *, size_t);
+void		 rcsfile_setstrict(struct rcsfile *);
 
 /* Functions used for operating on RCS deltas. */
 struct delta	*rcsfile_addelta(struct rcsfile *, char *, char *, char *,
@@ -61,8 +63,8 @@ struct delta	*rcsfile_addelta(struct rcsfile *, char *, char *, char *,
 void		 rcsfile_importdelta(struct rcsfile *, char *, char *, char *,
 		    char *, char *);
 
-int		 rcsdelta_addlog(struct delta *, char *, int);
-int		 rcsdelta_addtext(struct delta *, char *, int);
+int		 rcsdelta_addlog(struct delta *, char *, size_t);
+int		 rcsdelta_addtext(struct delta *, char *, size_t);
 int		 rcsdelta_appendlog(struct delta *, char *, size_t);
 int		 rcsdelta_appendtext(struct delta *, char *, size_t);
 void		 rcsdelta_setstate(struct delta *, char *);
