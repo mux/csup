@@ -179,8 +179,8 @@ rcsfile_frompath(const char *path, const char *name, const char *cvsroot,
 	struct rcsfile *rf;
 	int error;
 
-	if (path == NULL || name == NULL || cvsroot == NULL || colltag == NULL)
-		return (NULL);
+	assert(path != NULL && name != NULL && cvsroot != NULL &&
+	    colltag != NULL);
 
 	rf = xmalloc(sizeof(struct rcsfile));
 	rf->name = xstrdup(name);
