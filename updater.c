@@ -66,6 +66,8 @@ struct file_update {
 	char *origpath;
 	char *coname;		/* Points somewhere in destpath. */
 	char *wantmd5;
+	int free_wantmd5;	/* Indicates if we need to free the wantmd5
+				   field in fup_reset(). */
 	struct coll *coll;
 	struct status *st;
 	/* Those are only used for diff updating. */
@@ -85,7 +87,7 @@ struct updater {
 
 static struct file_update	*fup_new(struct coll *, struct status *);
 static int	 fup_prepare(struct file_update *, char *, int);
-static void	 fup_cleanup(struct file_update *);
+static void	 fup_reset(struct file_update *);
 static void	 fup_free(struct file_update *);
 
 static void	 updater_prunedirs(char *, char *);
@@ -136,6 +138,7 @@ fup_prepare(struct file_update *fup, char *name, int attic)
 	coll = fup->coll;
 	fup->attic = 0;
 	fup->origpath = NULL;
+	fup->free_wantmd5 = 1;
 
 	if (coll->co_options & CO_CHECKOUTMODE)
 		fup->destpath = checkoutpath(coll->co_prefix, name);
@@ -158,7 +161,7 @@ fup_prepare(struct file_update *fup, char *name, int attic)
 
 /* Called after each file update to reinit the structure. */
 static void
-fup_cleanup(struct file_update *fup)
+fup_reset(struct file_update *fup)
 {
 	struct statusrec *sr;
 
@@ -183,9 +186,11 @@ fup_cleanup(struct file_update *fup)
 	}
 	fup->expand = 0;
 	if (fup->wantmd5 != NULL) {
-		free(fup->wantmd5);
+		if (fup->free_wantmd5)
+			free(fup->wantmd5);
 		fup->wantmd5 = NULL;
 	}
+	fup->free_wantmd5 = 1;
 	if (fup->orig != NULL) {
 		stream_close(fup->orig);
 		fup->orig = NULL;
@@ -213,7 +218,7 @@ static void
 fup_free(struct file_update *fup)
 {
 
-	fup_cleanup(fup);
+	fup_reset(fup);
 	free(fup);
 }
 
@@ -826,7 +831,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 		default:
 			return (UPDATER_ERR_PROTO);
 		}
-		fup_cleanup(fup);
+		fup_reset(fup);
 	}
 	if (line == NULL)
 		return (UPDATER_ERR_READ);
@@ -1401,6 +1406,7 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr,
 
 	cmd = proto_get_ascii(&line);
 	fup->wantmd5 = proto_get_ascii(&line);
+	fup->free_wantmd5 = 0;
 	if (fup->wantmd5 == NULL || line != NULL || strcmp(cmd, "5") != 0)
 		return (UPDATER_ERR_PROTO);
 
@@ -1410,7 +1416,6 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr,
 	fattr_override(sr->sr_clientattr, sr->sr_serverattr,
 	    FA_MODTIME | FA_MASK);
 	error = updater_updatefile(up, fup, md5, isfixup);
-	fup->wantmd5 = NULL;	/* So that it doesn't get freed. */
 	return (error);
 bad:
 	xasprintf(&up->errmsg, "%s: Cannot write: %s", fup->temppath,
@@ -1493,10 +1498,10 @@ updater_checkout(struct updater *up, struct file_update *fup, int isfixup)
 		return (UPDATER_ERR_READ);
 	cmd = proto_get_ascii(&line);
 	fup->wantmd5 = proto_get_ascii(&line);
+	fup->free_wantmd5 = 0;
 	if (fup->wantmd5 == NULL || line != NULL || strcmp(cmd, "5") != 0)
 		return (UPDATER_ERR_PROTO);
 	error = updater_updatefile(up, fup, md5, isfixup);
-	fup->wantmd5 = NULL;	/* So that it doesn't get freed. */
 	if (error)
 		return (error);
 	return (0);
@@ -1885,6 +1890,7 @@ updater_append_file(struct updater *up, struct file_update *fup, off_t pos)
 
 	cmd = proto_get_ascii(&line);
 	fup->wantmd5 = proto_get_ascii(&line);
+	fup->free_wantmd5 = 0;
 	if (fup->wantmd5 == NULL || line != NULL || strcmp(cmd, "5") != 0)
 		return (UPDATER_ERR_PROTO);
 
@@ -1894,7 +1900,6 @@ updater_append_file(struct updater *up, struct file_update *fup, off_t pos)
 	fattr_override(sr->sr_clientattr, sr->sr_serverattr,
 	    FA_MODTIME | FA_MASK);
 	error = updater_updatefile(up, fup, md5, 0);
-	fup->wantmd5 = NULL;	/* So that it doesn't get freed. */
 	return (error);
 bad:
 	xasprintf(&up->errmsg, "%s: Cannot write: %s", fup->temppath,
