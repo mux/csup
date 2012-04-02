@@ -1703,7 +1703,6 @@ finish:
 	    FA_MODTIME | FA_MASK);
 	if (rf != NULL) {
 		error = updater_updatefile(up, fup, md5, 0);
-		fup->wantmd5 = NULL;	/* So that it doesn't get freed. */
 		if (error)
 			return (error);
 	} else {
@@ -2034,7 +2033,6 @@ updater_rsync(struct updater *up, struct file_update *fup, size_t blocksize)
 	    FA_MODTIME | FA_MASK);
 
 	error = updater_updatefile(up, fup, md5, 0);
-	fup->wantmd5 = NULL;	/* So that it doesn't get freed. */
 bad:
 	free(buf);
 	return (error);
