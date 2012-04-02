@@ -399,7 +399,10 @@ rcsfile_write(struct rcsfile *rf, struct stream *dest)
 		STAILQ_INIT(&deltalist_inverted);
 		LIST_FOREACH(b, &d->branchlist, branch_next) {
 			d_tmp = LIST_FIRST(&b->deltalist);
-			STAILQ_INSERT_HEAD(&deltalist_inverted, d_tmp, delta_prev);
+			if (d_tmp == NULL)
+				continue;
+			STAILQ_INSERT_HEAD(&deltalist_inverted, d_tmp,
+			    delta_prev);
 			STAILQ_INSERT_HEAD(&deltastack, d_tmp, stack_next);
 		}
 
@@ -506,6 +509,8 @@ rcsfile_write_deltatext(struct rcsfile *rf, struct stream *dest)
 		 */
 		LIST_FOREACH(b, &d->branchlist, branch_next) {
 			d_tmp = LIST_FIRST(&b->deltalist);
+			if (d_tmp == NULL)
+				break;
 			if (LIST_EMPTY(&branchlist_datesorted)) {
 				LIST_INSERT_HEAD(&branchlist_datesorted, d_tmp,
 				    branch_next_date);
