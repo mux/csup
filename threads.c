@@ -113,6 +113,7 @@ threads_create(struct threads *tds, void *(*start)(void *), void *data)
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 	threads_lock(tds);
 	error = pthread_create(&td->thread, &attr, thread_start, td);
+	pthread_attr_destroy(&attr);
 	if (error)
 		err(1, "pthread_create");
 	LIST_INSERT_HEAD(&tds->threads_running, td, runlist);
