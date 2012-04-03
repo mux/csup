@@ -260,6 +260,7 @@ lister_dodirdown(struct lister *l, struct coll *coll, struct statusrec *sr,
 			} else {
 				fattr_free(fa2);
 			}
+			fa2 = NULL;
 		}
 		free(path);
 	}
@@ -435,7 +436,8 @@ lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 				return (LISTER_ERR_WRITE);
 			return (0);
 		}
-		fattr_free(fa);
+		if (fa != NULL)
+			fattr_free(fa);
 	}
 	if (strcmp(coll->co_tag, sr->sr_tag) != 0 ||
 	    strcmp(coll->co_date, sr->sr_date) != 0)
@@ -471,6 +473,7 @@ lister_dorcs(struct lister *l, struct coll *coll, struct statusrec *sr,
 		return (0);
 	config = l->config;
 	wr = l->wr;
+	fa = NULL;
 	if (!(coll->co_options & CO_TRUSTSTATUSFILE)) {
 		path = cvspath(coll->co_prefix, sr->sr_file, isdead);
 		if (path == NULL) {
@@ -517,6 +520,8 @@ lister_dorcs(struct lister *l, struct coll *coll, struct statusrec *sr,
 	}
 	error = proto_printf(wr, "%c %s %F\n", sendcmd, pathlast(sr->sr_file),
 	    sendattr, config->fasupport, coll->co_attrignore);
+	if (fa != NULL && fa != sr->sr_clientattr)
+		fattr_free(fa);
 	if (error)
 		return (LISTER_ERR_WRITE);
 	return (0);
