@@ -210,10 +210,9 @@ lister_coll(struct lister *l, struct coll *coll, struct status *st)
 	assert(status_eof(st));
 	assert(depth == 0);
 	error = proto_printf(wr, ".\n");
-	attrstack_free(as);
 	if (error)
-		return (LISTER_ERR_WRITE);
-	return (0);
+		error = LISTER_ERR_WRITE;
+
 bad:
 	for (i = 0; i < attrstack_size(as); i++) {
 		fa = attrstack_pop(as);
