@@ -204,7 +204,7 @@ detailer_batch(struct detailer *d)
 				error = proto_printf(wr, "Y %s %s %s\n",
 				    fixup->f_name, coll->co_tag, coll->co_date);
 			else {
-				error = proto_printf(wr, "A %s\n",
+				error = proto_printf(wr, "X %s\n",
 				    fixup->f_name);
 			}
 			if (error)
