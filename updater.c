@@ -1387,11 +1387,15 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr,
 	do {
 		nread = stream_read(up->rd, buf, (BUFSIZE > remains ?
 		    remains : BUFSIZE));
-		if (nread == -1)
+		if (nread == -1) {
+			stream_close(to);
 			return (UPDATER_ERR_PROTO);
+		}
 		remains -= nread;
-		if (stream_write(to, buf, nread) == -1)
+		if (stream_write(to, buf, nread) == -1) {
+			stream_close(to);
 			goto bad;
+		}
 	} while (remains > 0);
 	stream_close(to);
 	line = stream_getln(up->rd, NULL);
