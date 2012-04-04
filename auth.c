@@ -96,7 +96,6 @@ auth_domd5auth(struct config *config)
 	struct srvrecord auth;
 	int error;
 
-	lprintf(2, "MD5 authentication started\n");
 	s = config->server;
 	line = stream_getln(s, NULL);
 	cmd = proto_get_ascii(&line);
@@ -146,7 +145,6 @@ auth_domd5auth(struct config *config)
 			    "to client\n");
 			return (STATUS_FAILURE);
 		}
-		lprintf(2, "MD5 authentication successful\n");
 		return (STATUS_SUCCESS);
 	}
 	if (strcmp(cmd, "!") == 0) {
