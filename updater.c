@@ -1550,9 +1550,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	struct rcsfile *rf;
 	struct fattr *oldfattr;
 	char md5[MD5_DIGEST_SIZE];
-	char *branch, *cmd, *expand, *line, *path, *revnum, *tag, *temppath;
+	char *branch, *cmd, *expandtxt, *line, *path, *revnum, *tag, *temppath;
 	char *diffbase, *revdate, *author;
-	int error;
+	int error, expand;
 
 	coll = fup->coll;
 	sr = &fup->srbuf;
@@ -1650,12 +1650,19 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				rcsfile_deleterev(rf, revnum);
 				break;
 			case 'E':
-				expand = proto_get_ascii(&line);
-				if (expand == NULL || line != NULL)
+				expandtxt = proto_get_ascii(&line);
+				if (expandtxt == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
+				expand = keyword_decode_expand(expandtxt);
+				if (expand == EXPAND_DEFAULT)
+					lprintf(2, "  Set keyword expansion "
+					    "to default\n");
+				else
+					lprintf(2, "  Set keyword expansion "
+					    "to %s\n", expandtxt);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
-				rcsfile_setval(rf, RCSFILE_EXPAND, expand, 0);
+				rcsfile_setexpand(rf, expand);
 				break;
 			case 'T':
 				tag = proto_get_ascii(&line);

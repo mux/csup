@@ -32,8 +32,7 @@
 #define RCSFILE_HEAD	0
 #define RCSFILE_BRANCH	1
 #define RCSFILE_COMMENT	2
-#define RCSFILE_EXPAND	3
-#define RCSFILE_DESC	4
+#define RCSFILE_DESC	3
 
 struct rcsfile;
 struct delta;
@@ -56,6 +55,7 @@ void		 rcsfile_deletetag(struct rcsfile *, char *, char *);
 struct delta	*rcsfile_getdelta(struct rcsfile *, char *);
 void		 rcsfile_setval(struct rcsfile *, int, char *, size_t);
 void		 rcsfile_setstrict(struct rcsfile *);
+void		 rcsfile_setexpand(struct rcsfile *, int);
 
 /* Functions used for operating on RCS deltas. */
 struct delta	*rcsfile_addelta(struct rcsfile *, char *, char *, char *,

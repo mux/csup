@@ -211,7 +211,6 @@ rcsfile_frompath(const char *path, const char *name, const char *cvsroot,
 
 	error = rcsparse(rf, path, ro);
 	if (error) {
-		lprintf(-1, "Error parsing \"%s\"\n", name);
 		rcsfile_free(rf);
 		return (NULL);
 	}
@@ -965,9 +964,6 @@ rcsfile_setval(struct rcsfile *rf, int field, char *val, size_t len)
 		rf->comment = val;
 		rf->commentlen = len;
 		break;
-	case RCSFILE_EXPAND:
-		rf->expand = keyword_decode_expand(val);
-		break;
 	case RCSFILE_DESC:
 		if (rf->desc != NULL)
 			free(rf->desc);
@@ -978,6 +974,13 @@ rcsfile_setval(struct rcsfile *rf, int field, char *val, size_t len)
 		lprintf(-1, "Setting invalid RCSfile value.\n");
 		break;
 	}
+}
+
+void
+rcsfile_setexpand(struct rcsfile *rf, int expand)
+{
+
+	rf->expand = expand;
 }
 
 void
