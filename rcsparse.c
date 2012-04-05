@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 
+#include "keyword.h"
 #include "misc.h"
 #include "rcsfile.h"
 #include "rcslex.h"
@@ -74,6 +75,7 @@ parse_admin(struct rcsfile *rf, struct rcslex *lex)
 {
 	struct rcstok *tok;
 	char *num, *id, *sym, *str;
+	int expand;
 	size_t len;
 
 	/* head {num}; */
@@ -157,8 +159,9 @@ parse_admin(struct rcsfile *rf, struct rcslex *lex)
 			str = rcslex_get_string(lex, &len);
 			if (str == NULL)
 				return (-1);
-			rcsfile_setval(rf, RCSFILE_EXPAND, str, 0);
+			expand = keyword_decode_expand(str);
 			free(str);
+			rcsfile_setexpand(rf, expand);
 			if (rcslex_want_scolon(lex) == NULL)
 				return (-1);
 		/* { newphrase }* */
