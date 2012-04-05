@@ -374,6 +374,7 @@ mkdirhier(char *path, mode_t mask)
 		i += strlen(path + i);
         }
 	assert(i == len);
+	fattr_free(fa);
 	if (finish)
 		return (-1);
         return (0);
