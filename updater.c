@@ -951,10 +951,10 @@ updater_updatefile(struct updater *up, struct file_update *fup,
 	if (strcmp(fup->wantmd5, md5) != 0) {
 		if (isfixup) {
 			lprintf(-1, "%s: Checksum mismatch -- "
-			    "file not updated\n", fup->destpath);
+			    "file not updated\n", fup->coname);
 		} else {
 			lprintf(-1, "%s: Checksum mismatch -- "
-			    "will transfer entire file\n", fup->destpath);
+			    "will transfer entire file\n", fup->coname);
 			fixups_put(up->config->fixups, fup->coll, sr->sr_file);
 		}
 		if (coll->co_options & CO_KEEPBADFILES)
