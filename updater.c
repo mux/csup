@@ -85,10 +85,9 @@ struct updater {
 	int deletecount;
 };
 
-static struct file_update	*fup_new(struct coll *, struct status *);
+static void	 fup_init(struct file_update *, struct coll *, struct status *);
 static int	 fup_prepare(struct file_update *, char *, int);
 static void	 fup_reset(struct file_update *);
-static void	 fup_free(struct file_update *);
 
 static void	 updater_prunedirs(char *, char *);
 static int	 updater_batch(struct updater *, int);
@@ -119,16 +118,14 @@ int		 updater_append_file(struct updater *, struct file_update *,
 static int	 updater_rsync(struct updater *, struct file_update *, size_t);
 static int	 updater_read_checkout(struct stream *, struct stream *);
 
-static struct file_update *
-fup_new(struct coll *coll, struct status *st)
+static void
+fup_init(struct file_update *fup, struct coll *coll, struct status *st)
 {
-	struct file_update *fup;
 
-	fup = xmalloc(sizeof(struct file_update));
 	memset(fup, 0, sizeof(*fup));
 	fup->coll = coll;
 	fup->st = st;
-	return (fup);
+	fup->free_wantmd5 = 1;
 }
 
 static int
@@ -215,14 +212,6 @@ fup_reset(struct file_update *fup)
 	memset(sr, 0, sizeof(*sr));
 }
 
-static void
-fup_free(struct file_update *fup)
-{
-
-	fup_reset(fup);
-	free(fup);
-}
-
 void *
 updater(void *arg)
 {
@@ -285,7 +274,7 @@ updater_batch(struct updater *up, int isfixups)
 	struct stream *rd;
 	struct coll *coll;
 	struct status *st;
-	struct file_update *fup;
+	struct file_update fup;
 	char *line, *cmd, *errmsg, *collname, *release;
 	int error;
 
@@ -319,10 +308,10 @@ updater_batch(struct updater *up, int isfixups)
 			up->errmsg = errmsg;
 			return (UPDATER_ERR_MSG);
 		}
-		fup = fup_new(coll, st);
-		error = updater_docoll(up, fup, isfixups);
+		fup_init(&fup, coll, st);
+		error = updater_docoll(up, &fup, isfixups);
 		status_close(st, &errmsg);
-		fup_free(fup);
+		fup_reset(&fup);
 		if (errmsg != NULL) {
 			/* Discard previous error. */
 			if (up->errmsg != NULL)
@@ -1612,16 +1601,16 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				if (branch == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
 				branch = xstrdup(branch);
-				lprintf(2, "  Set default branch to %s\n",
-				    branch);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
+				lprintf(2, "  Set default branch to %s\n",
+				    branch);
 				rcsfile_setval(rf, RCSFILE_BRANCH, branch, 0);
 				break;
 			case 'b':
-				lprintf(2, "  Clear default branch\n");
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
+				lprintf(2, "  Clear default branch\n");
 				rcsfile_setval(rf, RCSFILE_BRANCH, NULL, 0);
 				break;
 			case 'D':
@@ -1631,10 +1620,10 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				author = proto_get_ascii(&line);
 				if (author == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				lprintf(2, "  Add delta %s %s %s\n", revnum,
-				    revdate, author);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
+				lprintf(2, "  Add delta %s %s %s\n", revnum,
+				    revdate, author);
 				error = updater_addelta(rf, up->rd, revnum,
 				    diffbase, revdate, author);
 				if (error)
@@ -1644,9 +1633,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				revnum = proto_get_ascii(&line);
 				if (revnum == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				lprintf(2, "  Delete delta %s\n", revnum);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
+				lprintf(2, "  Delete delta %s\n", revnum);
 				rcsfile_deleterev(rf, revnum);
 				break;
 			case 'E':
@@ -1654,37 +1643,35 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				if (expandtxt == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
 				expand = keyword_decode_expand(expandtxt);
+				UPDATER_OPENRCS(rf, up, path, name,
+				    coll->co_cvsroot, coll->co_tag);
 				if (expand == EXPAND_DEFAULT)
 					lprintf(2, "  Set keyword expansion "
 					    "to default\n");
 				else
 					lprintf(2, "  Set keyword expansion "
 					    "to %s\n", expandtxt);
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
 				rcsfile_setexpand(rf, expand);
 				break;
 			case 'T':
 				tag = proto_get_ascii(&line);
 				revnum = proto_get_ascii(&line);
-				if (tag == NULL || revnum == NULL ||
-				    line != NULL)
+				if (revnum == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				lprintf(2, "  Add tag %s -> %s\n", tag, revnum);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
+				lprintf(2, "  Add tag %s -> %s\n", tag, revnum);
 				rcsfile_addtag(rf, tag, revnum);
 				break;
 			case 't':
 				tag = proto_get_ascii(&line);
 				revnum = proto_get_ascii(&line);
-				if (tag == NULL || revnum == NULL ||
-				    line != NULL)
+				if (revnum == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				lprintf(2, "  Delete tag %s -> %s\n", tag,
-				    revnum);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
+				lprintf(2, "  Delete tag %s -> %s\n", tag,
+				    revnum);
 				rcsfile_deletetag(rf, tag, revnum);
 				break;
 			default:
