@@ -23,10 +23,12 @@ WARNS=	-Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith \
 	-Wnested-externs -Wredundant-decls -Wno-format-y2k
 
 ifdef DEBUG
-CFLAGS+= -g
+CFLAGS+= -g -O0
 else
-CFLAGS+= -DNDEBUG
+CFLAGS+= -DNDEBUG -O
 endif
+
+CFLAGS+= -pipe -I$(PREFIX)/include $(WARNS)
 
 ifeq ($(UNAME), Linux)
 CFLAGS+= -D_XOPEN_SOURCE -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64
@@ -47,8 +49,6 @@ endif
 ifeq ($(UNAME), DragonFlyBSD)
 CFLAGS+= -DHAVE_FFLAGS
 endif
-
-CFLAGS+= -O -pipe -I$(PREFIX)/include $(WARNS)
 
 LDFLAGS= -L$(PREFIX)/lib -lz -lpthread
 
