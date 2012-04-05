@@ -1566,7 +1566,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 		error = mkdirhier(fup->destpath, coll->co_umask);
 		if (error) {
 			xasprintf(&up->errmsg, "Unable to create Attic dir for "
-			    "%s\n", fup->origpath);
+			    "%s", fup->origpath);
 			return (UPDATER_ERR_MSG);
 		}
 	}
@@ -1594,7 +1594,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 		    (tag), 0);						\
 		if ((rf) == NULL) {					\
 			xasprintf(&(up)->errmsg,			\
-			    "Error reading rcsfile %s\n", (name));	\
+			    "Error reading rcsfile %s", (name));	\
 			return (UPDATER_ERR_MSG);			\
 		}							\
 	}								\
@@ -1705,7 +1705,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	dest = stream_open_file(fup->temppath,
 	    O_RDWR | O_CREAT | O_TRUNC, 0600);
 	if (dest == NULL) {
-		xasprintf(&up->errmsg, "Error opening file %s for writing: %s\n",
+		xasprintf(&up->errmsg, "Error opening file %s for writing: %s",
 		    fup->temppath, strerror(errno));
 		return (UPDATER_ERR_MSG);
 	}
