@@ -343,7 +343,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 	char *attr, *cmd, *blocksize, *line, *msg;
 	char *name, *tag, *date, *revdate;
 	char *expand, *wantmd5, *revnum;
-	char *optstr, *rcsopt, *pos;
+	char *rcsopt, *pos;
 	time_t t;
 	off_t position;
 	int attic, error, needfixupmsg;
@@ -492,9 +492,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				return (UPDATER_ERR_MSG);
 			}
 			break;
-		case 'C':
-		case 'Y':
-			/* Checkout file. */
+		case 'C':	/* Checkout file. */
+		case 'Y':	/* Receive checkout-mode fixup. */
 			name = proto_get_ascii(&line);
 			tag = proto_get_ascii(&line);
 			date = proto_get_ascii(&line);
@@ -556,9 +555,10 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 		case 'A':
 		case 'a':
 		case 'R':
+			/* Add/replace regular file. */
 			name = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
-			if (name == NULL || attr == NULL || line != NULL)
+			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
 			attic = (cmd[0] == 'a');
 			error = fup_prepare(fup, name, attic);
@@ -581,14 +581,13 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				return (error);
 			break;
 		case 'r':
+			/* Update regular file with rsync algorithm. */
 			name = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
 			blocksize = proto_get_ascii(&line);
 			wantmd5 = proto_get_ascii(&line);
-			if (name == NULL || attr == NULL || blocksize == NULL ||
-			    wantmd5 == NULL) {
+			if (wantmd5 == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
-			}
 			error = fup_prepare(fup, name, 0);
 			if (error)
 				return (UPDATER_ERR_PROTO);
@@ -659,8 +658,6 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			 * status file.
 			 */
 			name = proto_get_ascii(&line);
-			if (name == NULL)
-				return (UPDATER_ERR_PROTO);
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
@@ -692,9 +689,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			break;
 		case 'L':
 		case 'l':
+			/* Update recorded information for cvs file. */
 			name = proto_get_ascii(&line);
-			if (name == NULL)
-				return (UPDATER_ERR_PROTO);
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
@@ -722,9 +718,10 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			break;
 		case 'N':
 		case 'n':
+			/* Create a node. */
 			name = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
-			if (name == NULL || attr == NULL || line != NULL)
+			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
 			attic = (cmd[0] == 'n');
 			error = fup_prepare(fup, name, attic);
@@ -743,12 +740,12 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			break;
 		case 'V':
 		case 'v':
+			/* Edit RCS file. */
 			name = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
-			optstr = proto_get_ascii(&line);
+			rcsopt = proto_get_ascii(&line);
 			wantmd5 = proto_get_ascii(&line);
-			rcsopt = NULL; /* XXX: Not supported. */
-			if (attr == NULL || line != NULL || wantmd5 == NULL)
+			if (wantmd5 == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
 			attic = (cmd[0] == 'v');
 			error = fup_prepare(fup, name, attic);
@@ -769,9 +766,10 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			break;
 		case 'X':
 		case 'x':
+			/* Receive RCS file fixup. */
 			name = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
-			if (name == NULL || attr == NULL || line != NULL)
+			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
 			attic = (cmd[0] == 'x');
 			error = fup_prepare(fup, name, attic);
@@ -791,11 +789,11 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				return (error);
 			break;
 		case 'Z':
+			/* Append to regular file. */
 			name = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
 			pos  = proto_get_ascii(&line);
-			if (name == NULL || attr == NULL || pos == NULL ||
-			    line != NULL)
+			if (pos == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
 			error = fup_prepare(fup, name, 0);
 			fup->temppath = tempname(fup->destpath);
@@ -1527,6 +1525,8 @@ updater_prunedirs(char *base, char *file)
 
 /*
  * Edit an RCS file.
+ *
+ * XXX RCS options are not supported.
  */
 static int
 updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
