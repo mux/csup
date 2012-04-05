@@ -98,10 +98,11 @@ static void	 updater_deletefile(const char *);
 static int	 updater_checkout(struct updater *, struct file_update *, int);
 static int	 updater_addfile(struct updater *, struct file_update *,
 		     char *, int);
-int		 updater_addelta(struct rcsfile *, struct stream *, char *);
+static int	 updater_addelta(struct rcsfile *rf, struct stream *rd,
+		     char *revnum, char *diffbase, char *revdate, char *author);
 static int	 updater_setattrs(struct updater *, struct file_update *,
 		     char *, char *, char *, char *, char *, struct fattr *);
-static int	updater_setdirattrs(struct updater *, struct coll *,
+static int	 updater_setdirattrs(struct updater *, struct coll *,
 		     struct file_update *, char *, char *);
 static int	 updater_updatefile(struct updater *, struct file_update *fup,
 		     const char *, int);
@@ -1550,6 +1551,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	struct fattr *oldfattr;
 	char md5[MD5_DIGEST_SIZE];
 	char *branch, *cmd, *expand, *line, *path, *revnum, *tag, *temppath;
+	char *diffbase, *revdate, *author;
 	int error;
 
 	coll = fup->coll;
@@ -1602,27 +1604,39 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 		if (strcmp(line, ".") == 0)
 			break;
 		cmd = proto_get_ascii(&line);
-		if (cmd == NULL) {
-			lprintf(-1, "Error editing %s\n", name);
+		if (cmd == NULL)
 			return (UPDATER_ERR_PROTO);
-		}
-		switch(cmd[0]) {
+		switch (cmd[0]) {
 			case 'B':
 				branch = proto_get_ascii(&line);
 				if (branch == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
+				branch = xstrdup(branch);
+				lprintf(2, "  Set default branch to %s\n",
+				    branch);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
+				rcsfile_setval(rf, RCSFILE_BRANCH, branch, 0);
 				break;
 			case 'b':
+				lprintf(2, "  Clear default branch\n");
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
 				rcsfile_setval(rf, RCSFILE_BRANCH, NULL, 0);
 				break;
 			case 'D':
+				revnum = proto_get_ascii(&line);
+				diffbase = proto_get_ascii(&line);
+				revdate = proto_get_ascii(&line);
+				author = proto_get_ascii(&line);
+				if (author == NULL || line != NULL)
+					return (UPDATER_ERR_PROTO);
+				lprintf(2, "  Add delta %s %s %s\n", revnum,
+				    revdate, author);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
-				error = updater_addelta(rf, up->rd, line);
+				error = updater_addelta(rf, up->rd, revnum,
+				    diffbase, revdate, author);
 				if (error)
 					return (error);
 				break;
@@ -1630,6 +1644,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				revnum = proto_get_ascii(&line);
 				if (revnum == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
+				lprintf(2, "  Delete delta %s\n", revnum);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
 				rcsfile_deleterev(rf, revnum);
@@ -1648,6 +1663,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				if (tag == NULL || revnum == NULL ||
 				    line != NULL)
 					return (UPDATER_ERR_PROTO);
+				lprintf(2, "  Add tag %s -> %s\n", tag, revnum);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
 				rcsfile_addtag(rf, tag, revnum);
@@ -1658,6 +1674,8 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				if (tag == NULL || revnum == NULL ||
 				    line != NULL)
 					return (UPDATER_ERR_PROTO);
+				lprintf(2, "  Delete tag %s -> %s\n", tag,
+				    revnum);
 				UPDATER_OPENRCS(rf, up, path, name,
 				    coll->co_cvsroot, coll->co_tag);
 				rcsfile_deletetag(rf, tag, revnum);
@@ -1739,23 +1757,15 @@ finish:
 /*
  * Add a delta to a RCS file.
  */
-int
-updater_addelta(struct rcsfile *rf, struct stream *rd, char *cmdline)
+static int
+updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
+    char *diffbase, char *revdate, char *author)
 {
 	struct delta *d;
+	char *cmd, *line, *logline, *state, *textline;
 	size_t size;
-	char *author, *cmd, *diffbase, *line, *logline;
-	char *revdate, *revnum, *state, *textline;
 
-	revnum = proto_get_ascii(&cmdline);
-	diffbase = proto_get_ascii(&cmdline);
-	revdate = proto_get_ascii(&cmdline);
-	author = proto_get_ascii(&cmdline);
 	size = 0;
-
-	if (revnum == NULL || revdate == NULL || author == NULL)
-		return (UPDATER_ERR_PROTO);
-
 	/* First add the delta so we have it. */
 	d = rcsfile_addelta(rf, revnum, revdate, author, diffbase);
 	if (d == NULL) {
