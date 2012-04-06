@@ -66,6 +66,7 @@ struct file_update {
 	char *origpath;
 	char *coname;		/* Points somewhere in destpath. */
 	char *wantmd5;
+	int isfixup;
 	int free_wantmd5;	/* Indicates if we need to free the wantmd5
 				   field in fup_reset(). */
 	struct coll *coll;
@@ -94,9 +95,9 @@ static int	 updater_batch(struct updater *, int);
 static int	 updater_docoll(struct updater *, struct file_update *, int);
 static int	 updater_delete(struct updater *, struct file_update *);
 static void	 updater_deletefile(const char *);
-static int	 updater_checkout(struct updater *, struct file_update *, int);
+static int	 updater_checkout(struct updater *, struct file_update *);
 static int	 updater_addfile(struct updater *, struct file_update *,
-		     char *, int);
+		     char *);
 static int	 updater_addelta(struct rcsfile *rf, struct stream *rd,
 		     char *revnum, char *diffbase, char *revdate, char *author);
 static int	 updater_setattrs(struct updater *, struct file_update *,
@@ -104,13 +105,15 @@ static int	 updater_setattrs(struct updater *, struct file_update *,
 static int	 updater_setdirattrs(struct updater *, struct coll *,
 		     struct file_update *, char *, char *);
 static int	 updater_updatefile(struct updater *, struct file_update *fup,
-		     const char *, int);
+		     const char *);
 static int	 updater_updatenode(struct updater *, struct coll *,
 		     struct file_update *, char *, char *);
 static int	 updater_diff(struct updater *, struct file_update *);
 static int	 updater_diff_batch(struct updater *, struct file_update *);
 static int	 updater_diff_apply(struct updater *, struct file_update *,
 		     char *);
+static void	 updater_openrcs(struct rcsfile **, struct file_update *,
+		     const char *, const char *);
 static int	 updater_rcsedit(struct updater *, struct file_update *, char *,
 		     char *);
 int		 updater_append_file(struct updater *, struct file_update *,
@@ -189,6 +192,7 @@ fup_reset(struct file_update *fup)
 		fup->wantmd5 = NULL;
 	}
 	fup->free_wantmd5 = 1;
+	fup->isfixup = 0;
 	if (fup->orig != NULL) {
 		stream_close(fup->orig);
 		fup->orig = NULL;
@@ -528,10 +532,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			if (error)
 				return (UPDATER_ERR_PROTO);
 			fup->temppath = tempname(fup->destpath);
-			if (*cmd == 'Y')
-				error = updater_checkout(up, fup, 1);
-			else
-				error = updater_checkout(up, fup, 0);
+			fup->isfixup = *cmd == 'Y';
+			error = updater_checkout(up, fup);
 			if (error)
 				return (error);
 			break;
@@ -576,7 +578,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				lprintf(1, " Create %s -> Attic\n", name);
 			else
 				lprintf(1, " Create %s\n", name);
-			error = updater_addfile(up, fup, attr, 0);
+			error = updater_addfile(up, fup, attr);
 			if (error)
 				return (error);
 			break;
@@ -605,10 +607,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				return (error);
 			break;
 		case 'I':
-			/*
-			 * Create directory and add DirDown entry in status
-			 * file.
-			 */
+			/* Create directory and add DirDown entry in status
+			   file. */
 			name = proto_get_ascii(&line);
 			if (name == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
@@ -653,10 +653,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			}
 			break;
 		case 'J':
-			/*
-			 * Set attributes of directory and update DirUp entry in
-			 * status file.
-			 */
+			/* Set attributes of directory and update DirUp entry
+			   in status file. */
 			name = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
@@ -669,10 +667,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				return (error);
 			break;
 		case 'j':
-			/*
-			 * Remove directory and delete its DirUp entry in status
-			 * file.
-			 */
+			/* Remove directory and delete its DirUp entry in
+			   status file. */
 			name = proto_get_ascii(&line);
 			if (name == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
@@ -777,6 +773,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				return (UPDATER_ERR_PROTO);
 
 			fup->temppath = tempname(fup->destpath);
+			fup->isfixup = 1;
 			sr = &fup->srbuf;
 			sr->sr_type = attic ? SR_FILEDEAD : SR_FILELIVE;
 			sr->sr_file = xstrdup(name);
@@ -784,7 +781,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			if (sr->sr_serverattr == NULL)
 				return (UPDATER_ERR_PROTO);
 			lprintf(1, " Fixup %s\n", name);
-			error = updater_addfile(up, fup, attr, 1);
+			error = updater_addfile(up, fup, attr);
 			if (error)
 				return (error);
 			break;
@@ -934,9 +931,29 @@ updater_setattrs(struct updater *up, struct file_update *fup, char *name,
 	return (0);
 }
 
+static void
+updater_needfixup(struct updater *up, struct file_update *fup, const char *msg)
+{
+	struct statusrec *sr;
+	struct coll *coll;
+
+	coll = fup->coll;
+	sr = &fup->srbuf;
+	lprintf(-1, "%s: %s -- ", fup->coname, msg);
+	if (fup->isfixup) {
+		lprintf(-1, "file not updated\n");
+	} else {
+		lprintf(-1, "will transfer entire file\n");
+		fixups_put(up->config->fixups, fup->coll, sr->sr_file);
+	}
+	if (coll->co_options & CO_KEEPBADFILES)
+		lprintf(-1, "Bad version saved in %s\n", fup->temppath);
+	else
+		updater_deletefile(fup->temppath);
+}
+
 static int
-updater_updatefile(struct updater *up, struct file_update *fup,
-    const char *md5, int isfixup)
+updater_updatefile(struct updater *up, struct file_update *fup, const char *md5)
 {
 	struct coll *coll;
 	struct status *st;
@@ -949,18 +966,7 @@ updater_updatefile(struct updater *up, struct file_update *fup,
 	st = fup->st;
 
 	if (strcmp(fup->wantmd5, md5) != 0) {
-		if (isfixup) {
-			lprintf(-1, "%s: Checksum mismatch -- "
-			    "file not updated\n", fup->coname);
-		} else {
-			lprintf(-1, "%s: Checksum mismatch -- "
-			    "will transfer entire file\n", fup->coname);
-			fixups_put(up->config->fixups, fup->coll, sr->sr_file);
-		}
-		if (coll->co_options & CO_KEEPBADFILES)
-			lprintf(-1, "Bad version saved in %s\n", fup->temppath);
-		else
-			updater_deletefile(fup->temppath);
+		updater_needfixup(up, fup, "Checksum mismatch");
 		return (0);
 	}
 
@@ -1146,7 +1152,7 @@ updater_diff(struct updater *up, struct file_update *fup)
 		    path, strerror(errno));
 		return (UPDATER_ERR_MSG);
 	}
-	error = updater_updatefile(up, fup, md5, 0);
+	error = updater_updatefile(up, fup, md5);
 	return (error);
 }
 
@@ -1341,8 +1347,7 @@ updater_updatenode(struct updater *up, struct coll *coll,
  * Fetches a new file in CVS mode.
  */
 static int
-updater_addfile(struct updater *up, struct file_update *fup, char *attr,
-    int isfixup)
+updater_addfile(struct updater *up, struct file_update *fup, char *attr)
 {
 	struct coll *coll;
 	struct stream *to;
@@ -1407,7 +1412,7 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr,
 		return (UPDATER_ERR_PROTO);
 	fattr_override(sr->sr_clientattr, sr->sr_serverattr,
 	    FA_MODTIME | FA_MASK);
-	error = updater_updatefile(up, fup, md5, isfixup);
+	error = updater_updatefile(up, fup, md5);
 	return (error);
 bad:
 	xasprintf(&up->errmsg, "%s: Cannot write: %s", fup->temppath,
@@ -1416,7 +1421,7 @@ bad:
 }
 
 static int
-updater_checkout(struct updater *up, struct file_update *fup, int isfixup)
+updater_checkout(struct updater *up, struct file_update *fup)
 {
 	char md5[MD5_DIGEST_SIZE];
 	struct statusrec *sr;
@@ -1431,7 +1436,7 @@ updater_checkout(struct updater *up, struct file_update *fup, int isfixup)
 	sr = &fup->srbuf;
 	path = fup->destpath;
 
-	if (isfixup)
+	if (fup->isfixup)
 		lprintf(1, " Fixup %s\n", fup->coname);
 	else
 		lprintf(1, " Checkout %s\n", fup->coname);
@@ -1493,7 +1498,7 @@ updater_checkout(struct updater *up, struct file_update *fup, int isfixup)
 	fup->free_wantmd5 = 0;
 	if (fup->wantmd5 == NULL || line != NULL || strcmp(cmd, "5") != 0)
 		return (UPDATER_ERR_PROTO);
-	error = updater_updatefile(up, fup, md5, isfixup);
+	error = updater_updatefile(up, fup, md5);
 	if (error)
 		return (error);
 	return (0);
@@ -1523,6 +1528,24 @@ updater_prunedirs(char *base, char *file)
 	}
 }
 
+/* Open the RCS file for edition if it hasn't been already. */
+static void
+updater_openrcs(struct rcsfile **rfp, struct file_update *fup, const char *path,
+    const char *name)
+{
+	struct coll *coll;
+
+	if (*rfp != NULL)
+		return;
+
+	coll = fup->coll;
+	lprintf(1, " Edit %s", fup->coname);
+	if (fup->attic)
+		lprintf(1, " -> Attic");
+	lprintf(1, "\n");
+	*rfp = rcsfile_frompath(path, name, coll->co_cvsroot, coll->co_tag, 0);
+}
+
 /*
  * Edit an RCS file.
  *
@@ -1548,7 +1571,6 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	st = fup->st;
 	temppath = fup->temppath;
 	path = fup->origpath != NULL ? fup->origpath : fup->destpath;
-	error = 0;
 
 	/* If the path is new, we must create the Attic dir if needed. */
 	if (fup->origpath != NULL) {
@@ -1570,46 +1592,31 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 		return (UPDATER_ERR_MSG);
 	}
 	fattr_merge(sr->sr_serverattr, oldfattr);
+
 	rf = NULL;
-
-	/* Macro for making touching an RCS file faster. */
-#define UPDATER_OPENRCS(rf, up, path, name, cvsroot, tag) do {		\
-	if ((rf) == NULL) {						\
-		lprintf(1, " Edit %s", fup->coname);			\
-		if (fup->attic)						\
-			lprintf(1, " -> Attic");			\
-		lprintf(1, "\n");					\
-		(rf) = rcsfile_frompath((path), (name), (cvsroot),	\
-		    (tag), 0);						\
-		if ((rf) == NULL) {					\
-			xasprintf(&(up)->errmsg,			\
-			    "Error reading rcsfile %s", (name));	\
-			return (UPDATER_ERR_MSG);			\
-		}							\
-	}								\
-} while (0)
-
 	while ((line = stream_getln(up->rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
 		cmd = proto_get_ascii(&line);
-		if (cmd == NULL)
+		if (cmd == NULL || strlen(cmd) != 1)
 			return (UPDATER_ERR_PROTO);
 		switch (cmd[0]) {
 			case 'B':
 				branch = proto_get_ascii(&line);
 				if (branch == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				branch = xstrdup(branch);
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
+				updater_openrcs(&rf, fup, path, name);
+				if (rf == NULL)
+					break;
 				lprintf(2, "  Set default branch to %s\n",
 				    branch);
+				branch = xstrdup(branch);
 				rcsfile_setval(rf, RCSFILE_BRANCH, branch, 0);
 				break;
 			case 'b':
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
+				updater_openrcs(&rf, fup, path, name);
+				if (rf == NULL)
+					break;
 				lprintf(2, "  Clear default branch\n");
 				rcsfile_setval(rf, RCSFILE_BRANCH, NULL, 0);
 				break;
@@ -1620,8 +1627,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				author = proto_get_ascii(&line);
 				if (author == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
+				updater_openrcs(&rf, fup, path, name);
+				if (rf == NULL)
+					break;
 				lprintf(2, "  Add delta %s %s %s\n", revnum,
 				    revdate, author);
 				error = updater_addelta(rf, up->rd, revnum,
@@ -1633,8 +1641,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				revnum = proto_get_ascii(&line);
 				if (revnum == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
+				updater_openrcs(&rf, fup, path, name);
+				if (rf == NULL)
+					break;
 				lprintf(2, "  Delete delta %s\n", revnum);
 				rcsfile_deleterev(rf, revnum);
 				break;
@@ -1643,8 +1652,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				if (expandtxt == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
 				expand = keyword_decode_expand(expandtxt);
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
+				updater_openrcs(&rf, fup, path, name);
+				if (rf == NULL)
+					break;
 				if (expand == EXPAND_DEFAULT)
 					lprintf(2, "  Set keyword expansion "
 					    "to default\n");
@@ -1658,8 +1668,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				revnum = proto_get_ascii(&line);
 				if (revnum == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
+				updater_openrcs(&rf, fup, path, name);
+				if (rf == NULL)
+					break;
 				lprintf(2, "  Add tag %s -> %s\n", tag, revnum);
 				rcsfile_addtag(rf, tag, revnum);
 				break;
@@ -1668,14 +1679,35 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				revnum = proto_get_ascii(&line);
 				if (revnum == NULL || line != NULL)
 					return (UPDATER_ERR_PROTO);
-				UPDATER_OPENRCS(rf, up, path, name,
-				    coll->co_cvsroot, coll->co_tag);
+				updater_openrcs(&rf, fup, path, name);
+				if (rf == NULL)
+					break;
 				lprintf(2, "  Delete tag %s -> %s\n", tag,
 				    revnum);
 				rcsfile_deletetag(rf, tag, revnum);
 				break;
 			default:
 				return (UPDATER_ERR_PROTO);
+		}
+
+		if (rf == NULL) {
+			fattr_free(oldfattr);
+			/* We failed to open the RCS file for edition. */
+			if (!(coll->co_options & CO_EXACTRCS)) {
+				xasprintf(&up->errmsg, "%s: Invalid RCS file",
+				    fup->destpath);
+				return (UPDATER_ERR_MSG);
+			}
+
+			updater_needfixup(up, fup, "Invalid RCS file");
+			/* We requested a fixup but we must still read the
+			   remaining update commands for this RCS file to stay
+			   in sync. */
+			while ((line = stream_getln(up->rd, NULL)) != NULL) {
+				if (strcmp(line, ".") == 0)
+					break;
+			}
+			return (0);
 		}
 	}
 
@@ -1695,6 +1727,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 		goto finish;
 	}
 
+	fattr_free(oldfattr);
 	/* Write and rename temp file. */
 	dest = stream_open_file(fup->temppath,
 	    O_RDWR | O_CREAT | O_TRUNC, 0600);
@@ -1723,7 +1756,7 @@ finish:
 	fattr_override(sr->sr_clientattr, sr->sr_serverattr,
 	    FA_MODTIME | FA_MASK);
 	if (rf != NULL) {
-		error = updater_updatefile(up, fup, md5, 0);
+		error = updater_updatefile(up, fup, md5);
 		if (error)
 			return (error);
 	} else {
@@ -1907,7 +1940,7 @@ updater_append_file(struct updater *up, struct file_update *fup, off_t pos)
 		return (UPDATER_ERR_PROTO);
 	fattr_override(sr->sr_clientattr, sr->sr_serverattr,
 	    FA_MODTIME | FA_MASK);
-	error = updater_updatefile(up, fup, md5, 0);
+	error = updater_updatefile(up, fup, md5);
 	return (error);
 bad:
 	xasprintf(&up->errmsg, "%s: Cannot write: %s", fup->temppath,
@@ -2045,7 +2078,7 @@ updater_rsync(struct updater *up, struct file_update *fup, size_t blocksize)
 	fattr_override(sr->sr_clientattr, sr->sr_serverattr,
 	    FA_MODTIME | FA_MASK);
 
-	error = updater_updatefile(up, fup, md5, 0);
+	error = updater_updatefile(up, fup, md5);
 bad:
 	free(buf);
 	return (error);
