@@ -358,7 +358,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 	needfixupmsg = isfixups;
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		cmd = proto_get_char(&line);
-		if (cmd == '.')
+		if (cmd == '.' && line == NULL)
 			break;
 		memset(&srbuf, 0, sizeof(srbuf));
 		if (needfixupmsg) {
@@ -1083,9 +1083,9 @@ updater_diff(struct updater *up, struct file_update *fup)
 
 	lprintf(1, " Edit %s\n", fup->coname);
 	while ((line = stream_getln(up->rd, NULL)) != NULL) {
-		if (strcmp(line, ".") == 0)
-			break;
 		cmd = proto_get_char(&line);
+		if (cmd == '.' && line == NULL)
+			break;
 		if (cmd != 'D')
 			return (UPDATER_ERR_PROTO);
 		revnum = proto_get_ascii(&line);
@@ -1166,9 +1166,9 @@ updater_diff_batch(struct updater *up, struct file_update *fup)
 	state = NULL;
 	rd = up->rd;
 	while ((line = stream_getln(rd, NULL)) != NULL) {
-		if (strcmp(line, ".") == 0)
-			break;
 		cmd = proto_get_char(&line);
+		if (cmd == '.' && line == NULL)
+			break;
 		switch (cmd) {
 		case 'L':
 			line = stream_getln(rd, NULL);
@@ -1589,7 +1589,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	rf = NULL;
 	while ((line = stream_getln(up->rd, NULL)) != NULL) {
 		cmd = proto_get_char(&line);
-		if (cmd == '.')
+		if (cmd == '.' && line == NULL)
 			break;
 		switch (cmd) {
 		case 'B':
@@ -1795,7 +1795,7 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
 		cmd = proto_get_char(&line);
 		if (cmd == -1)
 			return (UPDATER_ERR_PROTO);
-		if (cmd == '.')
+		if (cmd == '.' && line == NULL)
 			break;
 		switch (cmd) {
 		case 'L':
