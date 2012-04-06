@@ -357,7 +357,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 	coll = fup->coll;
 	needfixupmsg = isfixups;
 	while ((line = stream_getln(rd, NULL)) != NULL) {
-		if (strcmp(line, ".") == 0)
+		cmd = proto_get_char(&line);
+		if (cmd == '.')
 			break;
 		memset(&srbuf, 0, sizeof(srbuf));
 		if (needfixupmsg) {
@@ -365,7 +366,6 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			    coll->co_name, coll->co_release);
 			needfixupmsg = 0;
 		}
-		cmd = proto_get_char(&line);
 		switch (cmd) {
 		case 'T':
 			/* Update recorded information for checked-out file. */
@@ -1588,11 +1588,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 
 	rf = NULL;
 	while ((line = stream_getln(up->rd, NULL)) != NULL) {
-		if (strcmp(line, ".") == 0)
-			break;
 		cmd = proto_get_char(&line);
-		if (cmd == -1)
-			return (UPDATER_ERR_PROTO);
+		if (cmd == '.')
+			break;
 		switch (cmd) {
 		case 'B':
 			branch = proto_get_ascii(&line);
@@ -1794,11 +1792,11 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
 		return (UPDATER_ERR_READ);
 	}
 	while ((line = stream_getln(rd, NULL)) != NULL) {
-		if (strcmp(line, ".") == 0)
-			break;
 		cmd = proto_get_char(&line);
 		if (cmd == -1)
 			return (UPDATER_ERR_PROTO);
+		if (cmd == '.')
+			break;
 		switch (cmd) {
 		case 'L':
 			/* Do the same as in 'C' command. */
