@@ -1698,6 +1698,8 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 				if (strcmp(line, ".") == 0)
 					break;
 			}
+			if (line == NULL)
+				return (UPDATER_ERR_PROTO);
 			return (0);
 		}
 	}
