@@ -816,7 +816,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 		}
 		fup_reset(fup);
 	}
-	if (line == NULL)
+	if (line == NULL && cmd != '.')
 		return (UPDATER_ERR_READ);
 	return (0);
 }
@@ -1133,7 +1133,7 @@ updater_diff(struct updater *up, struct file_update *fup)
 		if (error)
 			return (error);
 	}
-	if (line == NULL)
+	if (line == NULL && cmd != '.')
 		return (UPDATER_ERR_READ);
 
 	fa = fattr_frompath(path, FATTR_FOLLOW);
@@ -1167,6 +1167,8 @@ updater_diff_batch(struct updater *up, struct file_update *fup)
 	rd = up->rd;
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		cmd = proto_get_char(&line);
+		if (cmd == -1)
+			return (UPDATER_ERR_PROTO);
 		if (cmd == '.' && line == NULL)
 			break;
 		switch (cmd) {
@@ -1201,7 +1203,7 @@ updater_diff_batch(struct updater *up, struct file_update *fup)
 			goto bad;
 		}
 	}
-	if (line == NULL) {
+	if (line == NULL && cmd != '.') {
 		error = UPDATER_ERR_READ;
 		goto bad;
 	}
@@ -1676,6 +1678,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 			rcsfile_deletetag(rf, tag, revnum);
 			break;
 		default:
+			printf("Aie 6\n");
 			return (UPDATER_ERR_PROTO);
 		}
 
@@ -1697,7 +1700,7 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 					break;
 			}
 			if (line == NULL)
-				return (UPDATER_ERR_PROTO);
+				return (UPDATER_ERR_READ);
 			return (0);
 		}
 	}
@@ -1854,7 +1857,8 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
 			break;
 		}
 	}
-
+	if (line == NULL && cmd != '.')
+		return (UPDATER_ERR_READ);
 	return (0);
 }
 
