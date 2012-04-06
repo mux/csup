@@ -177,7 +177,8 @@ static struct statusrec *
 status_rdraw(struct status *st, char **linep)
 {
 	struct statusrec sr;
-	char *cmd, *line, *file;
+	char *line, *file;
+	int cmd;
 
 	if (st->rd == NULL || st->eof)
 		return (NULL);
@@ -196,14 +197,14 @@ status_rdraw(struct status *st, char **linep)
 		return (NULL);
 	}
 	st->linenum++;
-	cmd = proto_get_ascii(&line);
+	cmd = proto_get_char(&line);
 	file = proto_get_ascii(&line);
-	if (file == NULL || strlen(cmd) != 1) {
+	if (file == NULL) {
 		st->error = STATUS_ERR_PARSE;
 		return (NULL);
 	}
 
-	switch (cmd[0]) {
+	switch (cmd) {
 	case 'A':
 		sr.sr_type = SR_FILELIVE;
 		break;
@@ -233,7 +234,7 @@ status_rdraw(struct status *st, char **linep)
 		break;
 	default:
 		st->error = STATUS_ERR_BAD_TYPE;
-		st->suberror = cmd[0];
+		st->suberror = cmd;
 		return (NULL);
 	}
 

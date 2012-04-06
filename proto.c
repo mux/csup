@@ -844,7 +844,7 @@ proto_unescape(char *s)
 }
 
 /*
- * Get an ascii token in the string.
+ * Get a string token.
  */
 char *
 proto_get_ascii(char **s)
@@ -861,6 +861,26 @@ proto_get_ascii(char **s)
 	}
 	proto_unescape(ret);
 	return (ret);
+}
+
+/*
+ * Get a character token.
+ */
+int
+proto_get_char(char **s)
+{
+	char *cp;
+
+	cp = proto_get_ascii(s);
+	if (cp == NULL)
+		return (-1);
+	/* proto_get_ascii() must not return empty strings. */
+	assert(*cp != '\0');
+	if (*(cp + 1) != '\0') {
+		*s = NULL;
+		return (-1);
+	}
+	return ((unsigned char)*cp);
 }
 
 /*

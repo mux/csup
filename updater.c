@@ -344,13 +344,13 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 	struct coll *coll;
 	struct statusrec srbuf, *sr;
 	struct fattr *rcsattr, *tmp;
-	char *attr, *cmd, *blocksize, *line, *msg;
+	char *attr, *blocksize, *line, *msg;
 	char *name, *tag, *date, *revdate;
 	char *expand, *wantmd5, *revnum;
 	char *rcsopt, *pos;
 	time_t t;
 	off_t position;
-	int attic, error, needfixupmsg;
+	int attic, cmd, error, needfixupmsg;
 
 	error = 0;
 	rd = up->rd;
@@ -365,10 +365,8 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			    coll->co_name, coll->co_release);
 			needfixupmsg = 0;
 		}
-		cmd = proto_get_ascii(&line);
-		if (cmd == NULL || strlen(cmd) != 1)
-			return (UPDATER_ERR_PROTO);
-		switch (cmd[0]) {
+		cmd = proto_get_char(&line);
+		switch (cmd) {
 		case 'T':
 			/* Update recorded information for checked-out file. */
 			name = proto_get_ascii(&line);
@@ -532,7 +530,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			if (error)
 				return (UPDATER_ERR_PROTO);
 			fup->temppath = tempname(fup->destpath);
-			fup->isfixup = *cmd == 'Y';
+			fup->isfixup = cmd == 'Y';
 			error = updater_checkout(up, fup);
 			if (error)
 				return (error);
@@ -562,7 +560,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
-			attic = (cmd[0] == 'a');
+			attic = cmd == 'a';
 			error = fup_prepare(fup, name, attic);
 			if (error)
 				return (UPDATER_ERR_PROTO);
@@ -690,7 +688,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
-			attic = (cmd[0] == 'l');
+			attic = cmd == 'l';
 			sr = &fup->srbuf;
 			sr->sr_type = attic ? SR_FILEDEAD : SR_FILELIVE;
 			sr->sr_file = xstrdup(name);
@@ -719,7 +717,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
-			attic = (cmd[0] == 'n');
+			attic = cmd == 'n';
 			error = fup_prepare(fup, name, attic);
 			if (error)
 				return (UPDATER_ERR_PROTO);
@@ -743,7 +741,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			wantmd5 = proto_get_ascii(&line);
 			if (wantmd5 == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
-			attic = (cmd[0] == 'v');
+			attic = cmd == 'v';
 			error = fup_prepare(fup, name, attic);
 			if (error)
 				return (UPDATER_ERR_PROTO);
@@ -767,7 +765,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
-			attic = (cmd[0] == 'x');
+			attic = cmd == 'x';
 			error = fup_prepare(fup, name, attic);
 			if (error)
 				return (UPDATER_ERR_PROTO);
@@ -1076,9 +1074,8 @@ updater_diff(struct updater *up, struct file_update *fup)
 	struct coll *coll;
 	struct statusrec *sr;
 	struct fattr *fa, *tmp;
-	char *author, *path, *revnum, *revdate;
-	char *line, *cmd;
-	int error;
+	char *line, *author, *path, *revnum, *revdate;
+	int error, cmd;
 
 	coll = fup->coll;
 	sr = &fup->srbuf;
@@ -1088,8 +1085,8 @@ updater_diff(struct updater *up, struct file_update *fup)
 	while ((line = stream_getln(up->rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		cmd = proto_get_ascii(&line);
-		if (cmd == NULL || strcmp(cmd, "D") != 0)
+		cmd = proto_get_char(&line);
+		if (cmd != 'D')
 			return (UPDATER_ERR_PROTO);
 		revnum = proto_get_ascii(&line);
 		proto_get_ascii(&line); /* XXX - diffbase */
@@ -1163,20 +1160,16 @@ static int
 updater_diff_batch(struct updater *up, struct file_update *fup)
 {
 	struct stream *rd;
-	char *cmd, *line, *state, *tok;
-	int error;
+	char *line, *state, *tok;
+	int cmd, error;
 
 	state = NULL;
 	rd = up->rd;
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		cmd = proto_get_ascii(&line);
-		if (cmd == NULL || strlen(cmd) != 1) {
-			error = UPDATER_ERR_PROTO;
-			goto bad;
-		}
-		switch (cmd[0]) {
+		cmd = proto_get_char(&line);
+		switch (cmd) {
 		case 'L':
 			line = stream_getln(rd, NULL);
 			/* XXX - We're just eating the log for now. */
@@ -1357,8 +1350,8 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr)
 	char md5[MD5_DIGEST_SIZE];
 	ssize_t nread;
 	off_t fsize, remains;
-	char *cmd, *line, *path;
-	int error;
+	char *line, *path;
+	int cmd, error;
 
 	coll = fup->coll;
 	path = fup->destpath;
@@ -1401,10 +1394,10 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr)
 	if (line == NULL)
 		return (UPDATER_ERR_PROTO);
 
-	cmd = proto_get_ascii(&line);
+	cmd = proto_get_char(&line);
 	fup->wantmd5 = proto_get_ascii(&line);
 	fup->free_wantmd5 = 0;
-	if (fup->wantmd5 == NULL || line != NULL || strcmp(cmd, "5") != 0)
+	if (fup->wantmd5 == NULL || line != NULL || cmd != '5')
 		return (UPDATER_ERR_PROTO);
 
 	sr->sr_clientattr = fattr_frompath(fup->temppath, FATTR_NOFOLLOW);
@@ -1429,8 +1422,8 @@ updater_checkout(struct updater *up, struct file_update *fup)
 	struct stream *to;
 	ssize_t nbytes;
 	size_t size;
-	char *cmd, *path, *line;
-	int error, first;
+	char *path, *line;
+	int cmd, error, first;
 
 	coll = fup->coll;
 	sr = &fup->srbuf;
@@ -1493,10 +1486,10 @@ updater_checkout(struct updater *up, struct file_update *fup)
 	line = stream_getln(up->rd, NULL);
 	if (line == NULL)
 		return (UPDATER_ERR_READ);
-	cmd = proto_get_ascii(&line);
+	cmd = proto_get_char(&line);
 	fup->wantmd5 = proto_get_ascii(&line);
 	fup->free_wantmd5 = 0;
-	if (fup->wantmd5 == NULL || line != NULL || strcmp(cmd, "5") != 0)
+	if (fup->wantmd5 == NULL || line != NULL || cmd != '5')
 		return (UPDATER_ERR_PROTO);
 	error = updater_updatefile(up, fup, md5);
 	if (error)
@@ -1562,9 +1555,9 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	struct rcsfile *rf;
 	struct fattr *oldfattr;
 	char md5[MD5_DIGEST_SIZE];
-	char *branch, *cmd, *expandtxt, *line, *path, *revnum, *tag, *temppath;
+	char *branch, *expandtxt, *line, *path, *revnum, *tag, *temppath;
 	char *diffbase, *revdate, *author;
-	int error, expand;
+	int cmd, error, expand;
 
 	coll = fup->coll;
 	sr = &fup->srbuf;
@@ -1597,97 +1590,95 @@ updater_rcsedit(struct updater *up, struct file_update *fup, char *name,
 	while ((line = stream_getln(up->rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		cmd = proto_get_ascii(&line);
-		if (cmd == NULL || strlen(cmd) != 1)
+		cmd = proto_get_char(&line);
+		if (cmd == -1)
 			return (UPDATER_ERR_PROTO);
-		switch (cmd[0]) {
-			case 'B':
-				branch = proto_get_ascii(&line);
-				if (branch == NULL || line != NULL)
-					return (UPDATER_ERR_PROTO);
-				updater_openrcs(&rf, fup, path, name);
-				if (rf == NULL)
-					break;
-				lprintf(2, "  Set default branch to %s\n",
-				    branch);
-				branch = xstrdup(branch);
-				rcsfile_setval(rf, RCSFILE_BRANCH, branch, 0);
-				break;
-			case 'b':
-				updater_openrcs(&rf, fup, path, name);
-				if (rf == NULL)
-					break;
-				lprintf(2, "  Clear default branch\n");
-				rcsfile_setval(rf, RCSFILE_BRANCH, NULL, 0);
-				break;
-			case 'D':
-				revnum = proto_get_ascii(&line);
-				diffbase = proto_get_ascii(&line);
-				revdate = proto_get_ascii(&line);
-				author = proto_get_ascii(&line);
-				if (author == NULL || line != NULL)
-					return (UPDATER_ERR_PROTO);
-				updater_openrcs(&rf, fup, path, name);
-				if (rf == NULL)
-					break;
-				lprintf(2, "  Add delta %s %s %s\n", revnum,
-				    revdate, author);
-				error = updater_addelta(rf, up->rd, revnum,
-				    diffbase, revdate, author);
-				if (error)
-					return (error);
-				break;
-			case 'd':
-				revnum = proto_get_ascii(&line);
-				if (revnum == NULL || line != NULL)
-					return (UPDATER_ERR_PROTO);
-				updater_openrcs(&rf, fup, path, name);
-				if (rf == NULL)
-					break;
-				lprintf(2, "  Delete delta %s\n", revnum);
-				rcsfile_deleterev(rf, revnum);
-				break;
-			case 'E':
-				expandtxt = proto_get_ascii(&line);
-				if (expandtxt == NULL || line != NULL)
-					return (UPDATER_ERR_PROTO);
-				expand = keyword_decode_expand(expandtxt);
-				updater_openrcs(&rf, fup, path, name);
-				if (rf == NULL)
-					break;
-				if (expand == EXPAND_DEFAULT)
-					lprintf(2, "  Set keyword expansion "
-					    "to default\n");
-				else
-					lprintf(2, "  Set keyword expansion "
-					    "to %s\n", expandtxt);
-				rcsfile_setexpand(rf, expand);
-				break;
-			case 'T':
-				tag = proto_get_ascii(&line);
-				revnum = proto_get_ascii(&line);
-				if (revnum == NULL || line != NULL)
-					return (UPDATER_ERR_PROTO);
-				updater_openrcs(&rf, fup, path, name);
-				if (rf == NULL)
-					break;
-				lprintf(2, "  Add tag %s -> %s\n", tag, revnum);
-				rcsfile_addtag(rf, tag, revnum);
-				break;
-			case 't':
-				tag = proto_get_ascii(&line);
-				revnum = proto_get_ascii(&line);
-				if (revnum == NULL || line != NULL)
-					return (UPDATER_ERR_PROTO);
-				updater_openrcs(&rf, fup, path, name);
-				if (rf == NULL)
-					break;
-				lprintf(2, "  Delete tag %s -> %s\n", tag,
-				    revnum);
-				rcsfile_deletetag(rf, tag, revnum);
-				break;
-			default:
+		switch (cmd) {
+		case 'B':
+			branch = proto_get_ascii(&line);
+			if (branch == NULL || line != NULL)
 				return (UPDATER_ERR_PROTO);
+			updater_openrcs(&rf, fup, path, name);
+			if (rf == NULL)
+				break;
+			lprintf(2, "  Set default branch to %s\n", branch);
+			branch = xstrdup(branch);
+			rcsfile_setval(rf, RCSFILE_BRANCH, branch, 0);
+			break;
+		case 'b':
+			updater_openrcs(&rf, fup, path, name);
+			if (rf == NULL)
+				break;
+			lprintf(2, "  Clear default branch\n");
+			rcsfile_setval(rf, RCSFILE_BRANCH, NULL, 0);
+			break;
+		case 'D':
+			revnum = proto_get_ascii(&line);
+			diffbase = proto_get_ascii(&line);
+			revdate = proto_get_ascii(&line);
+			author = proto_get_ascii(&line);
+			if (author == NULL || line != NULL)
+				return (UPDATER_ERR_PROTO);
+			updater_openrcs(&rf, fup, path, name);
+			if (rf == NULL)
+				break;
+			lprintf(2, "  Add delta %s %s %s\n", revnum, revdate,
+			    author);
+			error = updater_addelta(rf, up->rd, revnum, diffbase,
+			    revdate, author);
+			if (error)
+				return (error);
+			break;
+		case 'd':
+			revnum = proto_get_ascii(&line);
+			if (revnum == NULL || line != NULL)
+				return (UPDATER_ERR_PROTO);
+			updater_openrcs(&rf, fup, path, name);
+			if (rf == NULL)
+				break;
+			lprintf(2, "  Delete delta %s\n", revnum);
+			rcsfile_deleterev(rf, revnum);
+			break;
+		case 'E':
+			expandtxt = proto_get_ascii(&line);
+			if (expandtxt == NULL || line != NULL)
+				return (UPDATER_ERR_PROTO);
+			expand = keyword_decode_expand(expandtxt);
+			updater_openrcs(&rf, fup, path, name);
+			if (rf == NULL)
+				break;
+			if (expand == EXPAND_DEFAULT)
+				lprintf(2, "  Set keyword expansion to "
+				    "default\n");
+			else
+				lprintf(2, "  Set keyword expansion to %s\n",
+				    expandtxt);
+			rcsfile_setexpand(rf, expand);
+			break;
+		case 'T':
+			tag = proto_get_ascii(&line);
+			revnum = proto_get_ascii(&line);
+			if (revnum == NULL || line != NULL)
+				return (UPDATER_ERR_PROTO);
+			updater_openrcs(&rf, fup, path, name);
+			if (rf == NULL)
+				break;
+			lprintf(2, "  Add tag %s -> %s\n", tag, revnum);
+			rcsfile_addtag(rf, tag, revnum);
+			break;
+		case 't':
+			tag = proto_get_ascii(&line);
+			revnum = proto_get_ascii(&line);
+			if (revnum == NULL || line != NULL)
+				return (UPDATER_ERR_PROTO);
+			updater_openrcs(&rf, fup, path, name);
+			if (rf == NULL)
+				break;
+			lprintf(2, "  Delete tag %s -> %s\n", tag, revnum);
+			rcsfile_deletetag(rf, tag, revnum);
+			break;
+		default:
+			return (UPDATER_ERR_PROTO);
 		}
 
 		if (rf == NULL) {
@@ -1789,8 +1780,9 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
     char *diffbase, char *revdate, char *author)
 {
 	struct delta *d;
-	char *cmd, *line, *logline, *state, *textline;
+	char *line, *logline, *state, *textline;
 	size_t size;
+	int cmd;
 
 	size = 0;
 	/* First add the delta so we have it. */
@@ -1802,62 +1794,63 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
 	while ((line = stream_getln(rd, NULL)) != NULL) {
 		if (strcmp(line, ".") == 0)
 			break;
-		cmd = proto_get_ascii(&line);
-		switch (cmd[0]) {
-			case 'L':
-				/* Do the same as in 'C' command. */
+		cmd = proto_get_char(&line);
+		if (cmd == -1)
+			return (UPDATER_ERR_PROTO);
+		switch (cmd) {
+		case 'L':
+			/* Do the same as in 'C' command. */
+			logline = stream_getln(rd, &size);
+			while (logline != NULL) {
+				if (size == 2 && *logline == '.')
+					break;
+				if (size == 3 &&
+				    memcmp(logline, ".+", 2) == 0) {
+					rcsdelta_truncatelog(d, -1);
+					break;
+				}
+				if (size >= 3 &&
+				    memcmp(logline, "..", 2) == 0) {
+					size--;
+					logline++;
+				}
+				if (rcsdelta_appendlog(d, logline, size)
+				    < 0)
+					return (-1);
 				logline = stream_getln(rd, &size);
-				while (logline != NULL) {
-					if (size == 2 && *logline == '.')
-						break;
-					if (size == 3 &&
-					    memcmp(logline, ".+", 2) == 0) {
-						rcsdelta_truncatelog(d, -1);
-						break;
-					}
-					if (size >= 3 &&
-					    memcmp(logline, "..", 2) == 0) {
-						size--;
-						logline++;
-					}
-					if (rcsdelta_appendlog(d, logline, size)
-					    < 0)
-						return (-1);
-					logline = stream_getln(rd, &size);
+			}
+			break;
+		case 'N':
+		case 'n':
+			/* XXX: Not supported. */
+			break;
+		case 'S':
+			state = proto_get_ascii(&line);
+			if (state == NULL)
+				return (UPDATER_ERR_PROTO);
+			rcsdelta_setstate(d, state);
+			break;
+		case 'T':
+			/* Do the same as in 'C' command. */
+			textline = stream_getln(rd, &size);
+			while (textline != NULL) {
+				if (size == 2 && *textline == '.')
+					break;
+				if (size == 3 &&
+				    memcmp(textline, ".+", 2) == 0) {
+					/* Truncate newline. */
+					rcsdelta_truncatetext(d, -1);
+					break;
 				}
-			break;
-			case 'N':
-			case 'n':
-				/* XXX: Not supported. */
-			break;
-			case 'S':
-				state = proto_get_ascii(&line);
-				if (state == NULL)
-					return (UPDATER_ERR_PROTO);
-				rcsdelta_setstate(d, state);
-			break;
-			case 'T':
-				/* Do the same as in 'C' command. */
+				if (size >= 3 &&
+				    memcmp(textline, "..", 2) == 0) {
+					size--;
+					textline++;
+				}
+				if (rcsdelta_appendtext(d, textline, size) < 0)
+					return (-1);
 				textline = stream_getln(rd, &size);
-				while (textline != NULL) {
-					if (size == 2 && *textline == '.')
-						break;
-					if (size == 3 &&
-					    memcmp(textline, ".+", 2) == 0) {
-						/* Truncate newline. */
-						rcsdelta_truncatetext(d, -1);
-						break;
-					}
-					if (size >= 3 &&
-					    memcmp(textline, "..", 2) == 0) {
-						size--;
-						textline++;
-					}
-					if (rcsdelta_appendtext(d, textline,
-					    size) < 0)
-						return (-1);
-					textline = stream_getln(rd, &size);
-				}
+			}
 			break;
 		}
 	}
@@ -1874,8 +1867,8 @@ updater_append_file(struct updater *up, struct file_update *fup, off_t pos)
 	ssize_t nread;
 	off_t bytes;
 	char buf[BUFSIZE], md5[MD5_DIGEST_SIZE];
-	char *line, *cmd;
-	int error, fd;
+	char *line;
+	int cmd, error, fd;
 
 	sr = &fup->srbuf;
 	fa = sr->sr_serverattr;
@@ -1929,10 +1922,10 @@ updater_append_file(struct updater *up, struct file_update *fup, off_t pos)
 	if (line == NULL)
 		return (UPDATER_ERR_PROTO);
 
-	cmd = proto_get_ascii(&line);
+	cmd = proto_get_char(&line);
 	fup->wantmd5 = proto_get_ascii(&line);
 	fup->free_wantmd5 = 0;
-	if (fup->wantmd5 == NULL || line != NULL || strcmp(cmd, "5") != 0)
+	if (fup->wantmd5 == NULL || line != NULL || cmd != '5')
 		return (UPDATER_ERR_PROTO);
 
 	sr->sr_clientattr = fattr_frompath(fup->destpath, FATTR_NOFOLLOW);

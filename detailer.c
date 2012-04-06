@@ -229,8 +229,8 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 {
 	struct fattr *rcsattr;
 	struct stream *rd, *wr;
-	char *attr, *cmd, *file, *line, *msg, *path, *target;
-	int error, attic;
+	char *attr, *file, *line, *msg, *path, *target;
+	int cmd, error, attic;
 
 	rd = d->rd;
 	wr = d->wr;
@@ -239,10 +239,8 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 	if (line == NULL)
 		return (DETAILER_ERR_READ);
 	while (strcmp(line, ".") != 0) {
-		cmd = proto_get_ascii(&line);
-		if (cmd == NULL || strlen(cmd) != 1)
-			return (DETAILER_ERR_PROTO);
-		switch (cmd[0]) {
+		cmd = proto_get_char(&line);
+		switch (cmd) {
 		case 'D':
 			/* Delete file. */
 			file = proto_get_ascii(&line);
@@ -259,7 +257,7 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 			file = proto_get_ascii(&line);
 			if (file == NULL || line != NULL)
 				return (DETAILER_ERR_PROTO);
-			error = proto_printf(wr, "%s %s\n", cmd, file);
+			error = proto_printf(wr, "%c %s\n", cmd, file);
 			if (error)
 				return (DETAILER_ERR_WRITE);
 			break;
@@ -269,7 +267,7 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 			attr = proto_get_ascii(&line);
 			if (file == NULL || line != NULL || attr == NULL)
 				return (DETAILER_ERR_PROTO);
-			error = proto_printf(wr, "%s %s %s\n", cmd, file, attr);
+			error = proto_printf(wr, "%c %s %s\n", cmd, file, attr);
 			if (error)
 				return (DETAILER_ERR_WRITE);
 			break;
@@ -280,7 +278,7 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 			target = proto_get_ascii(&line);
 			if (file == NULL || target == NULL)
 				return (DETAILER_ERR_PROTO);
-			error = proto_printf(wr, "%s %s %s\n", cmd, file,
+			error = proto_printf(wr, "%c %s %s\n", cmd, file,
 			    target);
 			break;
 		case 't':

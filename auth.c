@@ -101,9 +101,7 @@ auth_domd5auth(struct config *config)
 	cmd = proto_get_ascii(&line);
 	realm = proto_get_ascii(&line);
 	challenge = proto_get_ascii(&line);
-	if (challenge == NULL ||
-	    line != NULL ||
-	    (strcmp(cmd, "AUTHMD5") != 0)) {
+	if (challenge == NULL || line != NULL || strcmp(cmd, "AUTHMD5") != 0) {
 		lprintf(-1, "Invalid server reply to USER\n");
 		return (STATUS_FAILURE);
 	}
@@ -111,7 +109,7 @@ auth_domd5auth(struct config *config)
 	client = NULL;
 	resp[0] = clichallenge[0] = '.';
 	resp[1] = clichallenge[1] = 0;
-	if (config->reqauth || (strcmp(challenge, ".") != 0)) {
+	if (config->reqauth || strcmp(challenge, ".") != 0) {
 		if (strcmp(realm, ".") == 0) {
 			lprintf(-1, "Authentication required, "
 			    "but not enabled on server\n");
