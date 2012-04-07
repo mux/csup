@@ -584,8 +584,9 @@ detailer_send_details(struct detailer *d, struct coll *coll, char *name,
 			error = DETAILER_ERR_WRITE;
 	}
 	if (do_free) {
+		if (fa != NULL)
+			fattr_free(fa);
 		free(path);
-		fattr_free(fa);
 	}
 	return (error);
 }
