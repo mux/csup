@@ -1363,6 +1363,7 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr)
 	sr = &fup->srbuf;
 	fa = fattr_decode(attr);
 	fsize = fattr_filesize(fa);
+	fattr_free(fa);
 
 	error = mkdirhier(path, coll->co_umask);
 	if (error)

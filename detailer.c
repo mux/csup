@@ -230,11 +230,10 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 	struct fattr *rcsattr;
 	struct stream *rd, *wr;
 	char *attr, *file, *line, *msg, *path, *target;
-	int cmd, error, attic;
+	int cmd, error;
 
 	rd = d->rd;
 	wr = d->wr;
-	attic = 0;
 	line = stream_getln(rd, NULL);
 	if (line == NULL)
 		return (DETAILER_ERR_READ);
@@ -282,31 +281,18 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 			    target);
 			break;
 		case 't':
-			file = proto_get_ascii(&line);
-			attr = proto_get_ascii(&line);
-			if (file == NULL || attr == NULL || line != NULL) {
-				return (DETAILER_ERR_PROTO);
-			}
-			rcsattr = fattr_decode(attr);
-			if (rcsattr == NULL) {
-				return (DETAILER_ERR_PROTO);
-			}
-			error = detailer_checkrcsattr(d, coll, file, rcsattr,
-			    1);
-			break;
-
 		case 'T':
 			file = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
-			if (file == NULL || attr == NULL || line != NULL)
+			if (attr == NULL || line != NULL)
 				return (DETAILER_ERR_PROTO);
 			rcsattr = fattr_decode(attr);
 			if (rcsattr == NULL)
 				return (DETAILER_ERR_PROTO);
 			error = detailer_checkrcsattr(d, coll, file, rcsattr,
-			    0);
+			    cmd == 't');
+			fattr_free(rcsattr);
 			break;
-
 		case 'U':
 			/* Add or update file. */
 			file = proto_get_ascii(&line);
@@ -534,9 +520,8 @@ detailer_checkrcsattr(struct detailer *d, struct coll *coll, char *name,
 	 */
 	client_attr = NULL;
 	path = cvspath(coll->co_prefix, name, attic);
-	if (path == NULL) {
+	if (path == NULL)
 		return (DETAILER_ERR_PROTO);
-	}
 
 	if (access(path, F_OK) == 0 &&
 	    ((client_attr = fattr_frompath(path, FATTR_NOFOLLOW)) != NULL) &&
