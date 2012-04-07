@@ -96,8 +96,7 @@ static int	 updater_docoll(struct updater *, struct file_update *, int);
 static int	 updater_delete(struct updater *, struct file_update *);
 static void	 updater_deletefile(const char *);
 static int	 updater_checkout(struct updater *, struct file_update *);
-static int	 updater_addfile(struct updater *, struct file_update *,
-		     char *);
+static int	 updater_addfile(struct updater *, struct file_update *);
 static int	 updater_addelta(struct rcsfile *rf, struct stream *rd,
 		     char *revnum, char *diffbase, char *revdate, char *author);
 static int	 updater_setattrs(struct updater *, struct file_update *,
@@ -577,7 +576,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 				lprintf(1, " Create %s -> Attic\n", name);
 			else
 				lprintf(1, " Create %s\n", name);
-			error = updater_addfile(up, fup, attr);
+			error = updater_addfile(up, fup);
 			if (error)
 				return (error);
 			break;
@@ -780,7 +779,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			if (sr->sr_serverattr == NULL)
 				return (UPDATER_ERR_PROTO);
 			lprintf(1, " Fixup %s\n", name);
-			error = updater_addfile(up, fup, attr);
+			error = updater_addfile(up, fup);
 			if (error)
 				return (error);
 			break;
@@ -1345,12 +1344,11 @@ updater_updatenode(struct updater *up, struct coll *coll,
  * Fetches a new file in CVS mode.
  */
 static int
-updater_addfile(struct updater *up, struct file_update *fup, char *attr)
+updater_addfile(struct updater *up, struct file_update *fup)
 {
 	struct coll *coll;
 	struct stream *to;
 	struct statusrec *sr;
-	struct fattr *fa;
 	char buf[BUFSIZE];
 	char md5[MD5_DIGEST_SIZE];
 	ssize_t nread;
@@ -1361,9 +1359,7 @@ updater_addfile(struct updater *up, struct file_update *fup, char *attr)
 	coll = fup->coll;
 	path = fup->destpath;
 	sr = &fup->srbuf;
-	fa = fattr_decode(attr);
-	fsize = fattr_filesize(fa);
-	fattr_free(fa);
+	fsize = fattr_filesize(sr->sr_serverattr);
 
 	error = mkdirhier(path, coll->co_umask);
 	if (error)
