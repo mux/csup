@@ -1146,7 +1146,7 @@ updater_diff(struct updater *up, struct file_update *fup)
 	fattr_maskout(fa, FA_MODTIME);
 	sr->sr_clientattr = fa;
 
-	if (MD5_File(fup->temppath, md5) == -1) {
+	if (MD5_File(fup->temppath, md5, NULL) == -1) {
 		xasprintf(&up->errmsg,
 		    "Cannot calculate checksum for \"%s\": %s",
 		    path, strerror(errno));

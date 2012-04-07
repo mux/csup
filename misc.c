@@ -107,23 +107,29 @@ lprintf(int level, const char *fmt, ...)
  * MD5_DIGEST_SIZE macro.
  */
 int
-MD5_File(char *path, char *md)
+MD5_File(char *path, char *md, off_t *sizep)
 {
 	char buf[1024];
 	MD5_CTX ctx;
+	off_t size;
 	ssize_t n;
 	int fd;
 
 	fd = open(path, O_RDONLY);
 	if (fd == -1)
 		return (-1);
+	size = 0;
 	MD5_Init(&ctx);
-	while ((n = read(fd, buf, sizeof(buf))) > 0)
+	while ((n = read(fd, buf, sizeof(buf))) > 0) {
 		MD5_Update(&ctx, buf, n);
+		size += n;
+	}
 	close(fd);
 	if (n == -1)
 		return (-1);
 	MD5_End(md, &ctx);
+	if (sizep != NULL)
+		*sizep = size;
 	return (0);
 }
 

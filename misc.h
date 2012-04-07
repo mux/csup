@@ -115,7 +115,7 @@ struct tm;
 
 int		 asciitoint(const char *, int *, int);
 int		 lprintf(int, const char *, ...) __printflike(2, 3);
-int		 MD5_File(char *, char *);
+int		 MD5_File(char *, char *, off_t *);
 void		 MD5_End(char *, MD5_CTX *);
 int		 rcsdatetotm(const char *, struct tm *);
 time_t		 rcsdatetotime(const char *);
