@@ -352,6 +352,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 	off_t position;
 	int attic, cmd, error, needfixupmsg;
 
+	cmd = -1;
 	error = 0;
 	rd = up->rd;
 	coll = fup->coll;
@@ -816,7 +817,7 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 		}
 		fup_reset(fup);
 	}
-	if (line == NULL && cmd != '.')
+	if (line == NULL && cmd == -1)
 		return (UPDATER_ERR_READ);
 	return (0);
 }
@@ -1081,6 +1082,7 @@ updater_diff(struct updater *up, struct file_update *fup)
 	sr = &fup->srbuf;
 	path = fup->destpath;
 
+	cmd = -1;
 	lprintf(1, " Edit %s\n", fup->coname);
 	while ((line = stream_getln(up->rd, NULL)) != NULL) {
 		cmd = proto_get_char(&line);
@@ -1133,7 +1135,7 @@ updater_diff(struct updater *up, struct file_update *fup)
 		if (error)
 			return (error);
 	}
-	if (line == NULL && cmd != '.')
+	if (line == NULL && cmd == -1)
 		return (UPDATER_ERR_READ);
 
 	fa = fattr_frompath(path, FATTR_FOLLOW);
@@ -1163,6 +1165,7 @@ updater_diff_batch(struct updater *up, struct file_update *fup)
 	char *line, *state, *tok;
 	int cmd, error;
 
+	cmd = -1;
 	state = NULL;
 	rd = up->rd;
 	while ((line = stream_getln(rd, NULL)) != NULL) {
@@ -1203,7 +1206,7 @@ updater_diff_batch(struct updater *up, struct file_update *fup)
 			goto bad;
 		}
 	}
-	if (line == NULL && cmd != '.') {
+	if (line == NULL && cmd == -1) {
 		error = UPDATER_ERR_READ;
 		goto bad;
 	}
@@ -1787,6 +1790,7 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
 	size_t size;
 	int cmd;
 
+	cmd = -1;
 	size = 0;
 	/* First add the delta so we have it. */
 	d = rcsfile_addelta(rf, revnum, revdate, author, diffbase);
@@ -1857,7 +1861,7 @@ updater_addelta(struct rcsfile *rf, struct stream *rd, char *revnum,
 			break;
 		}
 	}
-	if (line == NULL && cmd != '.')
+	if (line == NULL && cmd == -1)
 		return (UPDATER_ERR_READ);
 	return (0);
 }
