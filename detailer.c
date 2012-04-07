@@ -414,6 +414,7 @@ detailer_dofile_rcs(struct detailer *d, struct coll *coll, char *name,
 		free(path);
 		return (0);
 	}
+	fattr_free(fa);
 
 	rf = rcsfile_frompath(path, name, coll->co_cvsroot, coll->co_tag, 1);
 	free(path);
@@ -426,7 +427,6 @@ detailer_dofile_rcs(struct detailer *d, struct coll *coll, char *name,
 	/* Tell to update the RCS file. The client version details follow. */
 	rcsfile_send_details(rf, wr);
 	rcsfile_free(rf);
-	fattr_free(fa);
 	return (0);
 }
 
