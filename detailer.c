@@ -264,7 +264,7 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 			/* Set directory attributes. */
 			file = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
-			if (file == NULL || line != NULL || attr == NULL)
+			if (attr == NULL || line != NULL)
 				return (DETAILER_ERR_PROTO);
 			error = proto_printf(wr, "%c %s %s\n", cmd, file, attr);
 			if (error)
@@ -272,16 +272,17 @@ detailer_coll(struct detailer *d, struct coll *coll, struct status *st)
 			break;
 		case 'H':
 		case 'h':
-			/* Create a hard link. */
+			/* Make hard link. */
 			file = proto_get_ascii(&line);
 			target = proto_get_ascii(&line);
-			if (file == NULL || target == NULL)
+			if (target == NULL || line != NULL)
 				return (DETAILER_ERR_PROTO);
 			error = proto_printf(wr, "%c %s %s\n", cmd, file,
 			    target);
 			break;
 		case 't':
 		case 'T':
+			/* Add file in CVS mode. */
 			file = proto_get_ascii(&line);
 			attr = proto_get_ascii(&line);
 			if (attr == NULL || line != NULL)
