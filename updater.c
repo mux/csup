@@ -106,7 +106,7 @@ static int	 updater_setdirattrs(struct updater *, struct coll *,
 static int	 updater_updatefile(struct updater *, struct file_update *fup,
 		     const char *);
 static int	 updater_updatenode(struct updater *, struct coll *,
-		     struct file_update *, char *, char *);
+		     struct file_update *, char *);
 static int	 updater_diff(struct updater *, struct file_update *);
 static int	 updater_diff_batch(struct updater *, struct file_update *);
 static int	 updater_diff_apply(struct updater *, struct file_update *,
@@ -725,10 +725,12 @@ updater_docoll(struct updater *up, struct file_update *fup, int isfixups)
 			sr->sr_type = (attic ? SR_FILEDEAD : SR_FILELIVE);
 			sr->sr_file = xstrdup(name);
 			sr->sr_serverattr = fattr_decode(attr);
+			if (sr->sr_serverattr == NULL)
+				return (UPDATER_ERR_PROTO);
 			sr->sr_clientattr = fattr_new(FT_SYMLINK, -1);
 			fattr_mergedefault(sr->sr_clientattr);
 			fattr_maskout(sr->sr_clientattr, FA_FLAGS);
-			error = updater_updatenode(up, coll, fup, name, attr);
+			error = updater_updatenode(up, coll, fup, name);
 			if (error)
 				return (error);
 			break;
@@ -1251,20 +1253,19 @@ updater_diff_apply(struct updater *up, struct file_update *fup, char *state)
 /* Update or create a node. */
 static int
 updater_updatenode(struct updater *up, struct coll *coll,
-    struct file_update *fup, char *name, char *attr)
+    struct file_update *fup, char *name)
 {
-	struct fattr *fa, *fileattr;
+	struct fattr *fileattr;
 	struct status *st;
 	struct statusrec *sr;
 	int error, rv;
 
 	sr = &fup->srbuf;
 	st = fup->st;
-	fa = fattr_decode(attr);
 
-	if (fattr_type(fa) == FT_SYMLINK) {
+	if (fattr_type(sr->sr_serverattr) == FT_SYMLINK) {
 		lprintf(1, " Symlink %s -> %s\n", name,
-		    fattr_getlinktarget(fa));
+		    fattr_getlinktarget(sr->sr_serverattr));
 	} else {
 		lprintf(1, " Mknod %s\n", name);
 	}
@@ -1276,15 +1277,15 @@ updater_updatenode(struct updater *up, struct coll *coll,
 
 	/* If it does not exist, create it. */
 	if (access(fup->destpath, F_OK) != 0)
-		fattr_makenode(fa, fup->destpath);
+		fattr_makenode(sr->sr_serverattr, fup->destpath);
 
 	/*
 	 * Coming from attic? I don't think this is a problem since we have
 	 * determined attic before we call this function (Look at UpdateNode in
 	 * cvsup).
 	 */
-	fattr_umask(fa, coll->co_umask);
-	rv = fattr_install(fa, fup->destpath, fup->temppath);
+	fattr_umask(sr->sr_serverattr, coll->co_umask);
+	rv = fattr_install(sr->sr_serverattr, fup->destpath, fup->temppath);
 	if (rv == -1) {
 		xasprintf(&up->errmsg, "Cannot update attributes on "
 	    "\"%s\": %s", fup->destpath, strerror(errno));
@@ -1325,7 +1326,7 @@ updater_updatenode(struct updater *up, struct coll *coll,
 		fattr_maskout(sr->sr_clientattr, FA_DEV | FA_INODE);
 
 	/* If it is a symlink, write only out it's path. */
-	if (fattr_type(fa) == FT_SYMLINK) {
+	if (fattr_type(sr->sr_serverattr) == FT_SYMLINK) {
 		fattr_maskout(sr->sr_clientattr, ~(FA_FILETYPE |
 		    FA_LINKTARGET));
 	}
@@ -1335,8 +1336,6 @@ updater_updatenode(struct updater *up, struct coll *coll,
 		up->errmsg = status_errmsg(st);
 		return (UPDATER_ERR_MSG);
 	}
-	fattr_free(fa);
-
 	return (0);
 }
 
