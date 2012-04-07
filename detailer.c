@@ -70,6 +70,7 @@ static int	detailer_send_regular(struct detailer *, struct coll *, char *);
 static int	detailer_send_rsync(struct detailer *, struct coll *, char *);
 static int	detailer_checkrcsattr(struct detailer *, struct coll *, char *,
 		    struct fattr *, int);
+
 void *
 detailer(void *arg)
 {
