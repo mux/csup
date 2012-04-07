@@ -550,7 +550,7 @@ int
 detailer_send_details(struct detailer *d, struct coll *coll, char *name,
     char *path, struct fattr *fa)
 {
-	int error;
+	int error, do_free;
 	size_t len;
 
        /*
@@ -558,14 +558,17 @@ detailer_send_details(struct detailer *d, struct coll *coll, char *name,
         * edit it and put it live or dead, rather than receiving the entire
         * file.
 	*/
+	error = 0;
+	do_free = 0;
 	if (fa == NULL) {
 		path = atticpath(coll->co_prefix, name);
 		fa = fattr_frompath(path, FATTR_NOFOLLOW);
+		do_free = 1;
 	}
 	if (fa == NULL) {
 		error = proto_printf(d->wr, "A %s\n", name);
 		if (error)
-			return (DETAILER_ERR_WRITE);
+			error = DETAILER_ERR_WRITE;
 	} else if (fattr_type(fa) == FT_FILE) {
 		if (isrcs(name, &len) && !(coll->co_options & CO_NORCS)) {
 			detailer_dofile_rcs(d, coll, name, path);
@@ -578,7 +581,11 @@ detailer_send_details(struct detailer *d, struct coll *coll, char *name,
 	} else {
 		error = proto_printf(d->wr, "N %s\n", name);
 		if (error)
-			return (DETAILER_ERR_WRITE);
+			error = DETAILER_ERR_WRITE;
 	}
-	return (0);
+	if (do_free) {
+		free(path);
+		fattr_free(fa);
+	}
+	return (error);
 }
