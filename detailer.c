@@ -388,7 +388,7 @@ detailer_send_rsync(struct detailer *d, struct coll *coll, char *name)
 			return (DETAILER_ERR_WRITE);
 		return (0);
 	}
-	error = proto_printf(wr, "r %s %z %z\n", name, rsync_filesize(rf),
+	error = proto_printf(wr, "r %s %O %z\n", name, rsync_filesize(rf),
 	    rsync_blocksize(rf));
 	if (error) {
 		rsync_close(rf);

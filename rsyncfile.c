@@ -24,15 +24,14 @@
  * SUCH DAMAGE.
  */
 
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+
+#include <assert.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "misc.h"
@@ -53,7 +52,7 @@ struct rsyncfile {
 	char *buf;
 	char *end;
 	size_t blocksize;
-	size_t fsize;
+	off_t fsize;
 	int fd;
 
 	char *blockptr;
@@ -63,7 +62,7 @@ struct rsyncfile {
 	uint32_t rsum;
 };
 
-static size_t		rsync_chooseblocksize(size_t);
+static size_t		rsync_chooseblocksize(off_t);
 static uint32_t		rsync_rollsum(char *, size_t);
 
 /* Open a file and initialize variable for rsync operation. */
@@ -89,30 +88,30 @@ rsync_open(char *path, size_t blocksize, int rdonly)
 	}
 	rf->buf = mmap(0, rf->fsize, PROT_READ, MAP_SHARED, rf->fd, 0);
 	if (rf->buf == MAP_FAILED) {
+		close(rf->fd);
 		free(rf);
 		return (NULL);
 	}
 	rf->start = rf->buf;
 	rf->end = rf->buf + rf->fsize;
-	rf->blocksize = (blocksize == 0 ? rsync_chooseblocksize(rf->fsize) :
-	    blocksize);
+	rf->blocksize = blocksize == 0 ? rsync_chooseblocksize(rf->fsize) :
+	    blocksize;
 	rf->blockptr = rf->buf;
 	rf->blocknum = 0;
 	return (rf);
 }
 
 /* Close and free all resources related to an rsync file transfer. */
-int
+void
 rsync_close(struct rsyncfile *rf)
 {
 	int error;
 
 	error = munmap(rf->buf, rf->fsize);
-	if (error)
-		return (error);
-	close(rf->fd);
+	assert(!error);
+	error = close(rf->fd);
+	assert(!error);
 	free(rf);
-	return (0);
 }
 
 /*
@@ -120,7 +119,7 @@ rsync_close(struct rsyncfile *rf)
  * algorithm after cvsup.
  */
 static size_t
-rsync_chooseblocksize(size_t fsize)
+rsync_chooseblocksize(off_t fsize)
 {
 	size_t bestrem, blocksize, bs, hisearch, losearch, rem;
 
@@ -213,7 +212,7 @@ rsync_blocksize(struct rsyncfile *rf)
 }
 
 /* Accessor for filesize. */
-size_t
+off_t
 rsync_filesize(struct rsyncfile *rf)
 {
 
