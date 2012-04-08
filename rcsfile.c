@@ -226,7 +226,7 @@ rcsfile_send_details(struct rcsfile *rf, struct stream *wr)
 {
 	struct delta *d;
 	struct tag *t;
-	const char *keyword;
+	const char *expand;
 	int error;
 
 	assert(rf != NULL);
@@ -243,30 +243,12 @@ rcsfile_send_details(struct rcsfile *rf, struct stream *wr)
 	if (error)
 		return (error);
 
-	/* Write deltas to server. */
-	error = proto_printf(wr, "D\n");
-	if (error)
-		return (error);
-
-	LIST_FOREACH(d, &rf->deltatable, table_next) {
-		error = proto_printf(wr, "%s %s\n", d->revnum, d->revdate);
-		if (error)
-			return (error);
-	}
-	error = proto_printf(wr, ".\n");
-	if (error)
-		return (error);
-
 	/* Write expand. */
-	if (rf->expand != EXPAND_DEFAULT) {
-		keyword = keyword_encode_expand(rf->expand);
-		if (keyword != NULL) {
-			error = proto_printf(wr, "E %s\n",
-			    keyword_encode_expand(rf->expand));
-			if (error)
-				return (error);
-		}
-	}
+	expand = keyword_encode_expand(rf->expand);
+	assert(expand != NULL);
+	error = proto_printf(wr, "E %s\n", expand);
+	if (error)
+		return (error);
 
 	/* Write tags to server. */
 	error = proto_printf(wr, "T\n");
@@ -280,6 +262,20 @@ rcsfile_send_details(struct rcsfile *rf, struct stream *wr)
 	error = proto_printf(wr, ".\n");
 	if (error)
 		return (error);
+
+	/* Write deltas to server. */
+	error = proto_printf(wr, "D\n");
+	if (error)
+		return (error);
+	LIST_FOREACH(d, &rf->deltatable, table_next) {
+		error = proto_printf(wr, "%s %s\n", d->revnum, d->revdate);
+		if (error)
+			return (error);
+	}
+	error = proto_printf(wr, ".\n");
+	if (error)
+		return (error);
+
 	error = proto_printf(wr, ".\n");
 	return (error);
 }

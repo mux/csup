@@ -161,6 +161,8 @@ parse_admin(struct rcsfile *rf, struct rcslex *lex)
 				return (-1);
 			expand = keyword_decode_expand(str);
 			free(str);
+			if (expand == -1)
+				return (-1);
 			rcsfile_setexpand(rf, expand);
 			if (rcslex_want_scolon(lex) == NULL)
 				return (-1);
