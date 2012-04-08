@@ -697,7 +697,9 @@ proto_escape(struct stream *wr, const char *s)
  * %d or %i	Print an int as decimal.
  * %x		Print an int as hexadecimal.
  * %o		Print an int as octal.
+ * %O		Print a off_t as decimal.
  * %t		Print a time_t as decimal.
+ * %z		Print a size_t as decimal.
  * %s		Print a char * escaping some characters as needed.
  * %S		Print a char * without escaping.
  * %f		Print an encoded struct fattr *.
