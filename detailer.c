@@ -535,7 +535,7 @@ detailer_checkrcsattr(struct detailer *d, struct coll *coll, char *name,
     struct fattr *server_attr, int attic)
 {
 	struct fattr *fa;
-	char *attr, *path;
+	char *path;
 	int error;
 	char cmd;
 
@@ -548,18 +548,13 @@ detailer_checkrcsattr(struct detailer *d, struct coll *coll, char *name,
 
 	if (fa != NULL && fattr_equal(fa, server_attr)) {
 		/* Just make sure the list file gets updated. */
-		if (attic)
-			cmd = 'l';
-		else
-			cmd = 'L';
+		cmd = attic ? 'l' : 'L';
 		/* We send the client's version of the attributes rather than
 		   the server's, and we don't cull attributes that have been
 		   negotiated away.  The attributes are going to go directly
 		   into our list file, and so we want them to be as complete as
 		   possible. */
-		attr = fattr_encode(fa, NULL, 0);
-		error = proto_printf(d->wr, "%c %s %s\n", cmd, name, attr);
-		free(attr);
+		error = proto_printf(d->wr, "%c %s %f\n", cmd, name, fa);
 		if (error)
 			error = DETAILER_ERR_WRITE;
 	} else {
