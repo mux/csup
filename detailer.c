@@ -554,7 +554,7 @@ detailer_checkrcsattr(struct detailer *d, struct coll *coll, char *name,
 		   negotiated away.  The attributes are going to go directly
 		   into our list file, and so we want them to be as complete as
 		   possible. */
-		error = proto_printf(d->wr, "%c %s %f\n", cmd, name, fa);
+		error = proto_printf(d->wr, "%c %s %a\n", cmd, name, fa);
 		if (error)
 			error = DETAILER_ERR_WRITE;
 	} else {

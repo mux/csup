@@ -287,7 +287,7 @@ status_wr(struct status *st, struct statusrec *sr)
 			else
 				fa = fattr_bogus;
 			usedirupattr = 0;
-			error = proto_printf(st->wr, "U %s %f\n", name, fa);
+			error = proto_printf(st->wr, "U %s %a\n", name, fa);
 		}
 		if (error)
 			goto bad;
@@ -299,20 +299,20 @@ status_wr(struct status *st, struct statusrec *sr)
 		/* Already emitted above. */
 		break;
 	case SR_CHECKOUTLIVE:
-		error = proto_printf(st->wr, "C %s %s %s %f %s %s %f\n",
+		error = proto_printf(st->wr, "C %s %s %s %a %s %s %a\n",
 		    sr->sr_file, sr->sr_tag, sr->sr_date, sr->sr_serverattr,
 		    sr->sr_revnum, sr->sr_revdate, sr->sr_clientattr);
 		break;
 	case SR_CHECKOUTDEAD:
-		error = proto_printf(st->wr, "c %s %s %s %f\n", sr->sr_file,
+		error = proto_printf(st->wr, "c %s %s %s %a\n", sr->sr_file,
 		    sr->sr_tag, sr->sr_date, sr->sr_serverattr);
 		break;
 	case SR_FILELIVE:
-		error = proto_printf(st->wr, "V %s %f\n", sr->sr_file,
+		error = proto_printf(st->wr, "V %s %a\n", sr->sr_file,
 		    sr->sr_clientattr);
 		break;
 	case SR_FILEDEAD:
-		error = proto_printf(st->wr, "v %s %f\n", sr->sr_file,
+		error = proto_printf(st->wr, "v %s %a\n", sr->sr_file,
 		    sr->sr_clientattr);
 		break;
 	}
@@ -842,7 +842,7 @@ status_close(struct status *st, char **errmsg)
 			pathcomp_finish(st->pc);
 			while (pathcomp_get(st->pc, &type, &name)) {
 				assert(type == PC_DIRUP);
-				error = proto_printf(st->wr, "U %s %f\n",
+				error = proto_printf(st->wr, "U %s %a\n",
 				    name, fattr_bogus);
 				if (error) {
 					st->error = STATUS_ERR_WRITE;

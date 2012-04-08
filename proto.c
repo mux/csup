@@ -702,9 +702,9 @@ proto_escape(struct stream *wr, const char *s)
  * %z		Print a size_t as decimal.
  * %s		Print a char * escaping some characters as needed.
  * %S		Print a char * without escaping.
- * %f		Print an encoded struct fattr *.
- * %F		Print an encoded struct fattr *, specifying the supported
- * 		attributes.
+ * %a		Print encoded file attributes (struct fattr *).
+ * %A		Print encoded file attributes (struct fattr *), also
+ *                specifying the supported and ignored attributes.
  */
 int
 proto_printf(struct stream *wr, const char *format, ...)
@@ -769,13 +769,13 @@ proto_printf(struct stream *wr, const char *format, ...)
 			longval = (long long)va_arg(ap, time_t);
 			rv = stream_printf(wr, "%lld", longval);
 			break;
-		case 'f':
+		case 'a':
 			fa = va_arg(ap, struct fattr *);
 			attr = fattr_encode(fa, NULL, 0);
 			rv = proto_escape(wr, attr);
 			free(attr);
 			break;
-		case 'F':
+		case 'A':
 			fa = va_arg(ap, struct fattr *);
 			support = va_arg(ap, fattr_support_t *);
 			ignore = va_arg(ap, int);

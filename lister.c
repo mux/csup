@@ -268,7 +268,7 @@ lister_dodirdown(struct lister *l, struct coll *coll, struct statusrec *sr,
 		fattr_free(fa);
 		/* Report it as something bogus so
 		 * that it will be replaced. */
-		error = proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file),
+		error = proto_printf(wr, "F %s %A\n", pathlast(sr->sr_file),
 		    fattr_bogus, config->fasupport, coll->co_attrignore);
 		if (error)
 			return (LISTER_ERR_WRITE);
@@ -307,7 +307,7 @@ lister_dodirup(struct lister *l, struct coll *coll, struct statusrec *sr,
 		sendattr = fa;
 	else
 		sendattr = fattr_bogus;
-	error = proto_printf(wr, "U %F\n", sendattr, config->fasupport,
+	error = proto_printf(wr, "U %A\n", sendattr, config->fasupport,
 	    coll->co_attrignore);
 	if (error)
 		return (LISTER_ERR_WRITE);
@@ -387,7 +387,7 @@ lister_dofile(struct lister *l, struct coll *coll, struct statusrec *sr)
 	if (rfa != NULL)
 		fattr_free(rfa);
 send:
-	error = proto_printf(wr, "F %s %F\n", pathlast(sr->sr_file), sendattr,
+	error = proto_printf(wr, "F %s %A\n", pathlast(sr->sr_file), sendattr,
 	    config->fasupport, coll->co_attrignore);
 	if (error)
 		return (LISTER_ERR_WRITE);
@@ -428,7 +428,7 @@ lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 			 * sent the correct version.
 			 */
 			fattr_free(fa);
-			error = proto_printf(wr, "F %s %F\n",
+			error = proto_printf(wr, "F %s %A\n",
 			    pathlast(sr->sr_file), fattr_bogus,
 			    config->fasupport, coll->co_attrignore);
 			if (error)
@@ -443,7 +443,7 @@ lister_dodead(struct lister *l, struct coll *coll, struct statusrec *sr)
 		sendattr = fattr_bogus;
 	else
 		sendattr = sr->sr_serverattr;
-	error = proto_printf(wr, "f %s %F\n", pathlast(sr->sr_file), sendattr,
+	error = proto_printf(wr, "f %s %A\n", pathlast(sr->sr_file), sendattr,
 	    config->fasupport, coll->co_attrignore);
 	if (error)
 		return (LISTER_ERR_WRITE);
@@ -517,7 +517,7 @@ lister_dorcs(struct lister *l, struct coll *coll, struct statusrec *sr,
 		 */
 		sendattr = fattr_bogus;
 	}
-	error = proto_printf(wr, "%c %s %F\n", sendcmd, pathlast(sr->sr_file),
+	error = proto_printf(wr, "%c %s %A\n", sendcmd, pathlast(sr->sr_file),
 	    sendattr, config->fasupport, coll->co_attrignore);
 	if (fa != NULL && fa != sr->sr_clientattr)
 		fattr_free(fa);
