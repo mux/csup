@@ -87,7 +87,9 @@ struct globtree {
 	/* These two fields are used in globtree_test() where we need to use a
 	   stack to avoid recursion when evaluating the tree. Having those two
 	   fields directly in the globtree structure allows us to do this
-	   without having to allocate any extra memory. */
+	   without having to allocate any extra memory. However, this only
+	   works because there are no calls to globtree_test() on the same
+	   globtree from two different threads; otherwise we'd need locking. */
 	walkstate_t state;
 	SLIST_ENTRY(globtree) stack_next;
 };
