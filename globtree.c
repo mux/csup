@@ -33,6 +33,7 @@
 #include "fnmatch.h"
 #include "globtree.h"
 #include "misc.h"
+#include "queue.h"
 
 /*
  * The "GlobTree" interface allows one to construct arbitrarily complex
@@ -64,6 +65,11 @@
 #define	GLOBTREE_TRUE		5
 #define	GLOBTREE_FALSE		6
 
+typedef enum {
+	STATE_DOINGLEFT,
+	STATE_DOINGRIGHT
+} walkstate_t;
+
 /* A node. */
 struct globtree {
 	int type;
@@ -77,6 +83,13 @@ struct globtree {
 	/* The "flags" field contains the flags to pass to fnmatch() for
 	   GLOBTREE_MATCH nodes. */
 	int flags;
+
+	/* These two fields are used in globtree_test() where we need to use a
+	   stack to avoid recursion when evaluating the tree. Having those two
+	   fields directly in the globtree structure allows us to do this
+	   without having to allocate any extra memory. */
+	walkstate_t state;
+	SLIST_ENTRY(globtree) stack_next;
 };
 
 static struct globtree	*globtree_new(int);
@@ -93,6 +106,7 @@ globtree_new(int type)
 	gt->flags = 0;
 	gt->left = NULL;
 	gt->right = NULL;
+	gt->state = -1;
 	return (gt);
 }
 
@@ -239,98 +253,30 @@ globtree_eval(struct globtree *gt, const char *path)
 	return (-1);
 }
 
-/* Small stack API to walk the tree iteratively. */
-typedef enum {
-	STATE_DOINGLEFT,
-	STATE_DOINGRIGHT
-} walkstate_t;
-
-struct stack {
-	struct stackelem *stack;
-	size_t size;
-	size_t in;
-};
-
-struct stackelem {
-	struct globtree *node;
-	walkstate_t state;
-};
-
-static void
-stack_init(struct stack *stack)
-{
-
-	stack->in = 0;
-	stack->size = 8;	/* Initial size. */
-	stack->stack = xmalloc(sizeof(struct stackelem) * stack->size);
-}
-
-static size_t
-stack_size(struct stack *stack)
-{
-
-	return (stack->in);
-}
-
-static void
-stack_push(struct stack *stack, struct globtree *node, walkstate_t state)
-{
-	struct stackelem *e;
-
-	if (stack->in == stack->size) {
-		stack->size *= 2;
-		stack->stack = xrealloc(stack->stack,
-		    sizeof(struct stackelem) * stack->size);
-	}
-	e = stack->stack + stack->in++;
-	e->node = node;
-	e->state = state;
-}
-
-static void
-stack_pop(struct stack *stack, struct globtree **node, walkstate_t *state)
-{
-	struct stackelem *e;
-
-	assert(stack->in > 0);
-	e = stack->stack + --stack->in;
-	*node = e->node;
-	*state = e->state;
-}
-
-static void
-stack_free(struct stack *s)
-{
-
-	free(s->stack);
-}
-
 /* Tests if the supplied filename matches. */
 int
 globtree_test(struct globtree *gt, const char *path)
 {
-	struct stack stack;
-	walkstate_t state;
+	SLIST_HEAD(, globtree) stack;
 	int val;
 
-	stack_init(&stack);
+	SLIST_INIT(&stack);
 	for (;;) {
 doleft:
 		/* Descend to the left until we hit bottom. */
 		while (gt->left != NULL) {
-			stack_push(&stack, gt, STATE_DOINGLEFT);
+			gt->state = STATE_DOINGLEFT;
+			SLIST_INSERT_HEAD(&stack, gt, stack_next);
 			gt = gt->left;
 		}
 
 		/* Now we're at a leaf node.  Evaluate it. */
 		val = globtree_eval(gt, path);
 		/* Ascend, propagating the value through operator nodes. */
-		for (;;) {
-			if (stack_size(&stack) == 0) {
-				stack_free(&stack);
-				return (val);
-			}
-			stack_pop(&stack, &gt, &state);
+		while (!SLIST_EMPTY(&stack)) {
+			gt = SLIST_FIRST(&stack);
+			SLIST_REMOVE_HEAD(&stack, stack_next);
+
 			switch (gt->type) {
 			case GLOBTREE_NOT:
 				val = !val;
@@ -340,9 +286,10 @@ doleft:
 				   and the partial result is true, descend to
 				   the right.  Otherwise the result is already
 				   determined to be val. */
-				if (state == STATE_DOINGLEFT && val) {
-					stack_push(&stack, gt,
-					    STATE_DOINGRIGHT);
+				if (gt->state == STATE_DOINGLEFT && val) {
+					gt->state = STATE_DOINGRIGHT;
+					SLIST_INSERT_HEAD(&stack, gt,
+					    stack_next);
 					gt = gt->right;
 					goto doleft;
 				}
@@ -352,9 +299,10 @@ doleft:
 				   and the partial result is false, descend to
 				   the right.  Otherwise the result is already
 				   determined to be val. */
-				if (state == STATE_DOINGLEFT && !val) {
-					stack_push(&stack, gt,
-					    STATE_DOINGRIGHT);
+				if (gt->state == STATE_DOINGLEFT && !val) {
+					gt->state = STATE_DOINGRIGHT;
+					SLIST_INSERT_HEAD(&stack, gt,
+					    stack_next);
 					gt = gt->right;
 					goto doleft;
 				}
@@ -365,6 +313,7 @@ doleft:
 				return (-1);
 			}
 		}
+		return (val);
 	}
 }
 
