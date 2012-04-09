@@ -90,7 +90,6 @@ struct {								\
 #define	SLIST_NEXT(elm, field)	((elm)->field.sle_next)
 
 #define	SLIST_REMOVE(head, elm, type, field) do {			\
-	QMD_SAVELINK(oldnext, (elm)->field.sle_next);			\
 	if (SLIST_FIRST((head)) == (elm)) {				\
 		SLIST_REMOVE_HEAD((head), field);			\
 	}								\
@@ -100,7 +99,6 @@ struct {								\
 			curelm = SLIST_NEXT(curelm, field);		\
 		SLIST_REMOVE_AFTER(curelm, field);			\
 	}								\
-	TRASHIT(*oldnext);						\
 } while (0)
 
 #define SLIST_REMOVE_AFTER(elm, field) do {				\
