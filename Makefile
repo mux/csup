@@ -23,7 +23,7 @@ WARNS=	-Wall -W -Wstrict-prototypes -Wmissing-prototypes -Wpointer-arith \
 	-Wnested-externs -Wredundant-decls -Wno-format-y2k
 
 ifdef DEBUG
-CFLAGS+= -g -O0
+CFLAGS+= -g -O0 -DDEBUG
 else
 CFLAGS+= -DNDEBUG -O
 endif
