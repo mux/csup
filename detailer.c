@@ -354,19 +354,21 @@ detailer_send_regular(struct detailer *d, struct coll *coll, char *name)
 	path = cvspath(coll->co_prefix, name, 0);
 
 	error = MD5_File(path, md5, &size);
-	if (error && errno == ENOENT) {
+	if (error && errno != ENOENT) {
+		xasprintf(&d->errmsg, "Read failure from \"%s\": %s\n", path,
+		    strerror(errno));
+		free(path);
+		return (DETAILER_ERR_MSG);
+	}
+	free(path);
+	if (error) {
+		assert(errno == ENOENT);
 		/* The file doesn't exist on the client. */
 		error = proto_printf(wr, "A %s\n", name);
 		if (error)
-			error = DETAILER_ERR_WRITE;
-	} else if (error) {
-		xasprintf(&d->errmsg, "Read failure from \"%s\": %s\n", path,
-		    strerror(errno));
-		error = DETAILER_ERR_MSG;
+			return (DETAILER_ERR_WRITE);
+		return (0);
 	}
-	free(path);
-	if (error)
-		return (error);
 	error = proto_printf(wr, "R %s %O %s\n", name, size, md5);
 	if (error)
 		return (DETAILER_ERR_WRITE);
