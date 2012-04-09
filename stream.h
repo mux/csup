@@ -76,6 +76,9 @@ int		 stream_eof(struct stream *);
 int		 stream_close(struct stream *);
 int		 stream_filter_start(struct stream *, stream_filter_t, void *);
 void		 stream_filter_stop(struct stream *);
+#ifdef DEBUG
+int		 stream_log(struct stream *, const char *);
+#endif
 
 struct buf	*buf_new(size_t);
 void		 buf_free(struct buf *);

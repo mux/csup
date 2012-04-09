@@ -77,6 +77,12 @@ lister(void *arg)
 	l->config = args->config;
 	l->wr = args->wr;
 	l->errmsg = NULL;
+
+#ifdef LISTER_DEBUG
+	error = stream_log(l->wr, "lister.log");
+	assert(!error);
+#endif
+
 	error = lister_batch(l);
 	switch (error) {
 	case LISTER_ERR_WRITE:

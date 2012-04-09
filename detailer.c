@@ -86,6 +86,13 @@ detailer(void *arg)
 	d->wr = args->wr;
 	d->errmsg = NULL;
 
+#ifdef DETAILER_DEBUG
+	error = stream_log(d->rd, "detailer-in.log");
+	assert(!error);
+	error = stream_log(d->wr, "detailer-out.log");
+	assert(!error);
+#endif
+
 	error = detailer_batch(d);
 	switch (error) {
 	case DETAILER_ERR_PROTO:

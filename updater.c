@@ -230,6 +230,11 @@ updater(void *arg)
 	up->errmsg = NULL;
 	up->deletecount = 0;
 
+#ifdef UPDATER_DEBUG
+	error = stream_log(up->rd, "updater.log");
+	assert(!error);
+#endif
+
 	error = updater_batch(up, 0);
 
 	/*

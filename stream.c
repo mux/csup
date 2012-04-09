@@ -92,6 +92,9 @@ struct stream {
 	int eof;
 	struct stream_filter *filter;
 	void *fdata;
+#ifdef DEBUG
+	struct stream *log;
+#endif
 };
 
 typedef int	stream_filter_initfn_t(struct stream *, void *);
@@ -310,6 +313,9 @@ stream_new(stream_readfn_t *readfn, stream_writefn_t *writefn,
 	stream->filter = stream_filter_lookup(STREAM_FILTER_NULL);
 	stream->fdata = NULL;
 	stream->eof = 0;
+#ifdef DEBUG
+	stream->log = NULL;
+#endif
 	return (stream);
 }
 
@@ -625,6 +631,21 @@ stream_write(struct stream *stream, const void *src, size_t nbytes)
 	return (nbytes);
 }
 
+#ifdef DEBUG
+int
+stream_log(struct stream *stream, const char *path)
+{
+	struct stream *log;
+
+	assert(stream->log == NULL);
+	log = stream_open_file(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (log == NULL)
+		return (-1);
+	stream->log = log;
+	return (0);
+}
+#endif
+
 /* Formatted output to a stream. */
 int
 stream_printf(struct stream *stream, const char *fmt, ...)
@@ -672,6 +693,10 @@ stream_flush_int(struct stream *stream, stream_flush_t how)
 	int error;
 
 	buf = stream->wrbuf;
+#ifdef DEBUG
+	if (stream->log != NULL)
+		stream_write(stream->log, buf->buf + buf->off, buf_count(buf));
+#endif
 	error = (*stream->filter->flushfn)(stream, buf, how);
 	return (error);
 }
@@ -807,6 +832,10 @@ stream_close(struct stream *stream)
 		buf_free(stream->rdbuf);
 	if (stream->wrbuf != NULL)
 		buf_free(stream->wrbuf);
+#ifdef DEBUG
+	if (stream->log != NULL)
+		stream_close(stream->log);
+#endif
 	free(stream);
 	return (error);
 }
@@ -854,6 +883,10 @@ stream_fill(struct stream *stream)
 	oldcount = buf_count(buf);
 #endif
 	n = (*filter->fillfn)(stream, buf);
+#ifdef DEBUG
+	if (stream->log != NULL && n > 0)
+		stream_write(stream->log, buf->buf + buf->off, n);
+#endif
 	assert((n > 0 && n == (signed)(buf_count(buf) - oldcount)) ||
 	    (n <= 0 && buf_count(buf) == oldcount));
 	return (n);
