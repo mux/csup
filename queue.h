@@ -25,6 +25,8 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ * $FreeBSD: src/sys/sys/queue.h,v 1.75 2011/05/13 15:49:23 mdf Exp $
  */
 
 #ifndef _QUEUE_H_
@@ -119,79 +121,77 @@ struct {								\
 /*
  * Singly-linked Tail queue declarations.
  */
-#undef STAILQ_HEAD
 #define	STAILQ_HEAD(name, type)						\
 struct name {								\
 	struct type *stqh_first;/* first element */			\
 	struct type **stqh_last;/* addr of last next element */		\
 }
 
-#undef STAILQ_HEAD_INITIALIZER
 #define	STAILQ_HEAD_INITIALIZER(head)					\
 	{ NULL, &(head).stqh_first }
 
-#undef STAILQ_ENTRY
 #define	STAILQ_ENTRY(type)						\
 struct {								\
 	struct type *stqe_next;	/* next element */			\
 }
 
-#undef STAILQ_EMPTY
+/*
+ * Singly-linked Tail queue functions.
+ */
+#define	STAILQ_CONCAT(head1, head2) do {				\
+	if (!STAILQ_EMPTY((head2))) {					\
+		*(head1)->stqh_last = (head2)->stqh_first;		\
+		(head1)->stqh_last = (head2)->stqh_last;		\
+		STAILQ_INIT((head2));					\
+	}								\
+} while (0)
+
 #define	STAILQ_EMPTY(head)	((head)->stqh_first == NULL)
 
-#undef STAILQ_FIRST
 #define	STAILQ_FIRST(head)	((head)->stqh_first)
 
-#undef STAILQ_FOREACH
 #define	STAILQ_FOREACH(var, head, field)				\
 	for((var) = STAILQ_FIRST((head));				\
 	   (var);							\
 	   (var) = STAILQ_NEXT((var), field))
 
-#undef STAILQ_FOREACH_SAFE
+
 #define	STAILQ_FOREACH_SAFE(var, head, field, tvar)			\
 	for ((var) = STAILQ_FIRST((head));				\
 	    (var) && ((tvar) = STAILQ_NEXT((var), field), 1);		\
 	    (var) = (tvar))
 
-#undef STAILQ_INIT
 #define	STAILQ_INIT(head) do {						\
 	STAILQ_FIRST((head)) = NULL;					\
 	(head)->stqh_last = &STAILQ_FIRST((head));			\
 } while (0)
 
-#undef STAILQ_INSERT_AFTER
 #define	STAILQ_INSERT_AFTER(head, tqelm, elm, field) do {		\
 	if ((STAILQ_NEXT((elm), field) = STAILQ_NEXT((tqelm), field)) == NULL)\
 		(head)->stqh_last = &STAILQ_NEXT((elm), field);		\
 	STAILQ_NEXT((tqelm), field) = (elm);				\
 } while (0)
 
-#undef STAILQ_INSERT_HEAD
 #define	STAILQ_INSERT_HEAD(head, elm, field) do {			\
 	if ((STAILQ_NEXT((elm), field) = STAILQ_FIRST((head))) == NULL)	\
 		(head)->stqh_last = &STAILQ_NEXT((elm), field);		\
 	STAILQ_FIRST((head)) = (elm);					\
 } while (0)
 
-#undef STAILQ_INSERT_TAIL
 #define	STAILQ_INSERT_TAIL(head, elm, field) do {			\
 	STAILQ_NEXT((elm), field) = NULL;				\
 	*(head)->stqh_last = (elm);					\
 	(head)->stqh_last = &STAILQ_NEXT((elm), field);			\
 } while (0)
 
-#undef STAILQ_LAST
 #define	STAILQ_LAST(head, type, field)					\
 	(STAILQ_EMPTY((head)) ?						\
 		NULL :							\
 	        ((struct type *)(void *)				\
 		((char *)((head)->stqh_last) - __offsetof(struct type, field))))
 
-#undef STAILQ_NEXT
 #define	STAILQ_NEXT(elm, field)	((elm)->field.stqe_next)
 
-#undef STAILQ_REMOVE
 #define	STAILQ_REMOVE(head, elm, type, field) do {			\
 	if (STAILQ_FIRST((head)) == (elm)) {				\
 		STAILQ_REMOVE_HEAD((head), field);			\
@@ -200,39 +200,47 @@ struct {								\
 		struct type *curelm = STAILQ_FIRST((head));		\
 		while (STAILQ_NEXT(curelm, field) != (elm))		\
 			curelm = STAILQ_NEXT(curelm, field);		\
-		if ((STAILQ_NEXT(curelm, field) =			\
-		     STAILQ_NEXT(STAILQ_NEXT(curelm, field), field)) == NULL)\
-			(head)->stqh_last = &STAILQ_NEXT((curelm), field);\
+		STAILQ_REMOVE_AFTER(head, curelm, field);		\
 	}								\
 } while (0)
 
-#undef STAILQ_REMOVE_HEAD
+#define STAILQ_REMOVE_AFTER(head, elm, field) do {			\
+	if ((STAILQ_NEXT(elm, field) =					\
+	     STAILQ_NEXT(STAILQ_NEXT(elm, field), field)) == NULL)	\
+		(head)->stqh_last = &STAILQ_NEXT((elm), field);		\
+} while (0)
+
 #define	STAILQ_REMOVE_HEAD(head, field) do {				\
 	if ((STAILQ_FIRST((head)) =					\
 	     STAILQ_NEXT(STAILQ_FIRST((head)), field)) == NULL)		\
 		(head)->stqh_last = &STAILQ_FIRST((head));		\
 } while (0)
 
-#undef STAILQ_REMOVE_HEAD_UNTIL
-#define	STAILQ_REMOVE_HEAD_UNTIL(head, elm, field) do {			\
-	if ((STAILQ_FIRST((head)) = STAILQ_NEXT((elm), field)) == NULL)	\
-		(head)->stqh_last = &STAILQ_FIRST((head));		\
+#define STAILQ_SWAP(head1, head2, type) do {				\
+	struct type *swap_first = STAILQ_FIRST(head1);			\
+	struct type **swap_last = (head1)->stqh_last;			\
+	STAILQ_FIRST(head1) = STAILQ_FIRST(head2);			\
+	(head1)->stqh_last = (head2)->stqh_last;			\
+	STAILQ_FIRST(head2) = swap_first;				\
+	(head2)->stqh_last = swap_last;					\
+	if (STAILQ_EMPTY(head1))					\
+		(head1)->stqh_last = &STAILQ_FIRST(head1);		\
+	if (STAILQ_EMPTY(head2))					\
+		(head2)->stqh_last = &STAILQ_FIRST(head2);		\
 } while (0)
+
 
 /*
  * List declarations.
  */
-#undef LIST_HEAD
 #define	LIST_HEAD(name, type)						\
 struct name {								\
 	struct type *lh_first;	/* first element */			\
 }
 
-#undef LIST_HEAD_INITIALIZER
 #define	LIST_HEAD_INITIALIZER(head)					\
 	{ NULL }
 
-#undef LIST_ENTRY
 #define	LIST_ENTRY(type)						\
 struct {								\
 	struct type *le_next;	/* next element */			\
@@ -243,30 +251,24 @@ struct {								\
  * List functions.
  */
 
-#undef LIST_EMPTY
 #define	LIST_EMPTY(head)	((head)->lh_first == NULL)
 
-#undef LIST_FIRST
 #define	LIST_FIRST(head)	((head)->lh_first)
 
-#undef LIST_FOREACH
 #define	LIST_FOREACH(var, head, field)					\
 	for ((var) = LIST_FIRST((head));				\
 	    (var);							\
 	    (var) = LIST_NEXT((var), field))
 
-#undef LIST_FOREACH_SAFE
 #define	LIST_FOREACH_SAFE(var, head, field, tvar)			\
 	for ((var) = LIST_FIRST((head));				\
 	    (var) && ((tvar) = LIST_NEXT((var), field), 1);		\
 	    (var) = (tvar))
 
-#undef LIST_INIT
 #define	LIST_INIT(head) do {						\
 	LIST_FIRST((head)) = NULL;					\
 } while (0)
 
-#undef LIST_INSERT_AFTER
 #define	LIST_INSERT_AFTER(listelm, elm, field) do {			\
 	if ((LIST_NEXT((elm), field) = LIST_NEXT((listelm), field)) != NULL)\
 		LIST_NEXT((listelm), field)->field.le_prev =		\
@@ -275,7 +277,6 @@ struct {								\
 	(elm)->field.le_prev = &LIST_NEXT((listelm), field);		\
 } while (0)
 
-#undef LIST_INSERT_BEFORE
 #define	LIST_INSERT_BEFORE(listelm, elm, field) do {			\
 	(elm)->field.le_prev = (listelm)->field.le_prev;		\
 	LIST_NEXT((elm), field) = (listelm);				\
@@ -283,7 +284,6 @@ struct {								\
 	(listelm)->field.le_prev = &LIST_NEXT((elm), field);		\
 } while (0)
 
-#undef LIST_INSERT_HEAD
 #define	LIST_INSERT_HEAD(head, elm, field) do {				\
 	if ((LIST_NEXT((elm), field) = LIST_FIRST((head))) != NULL)	\
 		LIST_FIRST((head))->field.le_prev = &LIST_NEXT((elm), field);\
@@ -291,15 +291,23 @@ struct {								\
 	(elm)->field.le_prev = &LIST_FIRST((head));			\
 } while (0)
 
-#undef LIST_NEXT
 #define	LIST_NEXT(elm, field)	((elm)->field.le_next)
 
-#undef LIST_REMOVE
 #define	LIST_REMOVE(elm, field) do {					\
 	if (LIST_NEXT((elm), field) != NULL)				\
 		LIST_NEXT((elm), field)->field.le_prev = 		\
 		    (elm)->field.le_prev;				\
 	*(elm)->field.le_prev = LIST_NEXT((elm), field);		\
+} while (0)
+
+#define LIST_SWAP(head1, head2, type, field) do {			\
+	struct type *swap_tmp = LIST_FIRST((head1));			\
+	LIST_FIRST((head1)) = LIST_FIRST((head2));			\
+	LIST_FIRST((head2)) = swap_tmp;					\
+	if ((swap_tmp = LIST_FIRST((head1))) != NULL)			\
+		swap_tmp->field.le_prev = &LIST_FIRST((head1));		\
+	if ((swap_tmp = LIST_FIRST((head2))) != NULL)			\
+		swap_tmp->field.le_prev = &LIST_FIRST((head2));		\
 } while (0)
 
 #endif /* !_QUEUE_H_ */
