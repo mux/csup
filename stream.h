@@ -61,7 +61,6 @@ struct stream	*stream_open_buf(struct buf *);
 struct stream	*stream_open_file(const char *, int, ...);
 int		 stream_fileno(struct stream *);
 ssize_t		 stream_read(struct stream *, void *, size_t);
-ssize_t		 stream_read_blocking(struct stream *, void *, size_t);
 ssize_t		 stream_write(struct stream *, const void *, size_t);
 char		*stream_getln(struct stream *, size_t *);
 int		 stream_printf(struct stream *, const char *, ...)

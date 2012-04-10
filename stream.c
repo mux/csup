@@ -529,28 +529,6 @@ stream_read(struct stream *stream, void *buf, size_t size)
 	return (n);
 }
 
-/* A blocking stream_read call. */
-ssize_t
-stream_read_blocking(struct stream *stream, void *buf, size_t size)
-{
-	struct buf *rdbuf;
-	ssize_t ret;
-	size_t n;
-
-	rdbuf = stream->rdbuf;
-	while (buf_count(rdbuf) <= size) {
-		ret = stream_fill(stream);
-		if (ret <= 0)
-			return (-1);
-	}
-	/* XXX: Should be at least size bytes in the buffer, right? */
-	/* Just do this to make sure. */
-	n = min(size, buf_count(rdbuf));
-	memcpy(buf, rdbuf->buf + rdbuf->off, n);
-	buf_less(rdbuf, n);
-	return (n);
-}
-
 /*
  * Read a line from the stream and return a pointer to it.
  *
