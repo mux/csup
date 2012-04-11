@@ -780,11 +780,10 @@ sender_loop(void *arg)
 	struct buf *buf;
 	uint32_t winsize;
 	uint16_t hdrsize, size, len;
-	int error, id, iovcnt, what = 0;
+	int error, id, iovcnt, what;
 
 	what = 0;	/* Appease GCC4 */
 	m = (struct mux *)arg;
-	what = 0;
 again:
 	id = sender_waitforwork(m, &what);
 	chan = chan_get(m, id);
